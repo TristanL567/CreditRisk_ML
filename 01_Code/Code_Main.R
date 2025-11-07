@@ -13,7 +13,7 @@ Path <- file.path(here::here(""))
 
 ## Additional:
 
-Enable_Catboost <- FALSE
+# Enable_Catboost <- FALSE
 
 #==== 1A - Libraries ==========================================================#
 
@@ -44,7 +44,7 @@ for(i in 1:length(packages)){
 #==== 1C - Parameters =========================================================#
 
 ## Directories.
-Data_Path <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/Data/WS2025"
+Data_Path <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/Data/WS2025" ## Needs to be set manually.
 Data_Directory <- file.path(Data_Path, "data.rda")
 Charts_Directory <- file.path(Path, "03_Charts")
 
