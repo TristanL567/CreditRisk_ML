@@ -98,12 +98,130 @@ Promotes Model Generalization: By training the model on a set that accurately re
 
 In summary, using stratified sampling on the y variable is a critical step to ensure our model is trained and evaluated on a reliable, representative foundation.
 
+%==== Chapter 2: Defining the loss-function ===================================%
 
-%==== Chapter 2: ==============================================================%
+\chapter{Loss-function}
+
+\section{Area under the curve (AuC)}
+
+The **Area Under the Curve (AUC)** is a single, aggregate metric that evaluates the performance of a binary classification model across all possible classification thresholds.
+
+It is the area under the **ROC (Receiver Operating Characteristic) curve** , which plots the model's \textbf{Sensitivity} (True Positive Rate) against its \textbf{Specificity} (True Negative Rate) at every conceivable threshold.
+
+\begin{itemize}
+    \item An \textbf{AUC of 1.0} represents a perfect model that can distinguish between positive and negative classes with 100\% accuracy.
+    \item An \textbf{AUC of 0.5} represents a model with no discriminatory power, equivalent to a random guess (as shown by the diagonal line in the plot).
+    \item A good model will have an AUC well above 0.5.
+\end{itemize}
+
+\textbf{Relevance to Credit Risk:}
+The AUC is extremely valuable because it measures the model's ability to \textit{rank} clients by risk. It answers the question: "If I pick a random defaulting firm and a random non-defaulting firm, what is the probability that my model gives a higher risk score to the defaulting firm?"
+
+A high AUC (e.g., > 0.75) means the model is effective at separating the "bad" clients from the "good" ones. This is crucial before deciding on a specific \textit{business-level threshold} (like "what probability score triggers a loan rejection?"). It tells us the model itself is fundamentally sound.
+
+% \begin{figure}[htbp]
+%   \centering
+%   \framebox{\parbox{0.8\textwidth}{\centering
+%     \vspace{5cm}
+%     \textbf{Your ROC Curve Plot} \\
+%     \small\textit{This plot shows the trade-off between
+%     Sensitivity and Specificity.}
+%     \vspace{5cm}
+%   }}
+%   \caption{ROC Curve for the glmnet (Lasso) model.}
+%   \label{fig:roc_curve}
+% \end{figure}
+
+\section{Recall}
+
+\textbf{Recall}, also known as \textbf{Sensitivity} or the \textbf{True Positive Rate (TPR)}, is a metric that measures a model's ability to identify all relevant instances of a class.
+
+It is calculated using the following formula, based on the outputs of a \textbf{confusion matrix} at a specific threshold:
+
+\[
+\text{Recall} = \frac{\text{True Positives (TP)}}{\text{True Positives (TP)} + \text{False Negatives (FN)}}
+\]
+
+\begin{itemize}
+    \item \textbf{True Positives (TP):} The number of firms that \textit{actually defaulted} and were \textit{correctly flagged} as defaults by the model.
+    \item \textbf{False Negatives (FN):} The number of firms that \textit{actually defaulted} but were \textit{incorrectly flagged} as non-defaults. This is the most costly error in credit risk.
+\end{itemize}
+
+\textbf{Relevance to Credit Risk:}
+Recall answers the single most important question for a risk-averse institution: \textbf{"Of all the firms that actually defaulted, what percentage did we successfully catch?"}
+
+In credit risk, the cost of a \textbf{False Negative} (missing a default) is extremely high, as it results in a direct financial loss. The cost of a \textbf{False Positive} (flagging a healthy firm as risky) is much lower---it might lead to a manual review or a rejected loan application (an opportunity cost).
+
+Therefore, banks often prioritize high Recall. They are willing to accept a higher number of false alarms to ensure they minimize the number of defaults that slip through undetected. Setting a threshold to achieve a specific Recall (e.g., 95\%) is a common, risk-averse strategy.
+
+\section{Sensitivity}
+
+
+
+\section{Specificity}
+
+%==== Chapter 3: Generalized linear models (GLMs) =============================%
 
 \chapter{Generalized linear models (GLM)}
 
 \section{Overview}
+
+%==== Chapter 4: Regularized GLMS =============================================%
+
+
+\chapter{Regularized GLMs}
+
+\section{Description of the algorithm}
+
+The regularized estimator is obtained by solving the following optimization problem:
+
+\[
+\hat{\beta}^{pen} = \arg \min_{\beta} \left\{-\frac{1}{N}l(\beta, \phi | \mathbf{y}, \mathbf{X}) + \lambda P(\beta)\right\}
+\]
+
+This objective function consists of two parts. In our logistic regression model, we predict the probability of default for each firm. We assume that the outcome (Y) is a Bernoulli random variable (a special case of the Binomial distribution). Then we model the probability of this specific firm defaulting given their features. This is reflected in the loss function:
+
+\begin{enumerate}
+    \item \textbf{The Loss Function: $\mathbf{-\frac{1}{N}l(\beta, \phi | \mathbf{y}, \mathbf{X})}$}
+    
+    This term measures how well the model fits the data.
+    \begin{itemize}
+        \item $l(\beta, \phi | \mathbf{y}, \mathbf{X})$ is the **log-likelihood function**. Since we assume a Bernoulli/Binomial outcome, this is the log-likelihood of the binomial distribution.
+        \item We want to find parameters ($\beta$) that \textit{maximize} the likelihood of observing our data.
+        \item Maximizing the log-likelihood is equivalent to \textit{minimizing} the **negative log-likelihood** (which is why the negative sign is there).
+        \item The $\frac{1}{N}$ term scales it by the number of observations $N$ to get the **average negative log-likelihood**. This is also known as the \textbf{log-loss} or \textbf{cross-entropy loss}.
+    \end{itemize}
+
+    \item \textbf{The Penalty Term: $\mathbf{\lambda P(\beta)}$}
+    
+    This term, where $ \lambda \ge 0 $, penalizes the size of the coefficients to prevent overfitting. The \texttt{alpha} parameter controls the type of penalty:
+    \begin{itemize}
+        \item \texttt{alpha = 1} corresponds to the **Lasso** estimator (L1 penalty).
+        \item \texttt{alpha = 0} corresponds to the **Ridge** estimator (L2 penalty).
+    \end{itemize}
+\end{enumerate}
+
+The optimal regularization parameter, $ \lambda $, is found by $k$-fold cross-validation. For example, for $k=10$, the algorithm splits the training data into 10 equal-sized folds. It then iterates 10 times:
+
+\begin{itemize}
+    \item In each iteration, it trains the model on 9 folds and evaluates it on the 1 held-out fold (e.g., train on folds 2-10, test on fold 1).
+    \item This entire process is repeated for a sequence of different $ \lambda $ values.
+\end{itemize}
+
+Finally, the algorithm calculates the average error (e.g., AUC or deviance) across all 10 folds for each $ \lambda $ value. The $ \lambda $ that produces the lowest average error is chosen as the optimal value.
+
+In the \texttt{glmnet} package, this is implemented by:
+
+\begin{verbatim}
+cv_model_logit <- cv.glmnet(x_train, 
+                            y_train, 
+                            family = "binomial", 
+                            alpha = 1)
+\end{verbatim}
+
+The optimal $ \lambda $ value is stored in \verb|cv_model_logit$lambda.min|, which is then used by the \texttt{predict()} function.
+
+\subsection{Description of the algorithm}
 
 
 %==== Anhang ==================================================================%
