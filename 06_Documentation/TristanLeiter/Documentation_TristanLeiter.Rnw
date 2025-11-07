@@ -1,0 +1,97 @@
+%==== KNITR ===================================================================%
+
+<<echo=FALSE>>=
+
+library(knitr)
+
+setwd("C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/06_Documentation/TristanLeiter")
+# knit2pdf("Documentation_TristanLeiter.Rnw")
+
+@
+
+%==== START ===================================================================%
+
+\documentclass{report}
+
+\usepackage[left=2cm, right=2cm, top=1cm, bottom=2cm]{geometry}
+
+% Font.
+
+
+% Main packages.
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs} 
+\usepackage{rotating} 
+\usepackage{lmodern}
+
+% Required for Table.
+
+
+%%
+
+\title{OeNB Industry Lab - Documentation}
+\author{Tristan Leiter}
+\date{\today}
+
+%==== DOCUMENT START ==========================================================%
+
+\begin{document}
+
+\maketitle
+
+%==== ABSTRACT ================================================================%
+
+% \begin{abstract}
+% This report demonstrates the integration of R code and its output within a LaTeX document using Sweave. It covers the basic structure of a report, including a summary, chapters with subchapters, and a bibliography.
+% \end{abstract}
+
+%==== Table of content ========================================================%
+
+\tableofcontents
+\newpage
+
+%==== Introduction ============================================================%
+
+\chapter{Einleitung}
+
+\section{Einleitung}
+
+
+
+
+%==== Chapter 1: General ======================================================%
+
+\chapter{Exploratory Data Analysis}
+
+\section{Overview}
+
+\subsection{Description of the dataset}
+
+Durch die Ausführung der "getAMToken()" Funktion wird ein PopUp Fenster aufgerufen,
+in welchem die AssetMax-Zugangsdaten als auch der Single-Sign On Token eingegeben werden müssen.
+Zuerst ist jedoch darauf zu achten, dass die VPN-Verbindung aufrecht ist. Die "getAMToken()"
+% Funktion kann via \verb|O:/07_Software/01_R/18_AssetMaxAPI/functions/loadfunctions.R| geladen werden.
+
+\subsection{Description of the dataset}
+
+
+%==== Chapter 2: ==============================================================%
+
+\chapter{Generalized linear models (GLM)}
+
+\section{Overview}
+
+
+%==== Anhang ==================================================================%
+
+\appendix 
+
+\chapter{Anhang}
+
+%==== END =====================================================================%
+
+\end{document}
