@@ -223,6 +223,12 @@ The optimal $ \lambda $ value is stored in \verb|cv_model_logit$lambda.min|, whi
 
 \subsection{Description of the algorithm}
 
+%==== Chapter 5: Issues to fix ================================================%
+
+\chapter{Issues to fix}
+
+\section{Low occurance of defaults}
+
 
 %==== Anhang ==================================================================%
 
