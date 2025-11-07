@@ -20,7 +20,9 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 ## Needs to enable checking for install & if not then autoinstall.
 
 packages <- c("here", "corrplot", "dplyr", "tidyr",
-              "reshape2", "ggplot2")
+              "reshape2", "ggplot2",
+              "rsample", "DataExplorer"  ## Necessary for stratified sampling.
+              )
 
 for(i in 1:length(packages)){
   package_name <- packages[i]
@@ -81,6 +83,8 @@ Features <- Data[, -which(names(Data) %in% Exclude)]
 
 #==== 02b - Exploratory Data Analysis =========================================#
 
+glimpse(Data)
+
 ## ======================= ##
 ## First let us check if we have any missing data.
 ## ======================= ##
@@ -96,9 +100,9 @@ summary(Data)
 ## ======================= ##
 table(Data$y) ## 0.865% of all loans are defaulting.
 
-#=======================#
+## ======================= ##
 ## Check for data variability and skewed data.
-#=======================#
+## ======================= ##
 hist(Data$f8)
 
 ## Check the variation of each feature.
@@ -107,9 +111,9 @@ Skewness <- apply(as.matrix(Features), MARGIN = 2, FUN = skew)
 
 ## We should standardize as the variance differs considerably between our features.
 
-#=======================#
+## ======================= ##
 ## Standardize the features.
-#=======================#
+## ======================= ##
 # scaled_predictors <- data.frame(scale(Features))
 # Data_std <- cbind(scaled_predictors, data$quality)
 # colnames(Data_std) <- colnames(Data)
@@ -148,13 +152,31 @@ ggsave(
 )
 
 #==== 02d - Splitting the dataset =============================================#
-## 50/25/25 rule - train, validation, test
+## Employing stratified sampling since we have a very imbalanced dataset (low occurance of defaults).
+## We ensure that the original percentage of the dependent variable is preserved in each split.
+
+## ======================= ##
+## Stratified Sampling.
+## ======================= ##
+
 set.seed(123)
 
+First_Split <- initial_split(Data, prop = 0.50, strata = y) ## Split into train and validation/test bucket.
+Train <- training(First_Split)
+Temp <- testing(First_Split)
 
+Second_Split <- initial_split(Temp, prop = 0.50, strata = y) ## Now, split the second bucket in validation and testing.
+Validation <- training(Second_Split)
+Test <- testing(Second_Split)
 
+## ======================= ##
+## Check the propensity tables..
+## ======================= ##
+prop.table(table(Data$y))
 
-
+prop.table(table(Train$y))
+prop.table(table(Validation$y))
+prop.table(table(Test$y))
 
 #==============================================================================#
 #==== 03 - Generalized Linear Models ==========================================#

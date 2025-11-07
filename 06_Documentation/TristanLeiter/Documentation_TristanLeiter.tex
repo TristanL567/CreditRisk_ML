@@ -4,57 +4,7 @@
 
 %==== START ===================================================================%
 
-\documentclass{report}\usepackage[]{graphicx}\usepackage[]{graphicx}\usepackage[]{xcolor}
-% maxwidth is the original width if it is less than linewidth
-% otherwise use linewidth (to make sure the graphics do not exceed the margin)
-\makeatletter
-\def\maxwidth{ %
-  \ifdim\Gin@nat@width>\linewidth
-    \linewidth
-  \else
-    \Gin@nat@width
-  \fi
-}
-\makeatother
-
-\definecolor{fgcolor}{rgb}{0.345, 0.345, 0.345}
-\newcommand{\hlnum}[1]{\textcolor[rgb]{0.686,0.059,0.569}{#1}}%
-\newcommand{\hlstr}[1]{\textcolor[rgb]{0.192,0.494,0.8}{#1}}%
-\newcommand{\hlcom}[1]{\textcolor[rgb]{0.678,0.584,0.686}{\textit{#1}}}%
-\newcommand{\hlopt}[1]{\textcolor[rgb]{0,0,0}{#1}}%
-\newcommand{\hlstd}[1]{\textcolor[rgb]{0.345,0.345,0.345}{#1}}%
-\newcommand{\hlkwa}[1]{\textcolor[rgb]{0.161,0.373,0.58}{\textbf{#1}}}%
-\newcommand{\hlkwb}[1]{\textcolor[rgb]{0.69,0.353,0.396}{#1}}%
-\newcommand{\hlkwc}[1]{\textcolor[rgb]{0.333,0.667,0.333}{#1}}%
-\newcommand{\hlkwd}[1]{\textcolor[rgb]{0.737,0.353,0.396}{\textbf{#1}}}%
-\let\hlipl\hlkwb
-
-\usepackage{framed}
-\makeatletter
-\newenvironment{kframe}{%
- \def\at@end@of@kframe{}%
- \ifinner\ifhmode%
-  \def\at@end@of@kframe{\end{minipage}}%
-  \begin{minipage}{\columnwidth}%
- \fi\fi%
- \def\FrameCommand##1{\hskip\@totalleftmargin \hskip-\fboxsep
- \colorbox{shadecolor}{##1}\hskip-\fboxsep
-     % There is no \\@totalrightmargin, so:
-     \hskip-\linewidth \hskip-\@totalleftmargin \hskip\columnwidth}%
- \MakeFramed {\advance\hsize-\width
-   \@totalleftmargin\z@ \linewidth\hsize
-   \@setminipage}}%
- {\par\unskip\endMakeFramed%
- \at@end@of@kframe}
-\makeatother
-
-\definecolor{shadecolor}{rgb}{.97, .97, .97}
-\definecolor{messagecolor}{rgb}{0, 0, 0}
-\definecolor{warningcolor}{rgb}{1, 0, 1}
-\definecolor{errorcolor}{rgb}{1, 0, 0}
-\newenvironment{knitrout}{}{} % an empty environment to be redefined in TeX
-
-\usepackage{alltt}\usepackage[]{graphicx}\usepackage[]{xcolor}
+\documentclass{report}\usepackage[]{graphicx}\usepackage[]{xcolor}
 % maxwidth is the original width if it is less than linewidth
 % otherwise use linewidth (to make sure the graphics do not exceed the margin)
 \makeatletter
@@ -133,7 +83,6 @@
 %==== DOCUMENT START ==========================================================%
 
 \IfFileExists{upquote.sty}{\usepackage{upquote}}{}
-\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
 \begin{document}
 
 \maketitle
@@ -167,6 +116,28 @@
 \subsection{Description of the dataset}
 
 \subsection{Description of the dataset}
+
+\section{Data Splitting with Imbalanced Data}
+
+\subsection{Class Imbalance}
+
+In this credit risk dataset, the target variable, y, is inherently imbalanced. The number of non-defaults (0) significantly outnumbers the number of defaults (1). This is a common and expected characteristic of credit risk data.
+
+This imbalance poses a significant challenge for model development. If we were to use a simple random split to create our training, validation, and test sets, we would face a high risk of creating unrepresentative samples. For example, a small test set could, purely by chance, end up with a much higher or lower percentage of defaults than the original dataset—or, in the worst case, zero defaults.
+
+\subsection{The Solution: Stratified Sampling}
+
+To prevent this, we employ stratified sampling. This is a technique that ensures the original class distribution of the target variable is preserved in each of the new data splits.
+
+Here is the reasoning for its use:
+
+Guarantees Representation: Stratification forces the splits to maintain the original ratio of defaults to non-defaults. If 0.0865\% of the original dataset are defaults, the training set, validation set, and test set will all contain approximately 0.0865\% defaults.
+
+Enables Reliable Evaluation: When the test set is representative, the performance metrics we calculate (like accuracy, precision, recall, and F1-score) are meaningful. Evaluating a model on a test set with a skewed default rate would give us a misleading and over-optimistic (or pessimistic) score.
+
+Promotes Model Generalization: By training the model on a set that accurately reflects the real-world data distribution, we help it learn the patterns of both the majority (non-default) and minority (default) classes, leading to a more robust and generalizable model.
+
+In summary, using stratified sampling on the y variable is a critical step to ensure our model is trained and evaluated on a reliable, representative foundation.
 
 
 %==== Chapter 2: ==============================================================%
