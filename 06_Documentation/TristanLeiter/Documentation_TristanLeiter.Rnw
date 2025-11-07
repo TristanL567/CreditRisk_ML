@@ -1,11 +1,14 @@
 %==== KNITR ===================================================================%
 
-<<echo=FALSE>>=
-
+<<echo=FALSE, eval = !knitr::is_latex_output()>>=
 library(knitr)
 
-setwd("C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/06_Documentation/TristanLeiter")
-# knit2pdf("Documentation_TristanLeiter.Rnw")
+Path <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/06_Documentation/TristanLeiter"
+Directory <- file.path(Path, "Documentation_TristanLeiter.Rnw")
+Directory_Tex <- file.path(Path, "Documentation_TristanLeiter.tex")
+setwd(Path)
+
+# knit2pdf(Directory)
 
 @
 
@@ -71,11 +74,6 @@ setwd("C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/06_Documentati
 
 \subsection{Description of the dataset}
 
-Durch die Ausführung der "getAMToken()" Funktion wird ein PopUp Fenster aufgerufen,
-in welchem die AssetMax-Zugangsdaten als auch der Single-Sign On Token eingegeben werden müssen.
-Zuerst ist jedoch darauf zu achten, dass die VPN-Verbindung aufrecht ist. Die "getAMToken()"
-% Funktion kann via \verb|O:/07_Software/01_R/18_AssetMaxAPI/functions/loadfunctions.R| geladen werden.
-
 \subsection{Description of the dataset}
 
 
@@ -90,7 +88,7 @@ Zuerst ist jedoch darauf zu achten, dass die VPN-Verbindung aufrecht ist. Die "g
 
 \appendix 
 
-\chapter{Anhang}
+\chapter{Overview}
 
 %==== END =====================================================================%
 

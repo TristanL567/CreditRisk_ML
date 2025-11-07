@@ -9,7 +9,7 @@
 silent=F
 .libPaths()
 
-Path <- file.path(here::here(""))
+Path <- file.path(here::here("")) ## You need to install the package first incase you do not have it.
 
 ## Additional:
 
@@ -65,6 +65,8 @@ Data <- load(Data_Directory)
 Data <- d
 
 #==== 02b - Exploratory Data Analysis =========================================#
+
+##
 
 
 
