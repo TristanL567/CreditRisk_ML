@@ -21,7 +21,9 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 
 packages <- c("here", "corrplot", "dplyr", "tidyr",
               "reshape2", "ggplot2",
-              "rsample", "DataExplorer"  ## Necessary for stratified sampling.
+              "rsample", "DataExplorer",  ## Necessary for stratified sampling.
+              "pROC",                     ## Area under the Curve (AuC) measure.
+              "caret"                     ## GLM.
               )
 
 for(i in 1:length(packages)){
@@ -81,6 +83,9 @@ Data <- d
 Exclude <- c("id", "refdate", "size","sector", "y")
 Features <- Data[, -which(names(Data) %in% Exclude)]
 
+Exclude <- c("id", "refdate") ## Drop the id and ref_date (year) for now.
+Data <- Data[, -which(names(Data) %in% Exclude)]
+
 #==== 02b - Exploratory Data Analysis =========================================#
 
 glimpse(Data)
@@ -89,6 +94,13 @@ glimpse(Data)
 ## First let us check if we have any missing data.
 ## ======================= ##
 colSums(is.na(Data)) ## We fine some NAs, mostly in the financial ratio's.
+sapply(Data, function(x) sum(is.infinite(x)))
+sapply(Data, function(x) sum(is.nan(x)))
+
+Data <- Data %>%
+  mutate(across(where(is.numeric), ~ifelse(!is.finite(.), NA, .)))
+
+## Apply it in the Train, Validation and Test sets seperately (see below).
 
 ## ======================= ##
 ## Check the scale of the features.
@@ -117,6 +129,20 @@ Skewness <- apply(as.matrix(Features), MARGIN = 2, FUN = skew)
 # scaled_predictors <- data.frame(scale(Features))
 # Data_std <- cbind(scaled_predictors, data$quality)
 # colnames(Data_std) <- colnames(Data)
+
+## ======================= ##
+## Classify categorical data as factors.
+## ======================= ##
+
+## Ordinal scale.
+unique(Data$size)
+Data$size <- factor(Data$size, 
+                    levels = c("Tiny", "Small"),
+                    ordered = TRUE)
+
+## Nominal scale.
+unique(Data$sector)
+Data$sector <- factor(Data$sector)
 
 #==== 02c - Multicollinearity =================================================#
 
@@ -170,7 +196,7 @@ Validation <- training(Second_Split)
 Test <- testing(Second_Split)
 
 ## ======================= ##
-## Check the propensity tables..
+## Check the propensity tables.
 ## ======================= ##
 prop.table(table(Data$y))
 
@@ -178,10 +204,117 @@ prop.table(table(Train$y))
 prop.table(table(Validation$y))
 prop.table(table(Test$y))
 
+#==== 02e - Impude the NA values ==============================================#
+## To prevent data leakage, we need to process the different sets seperately.
+## The idea is that the validation and test sets represent new, unseen data
+## and should thus not be influenced by the training set.
+
+## ======================= ##
+## Parameters.
+## ======================= ##
+cols_to_impute <- c("r5", "r12", "r15", "r16", "r17", "r18")
+
+## ======================= ##
+## Training data.
+## ======================= ##
+median_values <- Train %>%
+  summarise(across(all_of(cols_to_impute), ~median(., na.rm = TRUE))) %>%
+  as.list()
+
+Train <- Train %>%
+  mutate(
+    across(all_of(cols_to_impute), 
+           ~ifelse(is.na(.), 1, 0), 
+           .names = "{.col}_is_missing"),
+        across(all_of(cols_to_impute), 
+           ~coalesce(., median_values[[cur_column()]]))
+)
+
+##
+colSums(is.na(Train)) ## We fine some NAs, mostly in the financial ratio's.
+sapply(Train, function(x) sum(is.infinite(x)))
+sapply(Train, function(x) sum(is.nan(x)))
+
+## ======================= ##
+## Validation data.
+## ======================= ##
+median_values <- Validation %>%
+  summarise(across(all_of(cols_to_impute), ~median(., na.rm = TRUE))) %>%
+  as.list()
+
+# Validation <- Validation %>%
+#   mutate(across(all_of(cols_to_impute), 
+#                 ~coalesce(., median_values[[cur_column()]])))
+
+## ======================= ##
+## Test data.
+## ======================= ##
+Test <- Test %>%
+  mutate(across(all_of(cols_to_impute), 
+                ~coalesce(., median_values[[cur_column()]])))
+
 #==============================================================================#
-#==== 03 - Generalized Linear Models ==========================================#
+#==== 03 - Setting up the Loss-function =======================================#
 #==============================================================================#
 
+
+
+
+#==============================================================================#
+#==== 04 - Generalized Linear Models ==========================================#
+#==============================================================================#
+
+#==== 04a - Binary regression model (log) =====================================#
+
+## ======================= ##
+## Parameters.
+## ======================= ##
+Train$y <- as.numeric(Train$y)
+
+## ======================= ##
+## Model training.
+## ======================= ##
+model_logit <- glm(y ~ ., 
+                   data = Train, 
+                   family = binomial(link = "logit"))
+summary(model_logit)
+
+## ======================= ##
+## Optimize for AuC.
+## ======================= ##
+pred_prob_val <- predict(model_logit, newdata = Validation, type = "response")
+roc_obj <- roc(Validation$y, pred_prob_val)
+
+auc_val <- auc(roc_obj)
+print(paste("Validation AUC:", round(auc_val, 4)))
+
+plot(roc_obj, main = "ROC Curve - Logistic Regression")
+
+## ======================= ##
+## Recall (threshhold for 95% recall).
+## ======================= ##
+best_threshold_coords <- coords(roc_obj, 
+                                x = 0.95,
+                                input = "sensitivity", 
+                                ret = "threshold")
+
+best_threshold <- best_threshold_coords$threshold
+
+print(paste("Threshold for 95% Recall:", round(best_threshold, 4)))
+
+## ======================= ##
+## Evaluation on the test set.
+## ======================= ##
+pred_prob_test <- predict(model_logit, newdata = test_data, type = "response")
+pred_class_test <- as.factor(ifelse(pred_prob_test > best_threshold, "1", "0"))
+Test$y <- as.factor(Test$y)
+
+final_report <- confusionMatrix(data = pred_class_test, 
+                                reference = Test$y,
+                                positive = "1")
+
+print("Final Model Report on Test Set:")
+print(final_report)
 
 
 
