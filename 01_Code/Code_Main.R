@@ -24,7 +24,9 @@ packages <- c("here", "corrplot", "dplyr", "tidyr",
               "rsample", "DataExplorer",  ## Necessary for stratified sampling.
               "pROC",                     ## Area under the Curve (AuC) measure.
               "caret",                    ## GLM.
-              "glmnet"                    ## Regularized regression
+              "glmnet",                    ## Regularized regression
+              "skimr",
+              "scorecard"
               )
 
 for(i in 1:length(packages)){
@@ -72,6 +74,10 @@ red <- "#B22222"
 height <- 3750
 width <- 1833
 
+## Data Sampling.
+set.seed(123)
+
+
 #==============================================================================#
 #==== 02 - Data ===============================================================#
 #==============================================================================#
@@ -94,6 +100,7 @@ Data <- Data[, -which(names(Data) %in% Exclude)]
 #==== 02b - Exploratory Data Analysis =========================================#
 
 glimpse(Data)
+skim(Data)
 
 ## ======================= ##
 ## First let us check if we have any missing data.
@@ -116,11 +123,19 @@ summary(Data)
 ## Now check our independent variable: loan default.
 ## ======================= ##
 table(Data$y) ## 0.865% of all loans are defaulting.
-y_prop_table<-prop.table(table(Data$y))
+Data %>%
+  filter(y == 1) %>%
+  summarise(n = n()) %>%
+  mutate(total_rows = nrow(Data),
+         proportion = n / total_rows * 100
+         )
+
+
+
 barplot(y_prop_table,
         main = "Class Imbalance", 
         ylab = "Proportion", 
-        col = "#004890")
+        col = blue)
 ## ======================= ##
 ## Check for data variability and skewed data.
 ## ======================= ##
@@ -128,7 +143,7 @@ hist(Data$f8)
        
 ## ======================= ##     
 hist(Data$f1,
-     col = "#004890",
+     col = blue,
      xlab = "Value",
      ylab = "Count",
      main = "Histogram of f1",
@@ -136,7 +151,7 @@ hist(Data$f1,
      ylim = c(0, max(hist(Data$f1, plot = FALSE)$counts)))
 
 hist(Data$f2,
-    col = "#004890",
+    col = blue,
     xlab = "Value",
     ylab = "Count",
     main = "Histogram of f2",
@@ -144,7 +159,7 @@ hist(Data$f2,
     ylim = c(0, max(hist(Data$f2, plot = FALSE)$counts)))
 
 hist(Data$f3,
-     col = "#004890",
+     col = blue,
      xlab = "Value",
      ylab = "Count",
      main = "Histogram of f3",
@@ -152,7 +167,7 @@ hist(Data$f3,
      ylim = c(0, max(hist(Data$f3, plot = FALSE)$counts)))
 
 hist(Data$f8,
-     col = "#004890",
+     col = blue,
      xlab = "Value",
      ylab = "Count",
      main = "Histogram of f8",
@@ -208,7 +223,82 @@ Data$size <- factor(Data$size,
 unique(Data$sector)
 Data$sector <- factor(Data$sector)
 
-#==== 02c - Multicollinearity =================================================#
+#==== 02c - Informational Value of each feature & other =======================#
+
+## ======================= ##
+## Informational value.
+## ======================= ##
+## Tells us how good a feature seperates between NoDefault (y=0) and Default (y=1).
+iv_summary <- iv(Data, y = "y")
+print(iv_summary %>% arrange(desc(info_value)))
+
+### Now let's explore f8 and f9.
+ggplot(Data, aes(x = as.factor(y), y = f8, fill = as.factor(y))) +
+  geom_boxplot() +
+  labs(title = "Distribution of f8 by Default Status",
+       x = "Default Status (y)",
+       y = "f1 Value",
+       fill = "Default Status") +
+  theme_minimal()
+
+## Density plot for f8.
+x_limits <- quantile(Data$f8, probs = c(0.005, 0.975), na.rm = TRUE)
+ggplot(Data, aes(x = f8, fill = as.factor(y))) +
+  geom_density(alpha = 0.6) +
+    coord_cartesian(xlim = x_limits) +
+  
+  scale_fill_manual(values = c("0" = "darkgreen", "1" = red),
+                    name = "Default Status",
+                    labels = c("Non-Default", "Default")) +
+  labs(title = "Distribution of f8",
+       subtitle = "Excluding extreme outliers to reveal distribution shape",
+       x = "f8 Value") +
+  theme_minimal()
+
+## Density plot for f11
+x_limits <- quantile(Data$f11, probs = c(0.000001, 0.99), na.rm = TRUE)
+ggplot(Data, aes(x = f11, fill = as.factor(y))) +
+  geom_density(alpha = 0.6) +
+  coord_cartesian(xlim = x_limits) +
+  
+  scale_fill_manual(values = c("0" = "darkgreen", "1" = red),
+                    name = "Default Status",
+                    labels = c("Non-Default", "Default")) +
+  labs(title = "Distribution of f11",
+       subtitle = "Excluding extreme outliers to reveal distribution shape",
+       x = "f11 Value") +
+  theme_minimal()
+
+## Correlation between the top features.
+cor(Data$f8, Data$f9)
+cor(Data$f8, Data$f6)
+cor(Data$f8, Data$f11)
+
+## ======================= ##
+## Check the default rate by sector.
+## ======================= ##
+
+## Frequeny of business sectors.
+ggplot(Data, aes(x = sector)) +
+  geom_bar(fill = blue) +
+  ggtitle("Frequency of Business Sectors") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+## Defaults by business sector.
+Data %>%
+  group_by(sector) %>%
+  summarise(
+    count = n(),
+    default_rate = mean(y, na.rm = TRUE) # Calculate the mean of y (0s and 1s)
+  ) %>%
+  ggplot(aes(x = reorder(sector, -default_rate), y = default_rate)) +
+  geom_bar(stat = "identity", fill = blue) +
+  labs(title = "Default Rate by Sector",
+       x = "Sector",
+       y = "Default Rate") +
+  theme_minimal()
+
+#==== 02d - Multicollinearity =================================================#
 
 ## Parameters.
 Path <- file.path(Charts_Directory, "01_Correlation_Plot.png")
@@ -242,14 +332,48 @@ ggsave(
 )
 
 #==== 02d - Splitting the dataset =============================================#
+## New approach with 80% training and 20% test set size.
+
+tryCatch({
+  
+## Employing stratified sampling since we have a very imbalanced dataset (low occurance of defaults).
+## We ensure that the original percentage of the dependent variable is preserved in each split.
+  
+## ======================= ##
+## Stratified Sampling.
+## ======================= ##
+  
+First_Split <- initial_split(Data, prop = 0.8, strata = y) ## Split into train and test.
+Train <- training(First_Split)
+Test <- testing(First_Split)
+
+## Check their frequencies.
+Train %>%
+  filter(y == 1) %>%
+  summarise(n = n()) %>%
+  mutate(total_rows = nrow(Train),
+         proportion = n / total_rows * 100
+  )
+
+Test %>%
+  filter(y == 1) %>%
+  summarise(n = n()) %>%
+  mutate(total_rows = nrow(Test),
+         proportion = n / total_rows * 100
+  )
+
+}, silent = TRUE)
+
+## Old approach
+
+tryCatch({
+  
 ## Employing stratified sampling since we have a very imbalanced dataset (low occurance of defaults).
 ## We ensure that the original percentage of the dependent variable is preserved in each split.
 
 ## ======================= ##
 ## Stratified Sampling.
 ## ======================= ##
-
-set.seed(123)
 
 First_Split <- initial_split(Data, prop = 0.50, strata = y) ## Split into train and validation/test bucket.
 Train <- training(First_Split)
@@ -259,14 +383,7 @@ Second_Split <- initial_split(Temp, prop = 0.50, strata = y) ## Now, split the s
 Validation <- training(Second_Split)
 Test <- testing(Second_Split)
 
-## ======================= ##
-## Check the propensity tables.
-## ======================= ##
-prop.table(table(Data$y))
-
-prop.table(table(Train$y))
-prop.table(table(Validation$y))
-prop.table(table(Test$y))
+}, silent = TRUE)
 
 #==== 02e - Impude the NA values ==============================================#
 ## To prevent data leakage, we need to process the different sets seperately.
@@ -331,6 +448,16 @@ Test <- Test %>%
            ~coalesce(., median_values[[cur_column()]]))
   )
 
+## ======================= ##
+## Findings.
+## ======================= ##
+
+## Multicollinearity: Remove f9 and keep f8. They are extremely similar.
+## IV: Remove non-predictive variables. Groupmember likely just adds random noise.
+## WoE-transformed logistic regression as the "base" case.
+## Handling of NAs within the "r" features.
+
+## For the future: Stability of variables over time (using the population stability index).
 
 #==============================================================================#
 #==== 03 - Setting up the Loss-function =======================================#
