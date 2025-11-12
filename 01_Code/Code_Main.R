@@ -116,11 +116,70 @@ summary(Data)
 ## Now check our independent variable: loan default.
 ## ======================= ##
 table(Data$y) ## 0.865% of all loans are defaulting.
-
+y_prop_table<-prop.table(table(Data$y))
+barplot(y_prop_table,
+        main = "Class Imbalance", 
+        ylab = "Proportion", 
+        col = "#004890")
 ## ======================= ##
 ## Check for data variability and skewed data.
 ## ======================= ##
 hist(Data$f8)
+       
+## ======================= ##     
+hist(Data$f1,
+     col = "#004890",
+     xlab = "Value",
+     ylab = "Count",
+     main = "Histogram of f1",
+     xlim = range(Data$f1, na.rm = TRUE),
+     ylim = c(0, max(hist(Data$f1, plot = FALSE)$counts)))
+
+hist(Data$f2,
+    col = "#004890",
+    xlab = "Value",
+    ylab = "Count",
+    main = "Histogram of f2",
+    xlim = range(Data$f2, na.rm = TRUE),
+    ylim = c(0, max(hist(Data$f2, plot = FALSE)$counts)))
+
+hist(Data$f3,
+     col = "#004890",
+     xlab = "Value",
+     ylab = "Count",
+     main = "Histogram of f3",
+     xlim = range(Data$f3, na.rm = TRUE),
+     ylim = c(0, max(hist(Data$f3, plot = FALSE)$counts)))
+
+hist(Data$f8,
+     col = "#004890",
+     xlab = "Value",
+     ylab = "Count",
+     main = "Histogram of f8",
+     xlim = range(Data$f8, na.rm = TRUE),
+     ylim = c(0, max(hist(Data$f8, plot = FALSE)$counts)))
+
+## ===============================================##
+## Plot as one function)
+## ==============================================##
+df6 <- Data %>% dplyr::select(5:10)            
+long6 <- tidyr::pivot_longer(df6, cols = everything(),
+                             names_to = "Variable", values_to = "Value")
+
+ggplot(long6, aes(x = Value)) +
+  geom_histogram(fill = "#004890", color = "white", bins = 30) +
+  facet_wrap(~ Variable, scales = "free", ncol = 3) +
+  labs(x = "Value", y = "Count", title = "Histograms: f1 to f6")
+
+df11 <- Data %>% dplyr::select(11:15)            
+long11 <- tidyr::pivot_longer(df11, cols = everything(),
+                              names_to = "Variable", values_to = "Value")
+
+ggplot(long11, aes(x = Value)) +
+  geom_histogram(fill = "#004890", color = "white", bins = 30) +
+  facet_wrap(~ Variable, scales = "free", ncol = 3) +
+  labs(x = "Value", y = "Count", title = "Histograms: f7 to f11")
+       
 
 ## Check the variation of each feature.
 Variance <- apply(as.matrix(Features), MARGIN = 2, FUN = var)
