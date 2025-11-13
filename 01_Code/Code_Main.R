@@ -200,6 +200,51 @@ ggplot(long11, aes(x = Value)) +
 Variance <- apply(as.matrix(Features), MARGIN = 2, FUN = var)
 Skewness <- apply(as.matrix(Features), MARGIN = 2, FUN = skew)
 
+## ======================= ##
+## Check the group means
+## ======================= ##
+
+#Calculate with ratios
+Data<-d
+colSums(is.na(Data)) ## We fine some NAs, mostly in the financial ratio's.
+sapply(Data, function(x) sum(is.infinite(x)))
+sapply(Data, function(x) sum(is.nan(x)))
+
+Data <- Data %>%
+  mutate(across(where(is.numeric), ~ifelse(!is.finite(.), NA, .)))
+
+aggregate(. ~ y, data = cbind(y = Data$y, Features), FUN = mean, na.rm = TRUE)
+
+
+# 2. Compute group means by y
+group_means <- Data %>%
+  select(y, all_of(names(Features))) %>%   # keep only y + feature columns
+  group_by(y) %>%
+  summarise(across(all_of(names(Features)), mean, na.rm = TRUE))
+
+##Use two sample t-test (Welch's test) to see if means differ
+
+# Exclude group means which produce Nans and Inf
+vars <- setdiff(names(Features), c("r5","r15", "r16", "r17", "r18"))
+
+# Run default Welch t-tests for all remaining features
+results <- sapply(vars, function(var) {
+  test <- try(t.test(Data[[var]] ~ Data$y), silent = TRUE)
+  if (inherits(test, "try-error")) return(NA_real_) else return(test$p.value)
+})
+
+# Create summary table
+mean_test_results <- data.frame(
+  Variable = vars,
+  p_value = results
+)
+
+# Sort by smallest p-value
+mean_test_results <- mean_test_results[order(mean_test_results$p_value), ]
+
+print(mean_test_results)
+
+
 ## We should standardize as the variance differs considerably between our features.
 
 ## ======================= ##
@@ -222,6 +267,94 @@ Data$size <- factor(Data$size,
 ## Nominal scale.
 unique(Data$sector)
 Data$sector <- factor(Data$sector)
+
+## ======================= ##
+## Create contingency tables vs. outcome y
+## ======================= ##
+categorical_vars <- Data %>%
+  select(where(~ is.factor(.) || is.character(.)))
+
+contingency_tables <- lapply(names(categorical_vars), function(var) {
+  tab <- table(Data$y, categorical_vars[[var]], useNA = "ifany")
+  print(paste("Contingency table for:", var))
+  print(tab)
+  cat("\n")
+  return(tab)
+})
+names(contingency_tables) <- names(categorical_vars)
+
+## ======================= ##
+## Conduct a chi-squared test
+## ======================= ##
+
+chi_results <- lapply(names(categorical_vars), function(var) {
+  tab <- table(Data$y, Data[[var]], useNA = "ifany")
+  test <- suppressWarnings(chisq.test(tab))
+  data.frame(
+    Variable = var,
+    Chi2 = test$statistic,
+    df = test$parameter,
+    p_value = test$p.value
+  )
+})
+
+chi_results <- do.call(rbind, chi_results)
+chi_results <- chi_results[order(chi_results$p_value), ]
+
+print(chi_results)
+
+
+## ======================= ##
+## Plot the results
+## ======================= ##
+
+cat_long <- Data %>%
+  select(y, all_of(names(categorical_vars))) %>%
+  pivot_longer(-y,
+               names_to = "Variable",
+               values_to = "Category",
+               values_ptypes = list(Category = character()))
+
+# Compute percentages manually for labels
+cat_plot_data <- cat_long %>%
+  group_by(Variable, Category, y) %>%
+  summarise(n = n(), .groups = "drop_last") %>%
+  mutate(pct = n / sum(n))
+
+ggplot(cat_plot_data, aes(x = Category, y = pct, fill = factor(y))) +
+  geom_col(position = "fill", color = "white") +
+  geom_text(
+    aes(label = scales::percent(pct, accuracy = 1)),
+    position = position_stack(vjust = 0.5),
+    color = "white",
+    size = 3.5,
+    fontface = "bold"
+  ) +
+  facet_wrap(~ Variable, scales = "free_x") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(
+    name = "Outcome (y)",
+    values = c("0" = grey, "1" = orange)
+  ) +
+  labs(
+    title = "Distribution of Outcome y Across Categorical Variables",
+    x = "Category", y = "Percentage", fill = "y"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    strip.text = element_text(face = "bold", color = blue),
+    plot.title = element_text(face = "bold", color = red, hjust = 0.5)
+  )
+
+ggsave(
+  filename = Charts_Directory,
+  plot = last_plot(),   
+  width = 10,           
+  height = 6,           
+  dpi = 300,          
+  bg = "white"         
+)
 
 #==== 02c - Informational Value of each feature & other =======================#
 
