@@ -25,10 +25,6 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 packages <- c("here", "corrplot", "dplyr", "tidyr",
               "reshape2", "ggplot2",
               "rsample", "DataExplorer",  ## Necessary for stratified sampling.
-              "pROC",                     ## Area under the Curve (AuC) measure.
-              "caret",                    ## GLM.
-              "glmnet",                    ## Regularized regression
-              "skimr",
               "scorecard"
 )
 
@@ -68,14 +64,16 @@ Data_Path <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/Data/WS2025" ## Needs
 Data_Directory <- file.path(Data_Path, "data.rda")
 Charts_Directory <- file.path(Path, "03_Charts")
 
+Charts_Data_Exploration_Directory <- file.path(Charts_Directory, "Data Exploration")
+
 ## Plotting.
 blue <- "#004890"
 grey <- "#708090"
 orange <- "#F37021"
 red <- "#B22222"
 
-height <- 3750
-width <- 1833
+height <- 1833
+width <- 3750
 
 ## Data Sampling.
 set.seed(123)
@@ -90,8 +88,6 @@ set.seed(123)
 Data <- load(Data_Directory)
 Data <- d
 
-Exclude <- c("id", "refdate", "size","sector", "y")
-Features <- Data[, -which(names(Data) %in% Exclude)]
 
 Exclude <- c("id", "refdate") ## Drop the id and ref_date (year) for now.
 Data <- Data[, -which(names(Data) %in% Exclude)]
@@ -100,10 +96,321 @@ Data <- Data[, -which(names(Data) %in% Exclude)]
 Exclude <- c(paste("r", seq(1:18), sep = "")) ## Drop all ratios for now.
 Data <- Data[, -which(names(Data) %in% Exclude)]
 
-#==== 02b - Exploratory Data Analysis =========================================#
+Exclude <- c("id", "refdate", "size","sector", "y")
+Features <- Data[, -which(names(Data) %in% Exclude)]
+
+#==== 02b - Dependent Variable Analysis =======================================#
+## Part Tristan (Done).
+
+tryCatch({
+  
+## ======================= ##
+## Data imbalance.
+## ======================= ##
+
+## Get the total number of defaults and the frequency in the dataset.
+Data %>%
+  filter(y == 1) %>%
+  summarise(n = n()) %>%
+  mutate(total_rows = nrow(Data),
+         proportion = n / total_rows * 100)
+
+## Defaults per sector.
+categorical_vars <- Data %>%
+  select(where(~ is.factor(.) || is.character(.)))
+
+contingency_tables <- lapply(names(categorical_vars), function(var) {
+  tab <- table(Data$y, categorical_vars[[var]], useNA = "ifany")
+  print(paste("Contingency table for:", var))
+  print(tab)
+  cat("\n")
+  return(tab)
+})
+names(contingency_tables) <- names(categorical_vars)
+
+## Plot the defaults per business sector.
+Plot_Sector_Default <- Data %>%
+  group_by(sector) %>%
+  summarise(
+    count = n(),
+    default_rate = mean(y, na.rm = TRUE) # Calculate the mean of y (0s and 1s)
+  ) %>%
+  ggplot(aes(x = reorder(sector, -default_rate), y = default_rate)) +
+  geom_bar(stat = "identity", fill = blue) +
+  labs(title = "Default Rate by Sector",
+       x = "Sector",
+       y = "") +
+  theme_minimal()
+
+## Save the plot.
+Path <- file.path(Charts_Data_Exploration_Directory, "01_Defaults_per_Sector.png")
+ggsave(
+  filename = Path,
+  plot = Plot_Sector_Default,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
+
+}, silent = TRUE)
+
+#==== 02c - Distributions & bivariate Data Analysis ===========================#
+## Part Nastia.
+
+#==== 02d - Feature Engineering ===============================================#
+## Part Nastia.
+## Part Tristan roughly done.
+
+tryCatch({
+  
+## ======================= ##
+## Informational Value.
+## ======================= ##
+
+## Tells us how good a feature seperates between NoDefault (y=0) and Default (y=1).
+iv_summary <- iv(Data, y = "y")
+print(iv_summary %>% arrange(desc(info_value)))
+
+## Plot the informational value.
+
+iv_summary <- iv_summary %>%
+  mutate(
+    power_category = case_when(
+      info_value > 0.5   ~ "Very Strong",
+      info_value >= 0.3  ~ "Strong",
+      info_value >= 0.1  ~ "Medium",
+      info_value >= 0.02 ~ "Weak",
+      TRUE               ~ "Useless"
+    ),
+    # Convert to a factor to control the order in the legend
+    power_category = factor(power_category, 
+                            levels = c("Very Strong", "Strong", "Medium", "Weak", "Useless"))
+  )
+
+# 3. Create the ggplot visualization
+plot_IV <- ggplot(iv_summary, aes(x = info_value, y = reorder(variable, info_value))) +
+  geom_col(aes(fill = power_category)) +
+    geom_text(aes(label = round(info_value, 3)), hjust = -0.1, size = 3.5) +
+    geom_vline(xintercept = c(0.02, 0.1, 0.3, 0.5), linetype = "dashed", color = "gray50") +
+    annotate("text", x = 0.02, y = Inf, label = "Weak", vjust = -0.5, hjust = -0.1, size = 3, color = "gray20") +
+  annotate("text", x = 0.1, y = Inf, label = "Medium", vjust = -0.5, hjust = -0.1, size = 3, color = "gray20") +
+  annotate("text", x = 0.3, y = Inf, label = "Strong", vjust = -0.5, hjust = -0.1, size = 3, color = "gray20") +
+  annotate("text", x = 0.5, y = Inf, label = "Very strong", vjust = -0.5, hjust = -0.1, size = 3, color = "gray20") +
+    labs(
+    title = "",
+    subtitle = "",
+    x = "Information Value",
+    y = "",
+    fill = "Predictive Power"
+  ) +
+  
+  # Manually set colors for the categories
+  scale_fill_manual(values = c(
+    "Very Strong" = "#d53e4f", 
+    "Strong" = "#f46d43", 
+    "Medium" = "#fdae61", 
+    "Weak" = "#fee08b", 
+    "Useless" = "#e6f598"
+  )) +
+  
+  scale_x_continuous(limits = c(0, max(iv_summary$info_value) * 1.1)) +
+    theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+
+Path <- file.path(Charts_Data_Exploration_Directory, "02_IV_per_feature.png")
+ggsave(
+  filename = Path,
+  plot = plot_IV,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
+
+## ======================= ##
+## Data separation.
+## ======================= ##
+
+### Now let's explore f8 and f9.
+ggplot(Data, aes(x = as.factor(y), y = f8, fill = as.factor(y))) +
+  geom_boxplot() +
+  labs(title = "Distribution of f8 by Default Status",
+       x = "Default Status (y)",
+       y = "f1 Value",
+       fill = "Default Status") +
+  theme_minimal()
+
+## Density plot for f8.
+x_limits <- quantile(Data$f8, probs = c(0.005, 0.975), na.rm = TRUE)
+ggplot(Data, aes(x = f8, fill = as.factor(y))) +
+  geom_density(alpha = 0.6) +
+  coord_cartesian(xlim = x_limits) +
+  
+  scale_fill_manual(values = c("0" = "darkgreen", "1" = red),
+                    name = "Default Status",
+                    labels = c("Non-Default", "Default")) +
+  labs(title = "Distribution of f8",
+       subtitle = "Excluding extreme outliers to reveal distribution shape",
+       x = "f8 Value") +
+  theme_minimal()
+
+## Density plot for f11
+x_limits <- quantile(Data$f11, probs = c(0.000001, 0.99), na.rm = TRUE)
+ggplot(Data, aes(x = f11, fill = as.factor(y))) +
+  geom_density(alpha = 0.6) +
+  coord_cartesian(xlim = x_limits) +
+  
+  scale_fill_manual(values = c("0" = "darkgreen", "1" = red),
+                    name = "Default Status",
+                    labels = c("Non-Default", "Default")) +
+  labs(title = "Distribution of f11",
+       subtitle = "Excluding extreme outliers to reveal distribution shape",
+       x = "f11 Value") +
+  theme_minimal()
+
+## Correlation between the top features.
+cor(Data$f8, Data$f9)
+cor(Data$f8, Data$f6)
+cor(Data$f8, Data$f11)
+
+## ======================= ##
+## Significance tests.
+## ======================= ##
+
+
+
+
+## ======================= ##
+## Multicollinearity.
+## ======================= ##
+
+cor_matrix <- cor(Features[,])
+cor_matrix_lower <- cor_matrix
+cor_matrix_lower[upper.tri(cor_matrix_lower)] <- NA
+melted_cor_matrix_lower <- melt(cor_matrix_lower, na.rm = TRUE)
+
+## Plot.
+plot_MC <- ggplot(data = melted_cor_matrix, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") + 
+  scale_fill_gradient2(low = blue, high = orange, mid = "white", 
+                       midpoint = 0, limit = c(-1, 1), 
+                       name = "Correlation") +
+  geom_text(aes(label = round(value, 2)), color = "black", size = 1.5) +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        axis.title = element_blank()) + 
+  coord_fixed() 
+
+Path <- file.path(Charts_Data_Exploration_Directory, "04_Multicollinearity.png")
+ggsave(
+  filename = Path,
+  plot = plot_MC,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
+
+## ======================= ##
+## Implications from IV and multicollinearity.
+## ======================= ##
+
+summary_table <- iv_summary %>%
+  mutate(
+    Concern = case_when(
+      variable %in% c("f1", "f2", "f6", "f11") ~ "High (Group 1)",
+      variable %in% c("f8", "f9") ~ "High (Group 2)",
+      TRUE ~ "Low"
+    ),
+    Recommendation = case_when(
+      variable == "f6" ~ "Keep (Highest IV in Group 1)",
+      variable %in% c("f1", "f2", "f11") ~ "Remove",
+      variable == "f8" ~ "Keep (Highest IV in Group 2)",
+      variable == "f9" ~ "Remove",
+      info_value < 0.02 ~ "Remove (Useless IV)",
+      TRUE ~ "Keep"
+    )
+  ) %>%
+  select(
+    "variable",
+    "Information Value (IV)" = info_value,
+    "Multicollinearity Concern" = Concern,
+    "Action" = Recommendation
+  )
+
+}, silent = TRUE)
+
+#==== 02e - Data splitting ====================================================#
+## Part Tristan (DONE)
+## See documentation, done 80/20.
+
+
+
+
+#==== 02f - Handling outliers =================================================#
+## Part Nastia.
+
+
+
+
+
+#==============================================================================#
+#==== 03 - Data Preparation & Feature engineering =============================#
+#==============================================================================#
+
+#==== 03a - Splitting the dataset =============================================#
+## New approach with 80% training and 20% test set size.
+
+tryCatch({
+  
+  ## Employing stratified sampling since we have a very imbalanced dataset (low occurance of defaults).
+  ## We ensure that the original percentage of the dependent variable is preserved in each split.
+  
+  ## ======================= ##
+  ## Stratified Sampling.
+  ## ======================= ##
+  
+  First_Split <- initial_split(Data, prop = 0.8, strata = y) ## Split into train and test.
+  Train <- training(First_Split)
+  Test <- testing(First_Split)
+  
+  ## Check their frequencies.
+  Train %>%
+    filter(y == 1) %>%
+    summarise(n = n()) %>%
+    mutate(total_rows = nrow(Train),
+           proportion = n / total_rows * 100
+    )
+  
+  Test %>%
+    filter(y == 1) %>%
+    summarise(n = n()) %>%
+    mutate(total_rows = nrow(Test),
+           proportion = n / total_rows * 100
+    )
+  
+}, silent = TRUE)
+
+## ======================= ##
+## Findings.
+## ======================= ##
+
+## Multicollinearity: Remove f9 and keep f8. They are extremely similar.
+## IV: Remove non-predictive variables. Groupmember likely just adds random noise.
+## WoE-transformed logistic regression as the "base" case.
+## Handling of NAs within the "r" features.
+
+## For the future: Stability of variables over time (using the population stability index).
+
+#==============================================================================#
+#==== 04 - Old Code (Data exploration) ========================================#
+#==============================================================================#
 
 glimpse(Data)
-skim(Data)
 
 ## ======================= ##
 ## First let us check if we have any missing data.
@@ -358,239 +665,3 @@ ggsave(
   dpi = 300,          
   bg = "white"         
 )
-
-#==== 02c - Informational Value of each feature & other =======================#
-
-## ======================= ##
-## Informational value.
-## ======================= ##
-## Tells us how good a feature seperates between NoDefault (y=0) and Default (y=1).
-iv_summary <- iv(Data, y = "y")
-print(iv_summary %>% arrange(desc(info_value)))
-
-### Now let's explore f8 and f9.
-ggplot(Data, aes(x = as.factor(y), y = f8, fill = as.factor(y))) +
-  geom_boxplot() +
-  labs(title = "Distribution of f8 by Default Status",
-       x = "Default Status (y)",
-       y = "f1 Value",
-       fill = "Default Status") +
-  theme_minimal()
-
-## Density plot for f8.
-x_limits <- quantile(Data$f8, probs = c(0.005, 0.975), na.rm = TRUE)
-ggplot(Data, aes(x = f8, fill = as.factor(y))) +
-  geom_density(alpha = 0.6) +
-  coord_cartesian(xlim = x_limits) +
-  
-  scale_fill_manual(values = c("0" = "darkgreen", "1" = red),
-                    name = "Default Status",
-                    labels = c("Non-Default", "Default")) +
-  labs(title = "Distribution of f8",
-       subtitle = "Excluding extreme outliers to reveal distribution shape",
-       x = "f8 Value") +
-  theme_minimal()
-
-## Density plot for f11
-x_limits <- quantile(Data$f11, probs = c(0.000001, 0.99), na.rm = TRUE)
-ggplot(Data, aes(x = f11, fill = as.factor(y))) +
-  geom_density(alpha = 0.6) +
-  coord_cartesian(xlim = x_limits) +
-  
-  scale_fill_manual(values = c("0" = "darkgreen", "1" = red),
-                    name = "Default Status",
-                    labels = c("Non-Default", "Default")) +
-  labs(title = "Distribution of f11",
-       subtitle = "Excluding extreme outliers to reveal distribution shape",
-       x = "f11 Value") +
-  theme_minimal()
-
-## Correlation between the top features.
-cor(Data$f8, Data$f9)
-cor(Data$f8, Data$f6)
-cor(Data$f8, Data$f11)
-
-## ======================= ##
-## Check the default rate by sector.
-## ======================= ##
-
-## Frequeny of business sectors.
-ggplot(Data, aes(x = sector)) +
-  geom_bar(fill = blue) +
-  ggtitle("Frequency of Business Sectors") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-## Defaults by business sector.
-Data %>%
-  group_by(sector) %>%
-  summarise(
-    count = n(),
-    default_rate = mean(y, na.rm = TRUE) # Calculate the mean of y (0s and 1s)
-  ) %>%
-  ggplot(aes(x = reorder(sector, -default_rate), y = default_rate)) +
-  geom_bar(stat = "identity", fill = blue) +
-  labs(title = "Default Rate by Sector",
-       x = "Sector",
-       y = "Default Rate") +
-  theme_minimal()
-
-#==== 02d - Multicollinearity =================================================#
-
-## Parameters.
-Path <- file.path(Charts_Directory, "01_Correlation_Plot.png")
-
-## Main Code.
-cor_matrix <- cor(Features[,])
-cor_matrix_upper_na <- cor_matrix
-cor_matrix_upper_na[upper.tri(cor_matrix_upper_na)] <- NA
-melted_cor_matrix <- melt(cor_matrix_upper_na, na.rm = TRUE)
-
-## Plot.
-plot <- ggplot(data = melted_cor_matrix, aes(x = Var1, y = Var2, fill = value)) +
-  geom_tile(color = "white") + 
-  scale_fill_gradient2(low = blue, high = orange, mid = "white", 
-                       midpoint = 0, limit = c(-1, 1), 
-                       name = "Correlation") +
-  geom_text(aes(label = round(value, 2)), color = "black", size = 1.5) +
-  theme_minimal() + 
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
-        axis.title = element_blank()) + 
-  coord_fixed() 
-
-ggsave(
-  filename = Path,
-  plot = plot,
-  width = height,
-  height = width,
-  units = "px",
-  dpi = 300,
-  limitsize = FALSE
-)
-
-#==== 02d - Splitting the dataset =============================================#
-## New approach with 80% training and 20% test set size.
-
-tryCatch({
-  
-  ## Employing stratified sampling since we have a very imbalanced dataset (low occurance of defaults).
-  ## We ensure that the original percentage of the dependent variable is preserved in each split.
-  
-  ## ======================= ##
-  ## Stratified Sampling.
-  ## ======================= ##
-  
-  First_Split <- initial_split(Data, prop = 0.8, strata = y) ## Split into train and test.
-  Train <- training(First_Split)
-  Test <- testing(First_Split)
-  
-  ## Check their frequencies.
-  Train %>%
-    filter(y == 1) %>%
-    summarise(n = n()) %>%
-    mutate(total_rows = nrow(Train),
-           proportion = n / total_rows * 100
-    )
-  
-  Test %>%
-    filter(y == 1) %>%
-    summarise(n = n()) %>%
-    mutate(total_rows = nrow(Test),
-           proportion = n / total_rows * 100
-    )
-  
-}, silent = TRUE)
-
-## Old approach
-
-tryCatch({
-  
-  ## Employing stratified sampling since we have a very imbalanced dataset (low occurance of defaults).
-  ## We ensure that the original percentage of the dependent variable is preserved in each split.
-  
-  ## ======================= ##
-  ## Stratified Sampling.
-  ## ======================= ##
-  
-  First_Split <- initial_split(Data, prop = 0.50, strata = y) ## Split into train and validation/test bucket.
-  Train <- training(First_Split)
-  Temp <- testing(First_Split)
-  
-  Second_Split <- initial_split(Temp, prop = 0.50, strata = y) ## Now, split the second bucket in validation and testing.
-  Validation <- training(Second_Split)
-  Test <- testing(Second_Split)
-  
-}, silent = TRUE)
-
-#==== 02e - Impude the NA values ==============================================#
-## To prevent data leakage, we need to process the different sets seperately.
-## The idea is that the validation and test sets represent new, unseen data
-## and should thus not be influenced by the training set.
-
-## ======================= ##
-## Parameters.
-## ======================= ##
-cols_to_impute <- c("r5", "r12", "r15", "r16", "r17", "r18")
-
-## ======================= ##
-## Training data.
-## ======================= ##
-median_values <- Train %>%
-  summarise(across(all_of(cols_to_impute), ~median(., na.rm = TRUE))) %>%
-  as.list()
-
-Train <- Train %>%
-  mutate(
-    across(all_of(cols_to_impute), 
-           ~ifelse(is.na(.), 1, 0), 
-           .names = "{.col}_is_missing"),
-    across(all_of(cols_to_impute), 
-           ~coalesce(., median_values[[cur_column()]]))
-  )
-
-##
-colSums(is.na(Train)) ## We fine some NAs, mostly in the financial ratio's.
-sapply(Train, function(x) sum(is.infinite(x)))
-sapply(Train, function(x) sum(is.nan(x)))
-
-## ======================= ##
-## Validation data.
-## ======================= ##
-median_values <- Validation %>%
-  summarise(across(all_of(cols_to_impute), ~median(., na.rm = TRUE))) %>%
-  as.list()
-
-Validation <- Validation %>%
-  mutate(
-    across(all_of(cols_to_impute), 
-           ~ifelse(is.na(.), 1, 0), 
-           .names = "{.col}_is_missing"),
-    across(all_of(cols_to_impute), 
-           ~coalesce(., median_values[[cur_column()]]))
-  )
-
-## ======================= ##
-## Test data.
-## ======================= ##
-median_values <- Test %>%
-  summarise(across(all_of(cols_to_impute), ~median(., na.rm = TRUE))) %>%
-  as.list()
-
-Test <- Test %>%
-  mutate(
-    across(all_of(cols_to_impute), 
-           ~ifelse(is.na(.), 1, 0), 
-           .names = "{.col}_is_missing"),
-    across(all_of(cols_to_impute), 
-           ~coalesce(., median_values[[cur_column()]]))
-  )
-
-## ======================= ##
-## Findings.
-## ======================= ##
-
-## Multicollinearity: Remove f9 and keep f8. They are extremely similar.
-## IV: Remove non-predictive variables. Groupmember likely just adds random noise.
-## WoE-transformed logistic regression as the "base" case.
-## Handling of NAs within the "r" features.
-
-## For the future: Stability of variables over time (using the population stability index).
