@@ -2,7 +2,7 @@
 #==== 00 - Description ========================================================#
 #==============================================================================#
 
-### This code includes everything necessary for data exploration and feature engineering.
+### This code includes everything necessary for data exploration and feature selection.
 ### Do not put anything else in here (like models, or other stuff).
 
 #==============================================================================#
@@ -290,7 +290,7 @@ cor(Data$f8, Data$f11)
 cor_matrix <- cor(Features[,])
 cor_matrix_lower <- cor_matrix
 cor_matrix_lower[upper.tri(cor_matrix_lower)] <- NA
-melted_cor_matrix_lower <- melt(cor_matrix_lower, na.rm = TRUE)
+melted_cor_matrix <- melt(cor_matrix_lower, na.rm = TRUE)
 
 ## Plot.
 plot_MC <- ggplot(data = melted_cor_matrix, aes(x = Var1, y = Var2, fill = value)) +
@@ -359,7 +359,7 @@ summary_table <- iv_summary %>%
 
 
 #==============================================================================#
-#==== 03 - Data Preparation & Feature engineering =============================#
+#==== 03 - Data Preparation & Feature selection ===============================#
 #==============================================================================#
 
 #==== 03a - Splitting the dataset =============================================#
