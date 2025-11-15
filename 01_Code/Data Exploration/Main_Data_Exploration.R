@@ -157,7 +157,265 @@ ggsave(
 }, silent = TRUE)
 
 #==== 02c - Distributions & bivariate Data Analysis ===========================#
-## Part Nastia.
+## ======================= ##
+## 1.2 Distributions and bivariate data analysis
+## ======================= ##
+
+##Renaming vector for graphs
+var_names <- c(
+  f1  = "Total assets",
+  f2  = "Invested Capital",
+  f3  = "Current Assets",
+  f4  = "Inventories",
+  f5  = "Cash",
+  f6  = "Equity",
+  f7  = "Retained Earning (GR)",
+  f8  = "Ner profit",
+  f9  = "Retained Earning (GV)",
+  f10 = "Provisions",
+  f11 = "Liabilities"
+)
+
+
+## ======================= ##
+## 1.2.1 Distributions and data dependancy ##
+## ======================= ##
+
+f1_f11 <- Data %>% dplyr::select(f1:f11)
+
+# Long format
+long11 <- tidyr::pivot_longer(
+  f1_f11, 
+  cols = everything(),
+  names_to = "Variable", 
+  values_to = "Value"
+)
+
+
+long11$Variable <- factor(long11$Variable, levels = paste0("f", 1:11))
+
+ggplot(long11 %>% filter(Value > 0), aes(x = Value)) + 
+  geom_histogram(fill = blue, color = "white", bins = 30) +
+  scale_x_log10() +
+  facet_wrap(~ Variable, scales = "free", ncol = 3,
+             labeller = labeller(Variable = var_names)) +
+  labs(
+    title = "Distribution of Balance Sheet Predictors",
+    x = "Value (logarithmic scale)",
+    y = "Frequency"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = grey),
+    axis.title.x = element_text(size = 13, face = "bold"),
+    axis.title.y = element_text(size = 13, face = "bold"),
+    strip.text = element_text(size = 12, face = "bold", color = blue),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+#Save
+
+ggsave(
+  filename = "distribution_f1_f11.png",
+  path = Charts_Path,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+## ======================= ##
+## 1.2.2 Class wide density plot
+## ======================= ##
+
+
+long11_y <- Data %>% 
+  mutate(y = factor(y, levels = c(0, 1),
+                    labels = c("No default", "Default"))) %>%
+  dplyr:: select(y, f1:f11) %>%
+  tidyr::pivot_longer(
+    cols      = f1:f11,
+    names_to  = "Variable",
+    values_to = "Value"
+  )
+
+long11_y$Variable <- factor(long11_y$Variable, levels = paste0("f", 1:11))
+
+
+ggplot(long11_y %>% dplyr::filter(Value > 0),
+       aes(x = Value, colour = y, fill = y)) +
+  geom_density(
+    alpha    = 0.4,
+    position = "identity",
+    aes(y = after_stat(scaled)) 
+  ) +
+  scale_x_log10() +
+  facet_wrap(
+    ~ Variable,
+    scales  = "free_x",
+    ncol    = 3,
+    labeller = labeller(Variable = var_names)  
+  ) +
+  scale_color_manual(
+    values = c("No default" = blue, "Default" = red),
+    name   = "Class"
+  ) +
+  scale_fill_manual(
+    values = c("No default" = blue, "Default" = red),
+    name   = "Class"
+  ) +
+  labs(
+    title = "Distribution of Balance Sheet Predictors\nby Default Status",
+    x     = "Value (logarithmic scale)",
+    y     = "Scaled density",
+    fill  = "Class",
+    color = "Class"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title   = element_text(face = "bold", size = 16),
+    axis.title.x = element_text(size = 13, face = "bold"),
+    axis.title.y = element_text(size = 13, face = "bold"),
+    strip.text   = element_text(size = 12, face = "bold", colour = blue),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(colour = "#d9d9d9"),
+    plot.margin  = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+#Save
+
+ggsave(
+  filename = "distribution_.png",
+  path = Charts_Path,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+## ======================= ##
+## 1.2.3 Descriptive statistics
+## ======================= ##
+
+# Compute Mean, Variance, Skewness consistently for the same 11 vars
+Mean     <- apply(as.matrix(f1_f11 ), MARGIN = 2, FUN = mean)
+Variance <- apply(as.matrix(f1_f11 ), MARGIN = 2, FUN = var)
+St.dev <- apply(as.matrix(f1_f11 ), MARGIN = 2, FUN = sd)
+Skewness <- apply(as.matrix(f1_f11 ), MARGIN = 2, FUN = skew)
+
+# Build table
+Summary_f1_f11 <- data.frame(
+  Mean     = round(Mean, 2),
+  St.dev = round(St.dev, 2),
+  Skewness = round(Skewness, 2)
+)
+
+
+table <- Summary_f1_f11 %>%
+  dplyr::mutate(Variable = var_names) %>%             
+  dplyr::select(Variable, Mean, St.dev, Skewness) %>% 
+  knitr::kable(
+    caption   = "Summary Statistics for Balance Sheet Predictors",
+    col.names = c("Variable", "Mean", "St.dev", "Skewness"),
+    align     = "lccc",
+    booktabs  = TRUE
+  ) %>%
+  kableExtra::kable_classic(full_width = FALSE, html_font = "Cambria") %>%
+  kableExtra::row_spec(0, bold = TRUE, background = "#004890", color = "white") %>%
+  kableExtra::row_spec(1:nrow(Summary_f1_f11), background = "#f7f7f7")
+
+kableExtra::save_kable(
+  table,
+  file = file.path(Charts_Path, "Summary_f1_f11.png"),
+  zoom = 3,          
+  density = 600,     
+  vwidth = 1200,     
+)
+
+
+## ======================= ##
+## 1.2.4 Descriptive statistics - Visualize
+## ======================= ##
+
+stats_long <- data.frame(
+  Variable = factor(names(f1_f11), levels = names(f1_f11)),
+  Mean     = Mean,
+  `St.dev` = St.dev,
+  Skewness = Skewness
+) %>%
+  pivot_longer(
+    cols = c(Mean, `St.dev`, Skewness),
+    names_to = "Statistic",
+    values_to = "Value"
+  )
+
+
+stats_large <- stats_long %>% 
+  filter(Statistic %in% c("Mean", "St.dev"))
+
+ggplot(stats_large,
+       aes(x = Variable, y = Value,
+           color = Statistic, group = Statistic)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("Mean" = blue, "St.dev" = orange)) +
+  scale_x_discrete(labels = var_names) +        # ← HERE
+  labs(
+    title = "Mean and Standard Deviation of Balance Sheet Predictors",
+    x = "Variable",
+    y = "Value",
+    color = "Statistic"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = grey),
+    axis.text.x   = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  )
+
+#Save
+ggsave(
+  filename = "meanand and st.dev.png",
+  path = Charts_Path,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+
+stats_skew <- stats_long %>% filter(Statistic == "Skewness")
+
+ggplot(stats_skew,
+       aes(x = Variable, y = Value, group = 1)) +
+  geom_line(color = red, linewidth = 1.2) +
+  geom_point(color = red, size = 3) +
+  scale_x_discrete(
+    limits = paste0("f", 1:11),         # enforce correct order
+    labels = var_names                  # use your nice names
+  ) +
+  labs(
+    title = "Skewness of Balance Sheet Predictors",
+    x = "Variable",
+    y = "Skewness"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = grey),
+    axis.text.x   = element_text(angle = 45, hjust = 1)
+  )
+
+#Save
+ggsave(
+  filename = "skewness.png",
+  path = Charts_Path,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
 
 #==== 02d - Feature Engineering ===============================================#
 ## Part Nastia.
@@ -280,8 +538,147 @@ cor(Data$f8, Data$f11)
 ## Significance tests.
 ## ======================= ##
 
+## ======================= ##
+## 1.3.1 Calculating group means ##
+## ======================= ##
+
+df <- cbind(y = Data$y, Features) %>% 
+  as.data.frame()
+
+aggregate(. ~ y, data = Data, FUN = mean, na.rm = TRUE)
+
+feature_names <- colnames(Features)
+
+group_means <- df %>%
+  dplyr::group_by(y) %>%
+  dplyr::summarise(
+    across(all_of(feature_names), ~ mean(.x, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
+group_means
+
+## ============================================ ##
+##  1.3.2 Welch two-sample t-tests for all features ##
+## ============================================ ##
 
 
+results <- sapply(feature_names , function(v) {
+  test <- try(t.test(df[[v]] ~ df$y), silent = TRUE)
+  if (inherits(test, "try-error")) NA_real_ else test$p.value
+})
+
+mean_test_results <- data.frame(
+  Variable = feature_names ,
+  p_value  = as.numeric(results)
+)
+
+# Sort by smallest p-value
+mean_test_results <- mean_test_results[order(mean_test_results$p_value), ]
+
+print(mean_test_results)
+
+
+## ======================= ##
+## Visualize the tests
+## ======================= ##
+
+plot_df <- mean_test_results %>%
+  mutate(
+    Variable = factor(Variable, levels = Variable),
+    log_p = -log10(p_value),
+    Sig = p_value < 0.05
+  )
+
+ggplot(plot_df, aes(x = Variable, y = log_p, fill = Sig)) +
+  geom_col() +
+  scale_fill_manual(
+    values = c("TRUE" = "#d62728",   # red = significant
+               "FALSE" = "grey70"),  # grey = not significant
+    labels = c("TRUE" = "Significant (p < 0.05)",
+               "FALSE" = "Not significant"),
+    name = ""
+  ) +
+  geom_hline(yintercept = -log10(0.05), 
+             color = "#004890", linetype = "dashed", size = 1) +
+  labs(
+    title = "P-values for Welch's Two-Sample t-tests",
+    subtitle = "Higher bars = more significant difference between groups",
+    x = "Variable",
+    y = "-log10(p-value)"
+  ) + scale_x_discrete(labels = var_names) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.text.x = element_text(angle = 60, hjust = 1),
+    plot.title = element_text(face = "bold", size = 16),
+    legend.position = "top"
+  )
+
+#Save
+ggsave(
+  filename = "Welch's Two-Sample t-tests.png",
+  path = Charts_Path,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+categorical_vars <- Data %>%
+  dplyr::select(where(~ is.factor(.) || is.character(.)))
+
+
+# if there are no categorical vars, just stop
+if (ncol(categorical_vars) == 0) stop("No categorical predictors in Data.")
+
+## ---- chi-square tests ----
+chi_results <- lapply(names(categorical_vars), function(v) {
+  tab  <- table(Data$y, Data[[v]], useNA = "ifany")
+  test <- suppressWarnings(chisq.test(tab))
+  data.frame(
+    Variable = v,
+    Chi2     = as.numeric(test$statistic),
+    df       = as.numeric(test$parameter),
+    p_value  = test$p.value
+  )
+}) |> bind_rows() |>
+  arrange(p_value) |>
+  mutate(
+    log_p = -log10(p_value),
+    Sig   = p_value < 0.05
+  )
+
+
+ggplot(chi_results,
+       aes(x = factor(Variable, levels = Variable),
+           y = log_p, fill = Sig)) +
+  geom_col() +
+  geom_hline(yintercept = -log10(0.05),
+             linetype = "dashed") +
+  scale_fill_manual(values = c("TRUE" = "#d62728", "FALSE" = "grey70"),
+                    labels = c("TRUE" = "Significant (p < 0.05)",
+                               "FALSE" = "Not significant"),
+                    name = "") +
+  labs(
+    title = "P-values for Welch's Two-Sample t-tests",
+    subtitle = "Higher bars = more significant difference between groups",
+    x = "Categorical variable",
+    y = "-log10(p-value)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 60, hjust = 1),
+    plot.title = element_text(face = "bold", size = 16),
+    legend.position = "top"
+  )
+
+#Save
+ggsave(
+  filename = "Chi tests.png",
+  path = Charts_Path,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
 
 ## ======================= ##
 ## Multicollinearity.
