@@ -22,7 +22,7 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 
 ## Needs to enable checking for install & if not then autoinstall.
 
-packages <- c("here", "corrplot", "dplyr", "tidyr",
+packages <- c("here", "corrplot", "dplyr", "tidyr", "car",
               "reshape2", "ggplot2",
               "rsample", "DataExplorer",  ## Necessary for stratified sampling.
               "scorecard"
@@ -288,6 +288,67 @@ ggplot(long11_y %>% dplyr::filter(Value > 0),
 
 ggsave(
   filename = "distribution_.png",
+  path = Charts_Path,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+## ======================= ##
+## 1.2.2  Distribution of binary predictors
+## ======================= ##
+
+binary <- Data %>% 
+  dplyr::select(groupmember:public)
+
+binary_long <- binary %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "Variable",
+    values_to = "Value"
+  )
+
+# Compute proportions for labels
+binary_props <- binary_long %>%
+  group_by(Variable, Value) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(Variable) %>%
+  mutate(prop = n / sum(n))
+
+ggplot(binary_props, 
+       aes(x = Variable, y = prop, fill = factor(Value))) +
+  geom_col(position = "stack", color = "white", linewidth = 0.3) +
+  
+  geom_text(
+    aes(label = ifelse(prop > 0.05, scales::percent(prop, accuracy = 1), "")),
+    position = position_stack(vjust = 0.5),
+    size = 4,
+    color = "white",
+    fontface = "bold"
+  ) +
+  
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(
+    values = c("0" = blue, "1" = red),
+    labels = c("0" = "No", "1" = "Yes"),
+    name   = "Default"
+  ) +
+  
+  labs(
+    title = "Distribution of Binary Predictors",
+    x = "Variable",
+    y = "Share of observations"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title   = element_text(face = "bold", size = 17),
+    axis.text.x  = element_text(angle = 45, hjust = 1, size = 12),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank()
+  )
+
+ggsave(
+  filename = "dis_binary.png",
   path = Charts_Path,
   width = 10,
   height = 8,
@@ -741,6 +802,51 @@ summary_table <- iv_summary %>%
 
 }, silent = TRUE)
 
+## ======================= ##
+## VIF
+## ======================= ##
+
+dummy_y <- rnorm(nrow(Features))
+
+# Fit the model with all predictors
+vif_model <- lm(dummy_y ~ ., data = Features)
+
+# Compute VIF
+vif_values <- car::vif(vif_model)
+
+
+vif_table <- data.frame(
+  Variable = names(vif_values),
+  VIF = as.numeric(vif_values)
+) %>%
+  mutate(Classification = case_when(
+    VIF < 5 ~ "OK",
+    VIF >= 5 & VIF < 10 ~ "Moderate",
+    VIF >= 10 ~ "High"
+  ))
+
+plot_VIF <- ggplot(vif_table, aes(x = reorder(Variable, VIF), y = VIF, fill = VIF)) +
+  geom_col(color = "white") +
+  coord_flip() +
+  scale_fill_gradient(low = blue, high = orange) +
+  geom_hline(yintercept = 5, linetype = "dashed", color = "darkred") +
+  geom_hline(yintercept = 10, linetype = "dashed", color = "red") +
+  labs(
+    title = "Variance Inflation Factors (VIF)",
+    x = "Predictor",
+    y = "VIF"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(panel.grid.minor = element_blank())
+
+ggsave(
+  filename = "VIF.png",
+  path = Charts_Path,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
 #==== 02e - Data splitting ====================================================#
 ## Part Tristan (DONE)
 ## See documentation, done 80/20.
@@ -749,11 +855,50 @@ summary_table <- iv_summary %>%
 
 
 #==== 02f - Handling outliers =================================================#
-## Part Nastia.
+var_order <- paste0("f", 1:11)
+
+# Signed log transformation
+long11 <- long11 %>%
+  mutate(
+    Variable = factor(Variable, levels = var_order),
+    Value_sl = sign(Value) * log10(1 + abs(Value)),
+    Label    = var_names[Variable],                          # 
+    Label    = factor(Label, levels = var_names[var_order])  
+  )
 
 
+outliers<-ggplot(long11, aes(x = Label, y = Value_sl)) +
+  geom_boxplot(
+    fill           = grey,
+    color          = blue,
+    outlier.colour = red,
+    outlier.alpha  = 0.8,
+    outlier.size   = 1.8
+  ) +
+  scale_y_continuous(
+    breaks = -6:6,   # adjust depending on scale
+    labels = function(x) scales::comma(10^abs(x) * sign(x))
+  ) +
+  labs(
+    title = "Outlier Detection (Signed Log Scale)",
+    x     = "Variable",
+    y     = "Value (signed log10)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title  = element_text(face = "bold", color = blue, size = 16),
+    axis.title  = element_text(color = blue, face = "bold"),
+    axis.text.x = element_text(angle = 60, hjust = 1, color = blue),
+    axis.text.y = element_text(color = blue)
+  )
 
-
+ggsave(
+  filename = "outliers.png",
+  path = Charts_Path,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
 
 #==============================================================================#
 #==== 03 - Data Preparation & Feature selection ===============================#
