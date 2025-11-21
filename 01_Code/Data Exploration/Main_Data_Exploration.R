@@ -25,7 +25,7 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 packages <- c("here", "corrplot", "dplyr", "tidyr", "car",
               "reshape2", "ggplot2",
               "rsample", "DataExplorer",  ## Necessary for stratified sampling.
-              "scorecard"
+              "scorecard", "gt", "reshape2"
 )
 
 for(i in 1:length(packages)){
@@ -200,17 +200,17 @@ plot <- ggplot(long11 %>% filter(Value > 0), aes(x = Value)) +
   facet_wrap(~ Variable, scales = "free", ncol = 3,
              labeller = labeller(Variable = var_names)) +
   labs(
-    title = "Distribution of Balance Sheet Predictors",
-    x = "Value (logarithmic scale)",
+    title = "",
+    x = "Value (log-scale)",
     y = "Frequency"
   ) +
   theme_minimal(base_size = 13) +
   theme(
     plot.title = element_text(face = "bold", size = 16),
     plot.subtitle = element_text(size = 12, color = grey),
-    axis.title.x = element_text(size = 13, face = "bold"),
-    axis.title.y = element_text(size = 13, face = "bold"),
-    strip.text = element_text(size = 12, face = "bold", color = blue),
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", color = "black"),
+    strip.text = element_text(size = 12, face = "bold", color = "black"),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_line(color = "#d9d9d9"),
     plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
@@ -271,8 +271,8 @@ plot <- ggplot(long11_y %>% dplyr::filter(Value > 0),
     name   = "Class"
   ) +
   labs(
-    title = "Distribution of Balance Sheet Predictors\nby Default Status",
-    x     = "Value (logarithmic scale)",
+    title = "",
+    x     = "Value (log-scale)",
     y     = "Scaled density",
     fill  = "Class",
     color = "Class"
@@ -280,9 +280,9 @@ plot <- ggplot(long11_y %>% dplyr::filter(Value > 0),
   theme_minimal(base_size = 13) +
   theme(
     plot.title   = element_text(face = "bold", size = 16),
-    axis.title.x = element_text(size = 13, face = "bold"),
-    axis.title.y = element_text(size = 13, face = "bold"),
-    strip.text   = element_text(size = 12, face = "bold", colour = blue),
+    axis.title.x = element_text(size = 13, face = "bold", colour = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", colour = "black"),
+    strip.text   = element_text(size = 12, face = "bold", colour = "black"),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_line(colour = "#d9d9d9"),
     plot.margin  = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
@@ -377,34 +377,75 @@ Skewness <- apply(as.matrix(f1_f11 ), MARGIN = 2, FUN = skew)
 
 # Build table
 Summary_f1_f11 <- data.frame(
-  Mean     = round(Mean, 2),
-  St.dev = round(St.dev, 2),
-  Skewness = round(Skewness, 2)
+  Mean     = round(Mean, 1),
+  St.dev = round(St.dev, 1),
+  Skewness = round(Skewness, 1)
 )
 
 
-table <- Summary_f1_f11 %>%
-  dplyr::mutate(Variable = var_names) %>%             
-  dplyr::select(Variable, Mean, St.dev, Skewness) %>% 
-  knitr::kable(
-    caption   = "Summary Statistics for Balance Sheet Predictors",
-    col.names = c("Variable", "Mean", "St.dev", "Skewness"),
-    align     = "lccc",
-    booktabs  = TRUE
-  ) %>%
-  kableExtra::kable_classic(full_width = FALSE, html_font = "Cambria") %>%
-  kableExtra::row_spec(0, bold = TRUE, background = "#004890", color = "white") %>%
-  kableExtra::row_spec(1:nrow(Summary_f1_f11), background = "#f7f7f7")
+# table <- Summary_f1_f11 %>%
+#   dplyr::mutate(Variable = var_names) %>%             
+#   dplyr::select(Variable, Mean, St.dev, Skewness) %>% 
+#   knitr::kable(
+#     caption   = "Summary Statistics for Balance Sheet Predictors",
+#     col.names = c("Variable", "Mean", "St.dev", "Skewness"),
+#     align     = "lccc",
+#     booktabs  = TRUE
+#   ) %>%
+#   kableExtra::kable_classic(full_width = FALSE, html_font = "Cambria") %>%
+#   kableExtra::row_spec(0, bold = TRUE, background = "#004890", color = "white") %>%
+#   kableExtra::row_spec(1:nrow(Summary_f1_f11), background = "#f7f7f7")
 
 # kableExtra::save_kable(
 #   table,
 #   file = file.path(Charts_Data_Exploration_Directory, "013_Summary_f1_f11.png")
 # )
 
+## Or using the gt-package.
+
+table_gt <- Summary_f1_f11 %>%
+  mutate(Variable = var_names) %>%
+  select(Variable, Mean, St.dev, Skewness) %>%
+    gt() %>%
+    tab_header(
+    title = ""
+  ) %>%
+    cols_align(
+    align = "left",
+    columns = Variable
+  ) %>%
+  cols_align(
+    align = "center",
+    columns = c(Mean, St.dev, Skewness)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "#004890"),
+      cell_text(color = "white", weight = "bold")
+    ),
+    locations = cells_column_labels()
+  ) %>%
+  tab_style(
+    style = cell_fill(color = "#f7f7f7"),
+    locations = cells_body()
+  ) %>%
+  opt_table_font(
+    font = list("Cambria", default_fonts())
+  ) %>%
+  tab_options(
+    table.width = "auto" # Keeps the table compact (full_width = FALSE)
+  )
+
+table_gt
+
+Path <- file.path(Charts_Data_Exploration_Directory, "09_SummaryStats_Features.png")
+gtsave(table_gt, Path, vwidth = width, vheight = height)
 
 ## ======================= ##
 ## 1.2.4 Descriptive statistics - Visualize
 ## ======================= ##
+
+{
 
 stats_long <- data.frame(
   Variable = factor(names(f1_f11), levels = names(f1_f11)),
@@ -422,33 +463,47 @@ stats_long <- data.frame(
 stats_large <- stats_long %>% 
   filter(Statistic %in% c("Mean", "St.dev"))
 
-plot <- ggplot(stats_large,
-       aes(x = Variable, y = Value,
-           color = Statistic, group = Statistic)) +
-  geom_line(linewidth = 1.2) +
-  geom_point(size = 3) +
-  scale_color_manual(values = c("Mean" = blue, "St.dev" = orange)) +
-  scale_x_discrete(labels = var_names) +        # ← HERE
-  labs(
-    title = "Mean and Standard Deviation of Balance Sheet Predictors",
-    x = "Variable",
+plot_stats <- ggplot(stats_large, 
+                     aes(x = Variable, y = Value, 
+                         color = Statistic, group = Statistic)) +
+  
+  geom_line(linewidth = 1.2, alpha = 0.9) +
+  geom_point(size = 3, alpha = 0.9) +
+    scale_color_manual(values = c("Mean" = blue, "St.dev" = red)) +
+  
+  scale_x_discrete(labels = var_names) +
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.1))) +
+    labs(
+    title = "",
+    subtitle = "",
+    x = NULL,    #
     y = "Value",
-    color = "Statistic"
+    color = ""
   ) +
-  theme_minimal(base_size = 13) +
+  
+  theme_minimal(base_size = 12) +
   theme(
-    plot.title    = element_text(face = "bold", size = 16),
-    plot.subtitle = element_text(size = 12, color = grey),
-    axis.text.x   = element_text(angle = 45, hjust = 1),
-    legend.position = "top"
-  )
+    plot.margin = margin(t = 40, r = 20, b = 10, l = 10),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold", size = 10),
+    legend.margin = margin(t = -5),
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, color = "black"),
+    axis.text.y = element_text(color = "black"),
+    axis.title.y = element_text(margin = margin(r = 10), color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_line(color = "gray95"),
+    panel.grid.major.y = element_line(color = "gray90")
+  ) +
+    coord_cartesian(clip = "off")
+
+plot_stats
 
 #Save
 
 Path <- file.path(Charts_Data_Exploration_Directory, "014_mean_stddev.png")
 ggsave(
   filename = Path,
-  plot = plot,
+  plot = plot_stats,
   width = width,
   height = height,
   units = "px",
@@ -491,18 +546,28 @@ ggsave(
   limitsize = FALSE
 )
 
-#==== 02d - Feature Engineering ===============================================#
-## Part Nastia.
-## Part Tristan roughly done.
+}
+
+#==============================================================================#
+#==== 1.3 - Feature Selection Engineering =====================================#
+#==============================================================================#
 
 tryCatch({
   
 ## ======================= ##
-## Informational Value.
+## 1.3.1. Informational Value.
 ## ======================= ##
 
 ## Tells us how good a feature seperates between NoDefault (y=0) and Default (y=1).
 iv_summary <- iv(Data, y = "y")
+print(iv_summary %>% arrange(desc(info_value)))
+
+iv_summary <- iv_summary %>%
+  mutate(
+    variable = coalesce(var_names[variable], variable)
+  )
+
+iv_summary$info_value <- round(iv_summary$info_value, 1)
 print(iv_summary %>% arrange(desc(info_value)))
 
 ## Plot the informational value.
@@ -514,42 +579,62 @@ iv_summary <- iv_summary %>%
       info_value >= 0.3  ~ "Strong",
       info_value >= 0.1  ~ "Medium",
       info_value >= 0.02 ~ "Weak",
-      TRUE               ~ "Useless"
+      TRUE               ~ "Very Weak"
     ),
-    # Convert to a factor to control the order in the legend
     power_category = factor(power_category, 
-                            levels = c("Very Strong", "Strong", "Medium", "Weak", "Useless"))
+                            levels = c("Very Strong", "Strong", "Medium", "Weak", "Very Weak"))
   )
 
-# 3. Create the ggplot visualization
+
 plot_IV <- ggplot(iv_summary, aes(x = info_value, y = reorder(variable, info_value))) +
-  geom_col(aes(fill = power_category)) +
-    geom_text(aes(label = round(info_value, 3)), hjust = -0.1, size = 3.5) +
-    geom_vline(xintercept = c(0.02, 0.1, 0.3, 0.5), linetype = "dashed", color = "gray50") +
-    annotate("text", x = 0.02, y = Inf, label = "Weak", vjust = -0.5, hjust = -0.1, size = 3, color = "gray20") +
-  annotate("text", x = 0.1, y = Inf, label = "Medium", vjust = -0.5, hjust = -0.1, size = 3, color = "gray20") +
-  annotate("text", x = 0.3, y = Inf, label = "Strong", vjust = -0.5, hjust = -0.1, size = 3, color = "gray20") +
-  annotate("text", x = 0.5, y = Inf, label = "Very strong", vjust = -0.5, hjust = -0.1, size = 3, color = "gray20") +
+    geom_col(aes(fill = power_category), width = 0.75, alpha = 0.9) + 
+    geom_text(aes(label = sprintf("%.1f", info_value)), 
+            hjust = -0.2, 
+            size = 3.5, 
+            fontface = "bold", 
+            color = "#333333") +
+    geom_vline(xintercept = c(0.02, 0.1, 0.3, 0.5), 
+             linetype = "dashed", color = "gray60", linewidth = 0.4) +
+  # annotate("text", x = 0.01, y = Inf, label = "Useless", vjust = -1, size = 3, color = "gray40", fontface = "italic") +
+  # annotate("text", x = 0.06, y = Inf, label = "Weak",    vjust = -1, size = 3, color = "gray40", fontface = "italic") +
+  # annotate("text", x = 0.2,  y = Inf, label = "Medium",  vjust = -1, size = 3, color = "gray40", fontface = "italic") +
+  # annotate("text", x = 0.4,  y = Inf, label = "Strong",  vjust = -1, size = 3, color = "gray40", fontface = "italic") +
+  # annotate("text", x = 0.55, y = Inf, label = "Very Strong", vjust = -1, size = 3, color = "gray40", fontface = "italic") +
+    scale_fill_manual(values = c(
+    "Very Strong" = "#d53e4f", 
+    "Strong"      = "#f46d43", 
+    "Medium"      = "#fdae61", 
+    "Weak"        = "#fee08b", 
+    "Very Weak"     = "#e6f598"
+  )) +
+  
+  scale_x_continuous(expand = expansion(mult = c(0, 0.15))) +
     labs(
     title = "",
     subtitle = "",
     x = "Information Value",
-    y = "",
+    y = NULL, 
     fill = "Predictive Power"
   ) +
   
-  # Manually set colors for the categories
-  scale_fill_manual(values = c(
-    "Very Strong" = "#d53e4f", 
-    "Strong" = "#f46d43", 
-    "Medium" = "#fdae61", 
-    "Weak" = "#fee08b", 
-    "Useless" = "#e6f598"
-  )) +
-  
-  scale_x_continuous(limits = c(0, max(iv_summary$info_value) * 1.1)) +
-    theme_minimal(base_size = 12) +
-  theme(legend.position = "bottom")
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = margin(t = 40, r = 20, b = 10, l = 10), 
+    
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold", size = 10),
+    legend.margin = margin(t = -5),
+      axis.text.y = element_text(color = "black", size = 10, face = "plain"),
+    axis.text.x = element_text(color = "gray40"),
+    axis.title.x = element_text(margin = margin(t = 10), color = "gray30"),
+    
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_line(color = "gray90")
+  ) +
+  coord_cartesian(clip = "off")
+
+plot_IV
 
 Path <- file.path(Charts_Data_Exploration_Directory, "02_IV_per_feature.png")
 ggsave(
@@ -609,11 +694,11 @@ cor(Data$f8, Data$f6)
 cor(Data$f8, Data$f11)
 
 ## ======================= ##
-## Significance tests.
+## 1.3.2 Significance tests.
 ## ======================= ##
 
 ## ======================= ##
-## 1.3.1 Calculating group means ##
+## 1.3.2.1 Calculating group means ##
 ## ======================= ##
 
 df <- cbind(y = Data$y, Features) %>% 
@@ -633,7 +718,7 @@ group_means <- df %>%
 group_means
 
 ## ============================================ ##
-##  1.3.2 Welch two-sample t-tests for all features ##
+##  1.3.2.2 Welch two-sample t-tests for all features ##
 ## ============================================ ##
 
 
@@ -676,17 +761,62 @@ plot <- ggplot(plot_df, aes(x = Variable, y = log_p, fill = Sig)) +
   geom_hline(yintercept = -log10(0.05), 
              color = "#004890", linetype = "dashed", size = 1) +
   labs(
-    title = "P-values for Welch's Two-Sample t-tests",
-    subtitle = "Higher bars = more significant difference between groups",
+    title = "",
+    subtitle = "",
     x = "Variable",
     y = "-log10(p-value)"
   ) + scale_x_discrete(labels = var_names) +
   theme_minimal(base_size = 13) +
   theme(
     axis.text.x = element_text(angle = 60, hjust = 1),
+    axis.text.y = element_text(color = "black", size = 10, face = "plain"),
     plot.title = element_text(face = "bold", size = 16),
     legend.position = "top"
   )
+
+##
+
+plot <- ggplot(plot_df, aes(x = Variable, y = log_p)) +
+    geom_col(aes(fill = Sig), width = 0.75, alpha = 0.9) +
+    geom_text(aes(label = sprintf("%.1f", log_p)), 
+            vjust = -0.5, 
+            size = 3.5, 
+            fontface = "bold", 
+            color = "#333333") +
+    geom_hline(yintercept = -log10(0.05), 
+             color = blue, linetype = "dashed", linewidth = 0.6) +
+  scale_fill_manual(
+    values = c("TRUE" = red,   # red
+               "FALSE" = grey),  # grey
+    labels = c("TRUE" = "Significant",
+               "FALSE" = "Not significant"),
+    name = "Significance (p < 0.05)"
+  ) +
+  
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+    scale_x_discrete(labels = var_names) +
+  labs(
+    title = "",
+    subtitle = "",
+    x = NULL, 
+    y = "-log10(p-value)"
+  ) +
+  
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = margin(t = 40, r = 20, b = 10, l = 10), 
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold", size = 10),
+    legend.margin = margin(t = -5),
+    axis.text.y = element_text(color = "black", size = 10),
+    axis.text.x = element_text(color = "black", angle = 60, hjust = 1), 
+    axis.title.y = element_text(margin = margin(r = 10), color = "black"),
+    
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "gray90")
+  ) +
+  coord_cartesian(clip = "off")
 
 #Save
 Path <- file.path(Charts_Data_Exploration_Directory, "016_Welch_twosample_t_test.png")
@@ -700,14 +830,14 @@ ggsave(
   limitsize = FALSE
 )
 
+
+########
+
 categorical_vars <- Data %>%
   dplyr::select(where(~ is.factor(.) || is.character(.)))
 
-
-# if there are no categorical vars, just stop
 if (ncol(categorical_vars) == 0) stop("No categorical predictors in Data.")
 
-## ---- chi-square tests ----
 chi_results <- lapply(names(categorical_vars), function(v) {
   tab  <- table(Data$y, Data[[v]], useNA = "ifany")
   test <- suppressWarnings(chisq.test(tab))
@@ -765,21 +895,67 @@ ggsave(
 ## ======================= ##
 
 cor_matrix <- cor(Features[,])
-cor_matrix_lower <- cor_matrix
-cor_matrix_lower[upper.tri(cor_matrix_lower)] <- NA
-melted_cor_matrix <- melt(cor_matrix_lower, na.rm = TRUE)
+
+new_names <- var_names[rownames(cor_matrix)]
+new_names[is.na(new_names)] <- rownames(cor_matrix)[is.na(new_names)]
+rownames(cor_matrix) <- new_names
+colnames(cor_matrix) <- new_names
+cor_matrix[upper.tri(cor_matrix)] <- NA
+melted_cor_matrix <- melt(cor_matrix, na.rm = TRUE)
+var_order <- colnames(cor_matrix)
+
+plot_data <- melted_cor_matrix %>%
+  mutate(
+    Var1 = factor(Var1, levels = var_order),
+    Var2 = factor(Var2, levels = var_order)
+  )
 
 ## Plot.
-plot_MC <- ggplot(data = melted_cor_matrix, aes(x = Var1, y = Var2, fill = value)) +
-  geom_tile(color = "white") + 
-  scale_fill_gradient2(low = blue, high = orange, mid = "white", 
-                       midpoint = 0, limit = c(-1, 1), 
-                       name = "Correlation") +
-  geom_text(aes(label = round(value, 2)), color = "black", size = 1.5) +
-  theme_minimal() + 
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
-        axis.title = element_blank()) + 
-  coord_fixed() 
+
+plot_MC <- ggplot(plot_data, aes(x = Var2, y = Var1, fill = value)) +
+  geom_tile(color = "white", linewidth = 0.5) +
+  
+  geom_text(aes(label = sprintf("%.2f", value)), 
+            color = "#333333", 
+            size = 2, 
+            fontface = "plain") +
+  
+  scale_fill_gradient2(
+    low = blue, 
+    high = red, 
+    mid = "white", 
+    midpoint = 0, 
+    limit = c(-1, 1), 
+    name = "Correlation"
+  ) +
+  
+  scale_y_discrete(limits = rev(var_order)) +
+    scale_x_discrete(position = "bottom") +
+  
+  labs(
+    title = "",
+    subtitle = "",
+    x = NULL, 
+    y = NULL
+  ) +
+    theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = margin(t = 40, r = 20, b = 10, l = 10),
+    
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold", size = 10),
+    legend.margin = margin(t = -5),
+    legend.key.width = unit(1.5, "cm"),
+    
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, color = "black"),
+    axis.text.y = element_text(color = "black"),
+    
+    panel.grid = element_blank()
+  ) +
+  coord_fixed()
+
+plot_MC
+
 
 Path <- file.path(Charts_Data_Exploration_Directory, "04_Multicollinearity.png")
 ggsave(
@@ -902,16 +1078,16 @@ outliers<-ggplot(long11, aes(x = Label, y = Value_sl)) +
     labels = function(x) scales::comma(10^abs(x) * sign(x))
   ) +
   labs(
-    title = "Outlier Detection (Signed Log Scale)",
+    title = "",
     x     = "Variable",
     y     = "Value (signed log10)"
   ) +
   theme_minimal(base_size = 13) +
   theme(
     plot.title  = element_text(face = "bold", color = blue, size = 16),
-    axis.title  = element_text(color = blue, face = "bold"),
-    axis.text.x = element_text(angle = 60, hjust = 1, color = blue),
-    axis.text.y = element_text(color = blue)
+    axis.title  = element_text(color = "black", face = "bold"),
+    axis.text.x = element_text(angle = 60, hjust = 1, color = "black"),
+    axis.text.y = element_text(color = "black")
   )
 
 Path <- file.path(Charts_Data_Exploration_Directory, "019_Outliers.png")

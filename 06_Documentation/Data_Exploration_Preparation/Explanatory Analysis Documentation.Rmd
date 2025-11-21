@@ -21,9 +21,17 @@ In this credit risk dataset, the target variable, y, is inherently imbalanced. T
 
 This imbalance poses a significant challenge for model development. If we were to use a simple random split to create our training, validation, and test sets, we would face a high risk of creating unrepresentative samples. For example, a small test set could, purely by chance, end up with a much higher or lower percentage of defaults than the original dataset or, in the worst case, zero defaults.
 
+```{r, echo=FALSE, out.width="80%", fig.align='center'}
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "01_Defaults_per_Sector.png"))
+```
+
+Secondly, the defaults also vary across business sectors. The service sector has the highest default rate,
+0.01, whilst the energy sector has the lowest rate of defaults (0.0025).
+
 \subsection{1.1.1 Data imbalance}
 
 To address potential sampling bias from the severe data imbalance, we employ \textbf{stratified sampling}. This technique ensures that the original class distribution of the target variable is preserved in both the training and test sets.
+
 
 The primary advantages of this approach are:
 
@@ -35,9 +43,6 @@ The primary advantages of this approach are:
 
 In summary, using stratified sampling is a critical step to ensure our model is trained and evaluated on a reliable, representative foundation.
 
-```{r, echo=FALSE, out.width="80%", fig.align='center'}
-knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "01_Defaults_per_Sector.png"))
-```
 
 \subsection{1.1.2 Implication}
 
@@ -59,16 +64,16 @@ In summary, using stratified sampling is a critical step to ensure our model is 
 
 The dataset is partitioned into a training set and a testing set using the \texttt{rsample} package, which is part of the tidymodels framework. This process ensures that the resulting datasets are representative of the original data's class distribution, which is a critical step in handling data imbalance.
 
-The used \texttt{initial\_split} function does not simply take a random 80\% of the data. When the \texttt{strata = y} argument is used, it follows a more intelligent \textbf{stratified sampling} algorithm:
+The used \texttt{initial\_split} function does not simply take a random 70\% of the data. When the \texttt{strata = y} argument is used, it follows a more intelligent \textbf{stratified sampling} algorithm:
 
 \begin{enumerate}
     \item \textbf{Group Data by Stratum:} The function first identifies all unique values in the specified \texttt{strata} column (\texttt{y}). In this case, it creates two distinct groups: one for all the defaulting firms (\texttt{y = 1}) and another for all the non-defaulting firms (\texttt{y = 0}).
 
-    \item \textbf{Sample Proportionally within Each Group:} The function then takes an 80\% sample from the defaulting firms group and a separate 80\% sample from the non-defaulting firms group.
+    \item \textbf{Sample Proportionally within Each Group:} The function then takes an 70\% sample from the defaulting firms group and a separate 70\% sample from the non-defaulting firms group.
 
-    \item \textbf{Create the Training Set:} These two separately sampled subsets (80\% of defaults and 80\% of non-defaults) are combined to form the final training set (\texttt{Train}).
+    \item \textbf{Create the Training Set:} These two separately sampled subsets (70\% of defaults and 70\% of non-defaults) are combined to form the final training set (\texttt{Train}).
 
-    \item \textbf{Create the Test Set:} The remaining 20\% of the defaulting firms and the remaining 20\% of the non-defaulting firms are combined to form the final testing set (\texttt{Test}).
+    \item \textbf{Create the Test Set:} The remaining 30\% of the defaulting firms and the remaining 30\% of the non-defaulting firms are combined to form the final testing set (\texttt{Test}).
 \end{enumerate}
 
 
@@ -93,7 +98,7 @@ From the distribution plot of binary variables, we see that both group member an
 \subsection{2. Summary statistics}
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
-knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "013_Summary_f1_f11.png"))
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "09_SummaryStats_Features.png"))
 ```
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
