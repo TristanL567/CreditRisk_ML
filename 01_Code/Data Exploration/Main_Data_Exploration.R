@@ -170,7 +170,7 @@ var_names <- c(
   f5  = "Cash",
   f6  = "Equity",
   f7  = "Retained Earning (GR)",
-  f8  = "Ner profit",
+  f8  = "Net profit",
   f9  = "Retained Earning (GV)",
   f10 = "Provisions",
   f11 = "Liabilities"
@@ -194,7 +194,7 @@ long11 <- tidyr::pivot_longer(
 
 long11$Variable <- factor(long11$Variable, levels = paste0("f", 1:11))
 
-ggplot(long11 %>% filter(Value > 0), aes(x = Value)) + 
+plot <- ggplot(long11 %>% filter(Value > 0), aes(x = Value)) + 
   geom_histogram(fill = blue, color = "white", bins = 30) +
   scale_x_log10() +
   facet_wrap(~ Variable, scales = "free", ncol = 3,
@@ -218,13 +218,17 @@ ggplot(long11 %>% filter(Value > 0), aes(x = Value)) +
 
 #Save
 
+Path <- file.path(Charts_Data_Exploration_Directory, "010_distribution_f1_f11.png")
 ggsave(
-  filename = "distribution_f1_f11.png",
-  path = Charts_Path,
-  width = 10,
-  height = 8,
-  dpi = 300
+  filename = Path,
+  plot = plot,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
 )
+
 
 ## ======================= ##
 ## 1.2.2 Class wide density plot
@@ -244,7 +248,7 @@ long11_y <- Data %>%
 long11_y$Variable <- factor(long11_y$Variable, levels = paste0("f", 1:11))
 
 
-ggplot(long11_y %>% dplyr::filter(Value > 0),
+plot <- ggplot(long11_y %>% dplyr::filter(Value > 0),
        aes(x = Value, colour = y, fill = y)) +
   geom_density(
     alpha    = 0.4,
@@ -286,12 +290,15 @@ ggplot(long11_y %>% dplyr::filter(Value > 0),
 
 #Save
 
+Path <- file.path(Charts_Data_Exploration_Directory, "011_distribution.png")
 ggsave(
-  filename = "distribution_.png",
-  path = Charts_Path,
-  width = 10,
-  height = 8,
-  dpi = 300
+  filename = Path,
+  plot = plot,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
 )
 
 ## ======================= ##
@@ -315,7 +322,7 @@ binary_props <- binary_long %>%
   group_by(Variable) %>%
   mutate(prop = n / sum(n))
 
-ggplot(binary_props, 
+plot <- ggplot(binary_props, 
        aes(x = Variable, y = prop, fill = factor(Value))) +
   geom_col(position = "stack", color = "white", linewidth = 0.3) +
   
@@ -347,12 +354,15 @@ ggplot(binary_props,
     panel.grid.major = element_blank()
   )
 
+Path <- file.path(Charts_Data_Exploration_Directory, "012_dis_binary.png")
 ggsave(
-  filename = "dis_binary.png",
-  path = Charts_Path,
-  width = 10,
-  height = 8,
-  dpi = 300
+  filename = Path,
+  plot = plot,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
 )
 
 ## ======================= ##
@@ -386,13 +396,10 @@ table <- Summary_f1_f11 %>%
   kableExtra::row_spec(0, bold = TRUE, background = "#004890", color = "white") %>%
   kableExtra::row_spec(1:nrow(Summary_f1_f11), background = "#f7f7f7")
 
-kableExtra::save_kable(
-  table,
-  file = file.path(Charts_Path, "Summary_f1_f11.png"),
-  zoom = 3,          
-  density = 600,     
-  vwidth = 1200,     
-)
+# kableExtra::save_kable(
+#   table,
+#   file = file.path(Charts_Data_Exploration_Directory, "013_Summary_f1_f11.png")
+# )
 
 
 ## ======================= ##
@@ -415,7 +422,7 @@ stats_long <- data.frame(
 stats_large <- stats_long %>% 
   filter(Statistic %in% c("Mean", "St.dev"))
 
-ggplot(stats_large,
+plot <- ggplot(stats_large,
        aes(x = Variable, y = Value,
            color = Statistic, group = Statistic)) +
   geom_line(linewidth = 1.2) +
@@ -437,18 +444,21 @@ ggplot(stats_large,
   )
 
 #Save
-ggsave(
-  filename = "meanand and st.dev.png",
-  path = Charts_Path,
-  width = 10,
-  height = 8,
-  dpi = 300
-)
 
+Path <- file.path(Charts_Data_Exploration_Directory, "014_mean_stddev.png")
+ggsave(
+  filename = Path,
+  plot = plot,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
 
 stats_skew <- stats_long %>% filter(Statistic == "Skewness")
 
-ggplot(stats_skew,
+plot <- ggplot(stats_skew,
        aes(x = Variable, y = Value, group = 1)) +
   geom_line(color = red, linewidth = 1.2) +
   geom_point(color = red, size = 3) +
@@ -469,14 +479,17 @@ ggplot(stats_skew,
   )
 
 #Save
-ggsave(
-  filename = "skewness.png",
-  path = Charts_Path,
-  width = 10,
-  height = 8,
-  dpi = 300
-)
 
+Path <- file.path(Charts_Data_Exploration_Directory, "015_skewness.png")
+ggsave(
+  filename = Path,
+  plot = plot,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
 
 #==== 02d - Feature Engineering ===============================================#
 ## Part Nastia.
@@ -651,7 +664,7 @@ plot_df <- mean_test_results %>%
     Sig = p_value < 0.05
   )
 
-ggplot(plot_df, aes(x = Variable, y = log_p, fill = Sig)) +
+plot <- ggplot(plot_df, aes(x = Variable, y = log_p, fill = Sig)) +
   geom_col() +
   scale_fill_manual(
     values = c("TRUE" = "#d62728",   # red = significant
@@ -676,12 +689,15 @@ ggplot(plot_df, aes(x = Variable, y = log_p, fill = Sig)) +
   )
 
 #Save
+Path <- file.path(Charts_Data_Exploration_Directory, "016_Welch_twosample_t_test.png")
 ggsave(
-  filename = "Welch's Two-Sample t-tests.png",
-  path = Charts_Path,
-  width = 10,
-  height = 8,
-  dpi = 300
+  filename = Path,
+  plot = plot,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
 )
 
 categorical_vars <- Data %>%
@@ -709,7 +725,7 @@ chi_results <- lapply(names(categorical_vars), function(v) {
   )
 
 
-ggplot(chi_results,
+plot <- ggplot(chi_results,
        aes(x = factor(Variable, levels = Variable),
            y = log_p, fill = Sig)) +
   geom_col() +
@@ -733,12 +749,15 @@ ggplot(chi_results,
   )
 
 #Save
+Path <- file.path(Charts_Data_Exploration_Directory, "017_chi_test.png")
 ggsave(
-  filename = "Chi tests.png",
-  path = Charts_Path,
-  width = 10,
-  height = 8,
-  dpi = 300
+  filename = Path,
+  plot = plot,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
 )
 
 ## ======================= ##
@@ -825,7 +844,7 @@ vif_table <- data.frame(
     VIF >= 10 ~ "High"
   ))
 
-plot_VIF <- ggplot(vif_table, aes(x = reorder(Variable, VIF), y = VIF, fill = VIF)) +
+plot <- plot_VIF <- ggplot(vif_table, aes(x = reorder(Variable, VIF), y = VIF, fill = VIF)) +
   geom_col(color = "white") +
   coord_flip() +
   scale_fill_gradient(low = blue, high = orange) +
@@ -839,12 +858,15 @@ plot_VIF <- ggplot(vif_table, aes(x = reorder(Variable, VIF), y = VIF, fill = VI
   theme_minimal(base_size = 10) +
   theme(panel.grid.minor = element_blank())
 
+Path <- file.path(Charts_Data_Exploration_Directory, "018_VIF.png")
 ggsave(
-  filename = "VIF.png",
-  path = Charts_Path,
-  width = 10,
-  height = 8,
-  dpi = 300
+  filename = Path,
+  plot = plot,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
 )
 
 #==== 02e - Data splitting ====================================================#
@@ -892,12 +914,15 @@ outliers<-ggplot(long11, aes(x = Label, y = Value_sl)) +
     axis.text.y = element_text(color = blue)
   )
 
+Path <- file.path(Charts_Data_Exploration_Directory, "019_Outliers.png")
 ggsave(
-  filename = "outliers.png",
-  path = Charts_Path,
-  width = 10,
-  height = 8,
-  dpi = 300
+  filename = Path,
+  plot = outliers,
+  width = width,
+  height = height,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
 )
 
 #==============================================================================#

@@ -3,19 +3,88 @@ title: "Data exploration"
 output: pdf_document
 ---
 
+```{r}
+library(knitr)
+library(here)
+
+Path <- file.path(here::here(""))
+Directory <- file.path(Path, "Documentation_Data_Exploration_Preparation.Rnw")
+Charts_Directory <- file.path(Path, "03_Charts")
+Charts_Data_Exploration_Directory <- file.path(Charts_Directory, "Data Exploration")
+
+# knit2pdf(Directory)
+```
+
+\section{1.1 Dependent variable}
+
+In this credit risk dataset, the target variable, y, is inherently imbalanced. The number of non-defaults (0) significantly outnumbers the number of defaults (1). This is a common and expected characteristic of credit risk data.
+
+This imbalance poses a significant challenge for model development. If we were to use a simple random split to create our training, validation, and test sets, we would face a high risk of creating unrepresentative samples. For example, a small test set could, purely by chance, end up with a much higher or lower percentage of defaults than the original dataset or, in the worst case, zero defaults.
+
+\subsection{1.1.1 Data imbalance}
+
+To address potential sampling bias from the severe data imbalance, we employ \textbf{stratified sampling}. This technique ensures that the original class distribution of the target variable is preserved in both the training and test sets.
+
+The primary advantages of this approach are:
+
+\begin{itemize}
+    \item \textbf{Guaranteed Representation:} Stratification forces the data splits to maintain the original ratio of defaults to non-defaults. Given that 0.0865\% of the original dataset consists of defaults, both the training and test sets will contain approximately this same percentage.
+    \item \textbf{Reliable Evaluation:} When the test set is truly representative, the performance metrics we calculate (such as accuracy, precision, recall, and F1-score) are meaningful. Evaluating a model on a test set with a skewed default rate would give a misleading and overly optimistic (or pessimistic) performance score.
+    \item \textbf{Improved Model Generalization:} Training a model on a set that accurately reflects the real-world data distribution helps it learn the distinct patterns of both the majority (non-default) and minority (default) classes. This leads to a more robust and generalizable model.
+\end{itemize}
+
+In summary, using stratified sampling is a critical step to ensure our model is trained and evaluated on a reliable, representative foundation.
+
+```{r, echo=FALSE, out.width="80%", fig.align='center'}
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "01_Defaults_per_Sector.png"))
+```
+
+\subsection{1.1.2 Implication}
+
+To address potential sampling bias from the severe data imbalance, we employ \textbf{stratified sampling}. This technique ensures that the original class distribution of the target variable is preserved in both the training and test sets.
+
+The primary advantages of this approach are:
+
+\begin{itemize}
+    \item \textbf{Guaranteed Representation:} Stratification forces the data splits to maintain the original ratio of defaults to non-defaults. Given that 0.0865\% of the original dataset consists of defaults, both the training and test sets will contain approximately this same percentage.
+
+    \item \textbf{Reliable Evaluation:} When the test set is truly representative, the performance metrics we calculate (such as accuracy, precision, recall, and F1-score) are meaningful. Evaluating a model on a test set with a skewed default rate would give a misleading and overly optimistic (or pessimistic) performance score.
+
+    \item \textbf{Improved Model Generalization:} Training a model on a set that accurately reflects the real-world data distribution helps it learn the distinct patterns of both the majority (non-default) and minority (default) classes. This leads to a more robust and generalizable model.
+\end{itemize}
+
+In summary, using stratified sampling is a critical step to ensure our model is trained and evaluated on a reliable, representative foundation.
+
+\subsection{1.1.3 Theory}
+
+The dataset is partitioned into a training set and a testing set using the \texttt{rsample} package, which is part of the tidymodels framework. This process ensures that the resulting datasets are representative of the original data's class distribution, which is a critical step in handling data imbalance.
+
+The used \texttt{initial\_split} function does not simply take a random 80\% of the data. When the \texttt{strata = y} argument is used, it follows a more intelligent \textbf{stratified sampling} algorithm:
+
+\begin{enumerate}
+    \item \textbf{Group Data by Stratum:} The function first identifies all unique values in the specified \texttt{strata} column (\texttt{y}). In this case, it creates two distinct groups: one for all the defaulting firms (\texttt{y = 1}) and another for all the non-defaulting firms (\texttt{y = 0}).
+
+    \item \textbf{Sample Proportionally within Each Group:} The function then takes an 80\% sample from the defaulting firms group and a separate 80\% sample from the non-defaulting firms group.
+
+    \item \textbf{Create the Training Set:} These two separately sampled subsets (80\% of defaults and 80\% of non-defaults) are combined to form the final training set (\texttt{Train}).
+
+    \item \textbf{Create the Test Set:} The remaining 20\% of the defaulting firms and the remaining 20\% of the non-defaulting firms are combined to form the final testing set (\texttt{Test}).
+\end{enumerate}
+
+
 \section{1.2 Distribution and bivariate Data Analysis}
 
 \subsection{1.2.1 Distributions}
 
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
-knitr::include_graphics("distribution_f1_f11.png")
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "010_distribution_f1_f11.png"))
 ```
 
 The histograms on the logarithmic scale show that all Balance Sheet Predictors are heavily right-tailed and spread across several orders of magnitude. Without the log scale, the values would be too uneven to visualize properly. After applying the log scale, the distribution of most variables reminds a log-normal distribution. Most observations are relatively small, while a small number of very large values stretch the distributions far to the right. 
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
-knitr::include_graphics("dis_binary.png")
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "012_dis_binary.png"))
 ```
 
 From the distribution plot of binary variables, we see that both group member and public are extremely imbalanced.
@@ -24,11 +93,11 @@ From the distribution plot of binary variables, we see that both group member an
 \subsection{2. Summary statistics}
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
-knitr::include_graphics("summary_f1_f11.png")
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "013_Summary_f1_f11.png"))
 ```
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
-knitr::include_graphics("mean_std.png")
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "014_mean_stddev.png"))
 ```
 
 **Mean and Standard Deviation**
@@ -37,7 +106,7 @@ Since the standard deviation is larger than the mean for every Predictor from th
 
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
-knitr::include_graphics("skewness.png")
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "015_skewness.png"))
 ```
 
 **Skewness**
@@ -50,7 +119,7 @@ All variables show positive skewness, meaning they have long right tails. Equity
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
 
-knitr::include_graphics("distribution_.png")
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "011_distribution.png"))
 ```
 The plot shows the distribution comparison for Balance Sheet Predictors. We applied scaled density to properly visualize the data, without scaling the distribution of the default class would be mostly invisible due to the class imbalance. 
 
@@ -62,6 +131,57 @@ The plot shows the distribution comparison for Balance Sheet Predictors. We appl
 
 
 \section{1.3 Feature selection}
+
+Before building the predictive model, it is essential to assess the predictive power of each independent variable. This helps in eliminating irrelevant features, understanding variable relationships, and focusing on the most promising candidates. We use the Information Value (IV), significance tests and evaluation of multicollinearity for this purpose.
+
+\subsection{1.3.1 Informational Value}
+
+The function follows a systematic statistical procedure to assign a single score—the Information Value—to each variable, quantifying its ability to separate the "good" outcomes (non-defaults, y=0) from the "bad" ones (defaults, y=1).
+Here is the step-by-step process:
+\begin{enumerate}
+\item \textbf{Binning (Grouping):} The function first discretizes each continuous independent variable into a set of bins or groups (e.g., by quantiles). For categorical variables, each category is treated as a separate group.
+
+\item \textbf{Counting Goods and Bads:} For each bin of a variable (e.g., for the "Age: 20-30" bin), the algorithm counts:
+\begin{itemize}
+    \item The number of non-defaults.
+    \item The number of defaults.
+\end{itemize}
+
+\item \textbf{Calculating Proportions:} It then calculates the proportion of the total goods and total bads that fall into that specific bin:
+\begin{itemize}
+    \item \textbf{\% Goods} = (\# Goods in the bin) / (Total \# Goods in the entire dataset)
+    \item \textbf{\% Bads} = (\# Bads in the bin) / (Total \# Bads in the entire dataset)
+\end{itemize}
+
+\item \textbf{Calculating Weight of Evidence (WoE):} The WoE for each bin measures how much the evidence in that bin supports one outcome over the other. The formula is:
+\[ \text{WoE} = \ln\left(\frac{\% \text{Goods}}{\% \text{Bads}}\right) \]
+A large positive WoE means the bin is strongly associated with non-defaults, while a large negative WoE means it is strongly associated with defaults.
+
+\item \textbf{Calculating Information Value (IV):} Finally, the total IV for the entire variable is calculated by summing a weighted value across all its bins. The formula is:
+\[ \text{IV} = \sum (\% \text{Goods} - \% \text{Bads}) \times \text{WoE} \]
+This single number represents the total predictive power of the variable.
+\end{enumerate}
+\subsubsection*{Why This is Useful Before Modeling}
+Exploring the IV summary is not just a formality; it is a critical step in the exploratory data analysis (EDA) phase for several reasons:
+\begin{itemize}
+\item \textbf{Efficient Feature Selection:} IV provides a simple, powerful metric to rank all variables by their predictive strength. 
+
+\begin{itemize}
+\item \textbf{IV < 0.02:} Useless predictor.
+\item \textbf{0.02 to 0.1:} Weak predictor.
+\item \textbf{0.1 to 0.3:} Medium predictor.
+\item \textbf{0.3 to 0.5:} Strong predictor.
+\item \textbf{IV > 0.5:} Suspiciously high; may indicate data leakage or a variable that is too good to be true.
+\end{itemize}
+
+\item \textbf{Understanding Variable Relationships:} While the total IV gives a summary, the detailed WoE for each bin of a variable reveals the nature of its relationship with the outcome. For example, by looking at the WoE for different age groups, you can see if the default risk increases, decreases, or follows a non-linear pattern as age changes.
+
+\item \textbf{Data Quality and Sanity Checks:} The IV calculation can expose data issues. A variable with an unexpectedly high IV might be a "leaky" variable (e.g., a variable that is only known *after* the default has occurred, pointing to a problematic quasi-seperation issue). Similarly, strange WoE patterns can highlight potential data entry errors or anomalies that need investigation.
+\end{itemize}
+
+```{r, echo=FALSE, out.width="80%", fig.align='center'}
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "02_IV_per_feature.png"))
+```
 
 \subsection{1.3.2 Significance test}
 
@@ -79,7 +199,7 @@ We create a table and order the features by the lowest p-value. It means that it
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
 
-knitr::include_graphics("wtest.png")
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "016_Welch_twosample_t_test.png"))
 ```
 The plots evaluated how well each predictor distinguish between the two groups. We use -log(10) in the charts for better visualization, taller bars indicate stronger difference between the group means.Low p-values indicate predictors that separate the classes and are useful in a model; high p-values indicate weak predictors that do not contribute meaningful information. Low p-value means that the variable contains a useful signal (information that meaningfully differs between groups) and can potentially improve the model’s ability to predict the target.
 
@@ -95,7 +215,7 @@ The analysis helps us understand whether the categorical variable is associated 
 From the results (p-values being $<0.5$) we see that there's strong association of categorical variables and the outcome $y$. Distribution differs significantly between the two groups.
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
-knitr::include_graphics("Chitest.png")
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "017_chi_test.png"))
 ```
 
 The distribution of classes differs significantly across sectors and across size categories, which means that both variables have a useful signal for distinguishing between default and non-default observations.
@@ -121,17 +241,93 @@ X_j = \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_p X_p + \varepsilon.
  - VIFs above 5 suggest moderate multicollinearity, and values above 10 indicate severe redundancy and unstable parameter estimates.
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
-knitr::include_graphics("VIF.png")
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "018_VIF.png"))
 ```
 
 Total assets, invested capital,current assets and cash show the highest VIF, which is obvious beacause total assets is a linear combination of all others. 
+
+\section{1.3.4 Multicollinearity}
+
+After evaluating the individual predictive power of each variable using Information Value, the next critical step is to examine the relationships between the predictor variables themselves. \textbf{Multicollinearity} occurs when two or more independent variables are highly correlated with each other.
+
+While multicollinearity does not necessarily reduce the overall predictive accuracy of a model, it poses a significant problem for interpretation. When variables are highly correlated, it becomes difficult for the model to distinguish their individual impacts on the target variable. This can lead to:
+\begin{itemize}
+    \item Unstable coefficient estimates that can change dramatically with small changes in the data.
+    \item High standard errors for the coefficients, making them seem statistically insignificant even when they are not.
+    \item Difficulty in interpreting the model's logic, as the effect of one variable is confounded by the effect of another.
+\end{itemize}
+
+From the correlation matrix, several pairs of variables exhibit strong linear relationships (correlation > 0.70), which is a clear indicator of multicollinearity.
+
+The analysis reveals two primary groups of highly inter-correlated variables:
+
+\begin{enumerate}
+    \item \textbf{Group 1: \texttt{f1}, \texttt{f2}, \texttt{f6}, and \texttt{f11}}
+    \begin{itemize}
+        \item The correlation between \texttt{f2} and \texttt{f1} is extremely high at \textbf{0.92}.
+        \item \texttt{f6} is also highly correlated with both \texttt{f1} (0.79) and \texttt{f2} (0.74).
+        \item \texttt{f11} is highly correlated with \texttt{f1} (0.74) and \texttt{f2} (0.66).
+    \end{itemize}
+    These variables likely measure a similar underlying economic or financial concept. Including all of them in a model would be redundant and problematic.
+
+    \item \textbf{Group 2: \texttt{f8} and \texttt{f9}}
+    \begin{itemize}
+        \item The correlation between \texttt{f8} and \texttt{f9} is exceptionally high at \textbf{0.91}.
+    \end{itemize}
+    These two variables are nearly interchangeable from a linear perspective.
+\end{enumerate}
+
+Our strategy will be to select only one representative variable from each of these groups to proceed with modeling. The best candidate for selection is typically the variable with the highest Information Value (IV), as it holds the most individual predictive power.
+
+```{r, echo=FALSE, out.width="80%", fig.align='center'}
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "04_Multicollinearity.png"))
+```
+
+
+\section{1.3.5 Feature selection}
+
+IV and multicollinearity:
+
+<!-- \begin{table}[h!] -->
+<!-- \centering -->
+<!-- \caption{Variable Selection Summary: IV and Multicollinearity} -->
+<!-- \label{tab:variable-selection} -->
+<!-- \begin{tabular}{lccl} -->
+<!-- \toprule -->
+<!-- \textbf{Variable} & \textbf{Information Value (IV)} & \textbf{Multicollinearity Concern} & \textbf{Action} \\ -->
+<!-- \midrule -->
+<!-- \multicolumn{4}{l}{\textit{Highly Correlated Group 1}} \\ -->
+<!-- f6                & 2.658                           & High (Group 1)                     & Keep (Highest IV in Group) \\ -->
+<!-- f11               & 2.630                           & High (Group 1)                     & Remove \\ -->
+<!-- f2                & 2.502                           & High (Group 1)                     & Remove \\ -->
+<!-- f1                & 2.280                           & High (Group 1)                     & Remove \\ -->
+<!-- \midrule -->
+<!-- \multicolumn{4}{l}{\textit{Highly Correlated Group 2}} \\ -->
+<!-- f8                & 2.686                           & High (Group 2)                     & Keep (Highest IV in Group) \\ -->
+<!-- f9                & 2.670                           & High (Group 2)                     & Remove \\ -->
+<!-- \midrule -->
+<!-- \multicolumn{4}{l}{\textit{Variables with Low Multicollinearity}} \\ -->
+<!-- f4                & 2.552                           & Low                                & Keep \\ -->
+<!-- f3                & 2.467                           & Low                                & Keep \\ -->
+<!-- f5                & 1.967                           & Low                                & Keep \\ -->
+<!-- f10               & 1.637                           & Low                                & Keep \\ -->
+<!-- f7                & 1.436                           & Low                                & Keep \\ -->
+<!-- public            & 0.549                           & Low                                & Keep \\ -->
+<!-- sector            & 0.079                           & Low                                & Keep \\ -->
+<!-- size              & 0.043                           & Low                                & Keep \\ -->
+<!-- \midrule -->
+<!-- \multicolumn{4}{l}{\textit{Variable with Low Predictive Power}} \\ -->
+<!-- groupmember       & 0.002                           & Low                                & Remove (Useless IV) \\ -->
+<!-- \bottomrule -->
+<!-- \end{tabular} -->
+<!-- \end{table} -->
 
 \section{1.5 Outliers}
 
 \subsection{1.5.1 Outliers detection}
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
-knitr::include_graphics("outliers.png")
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "019_Outliers.png"))
 ```
 
 Since the data set has negative values and zeros, we used signed log transformation to visualize the outliers. 
@@ -162,3 +358,50 @@ WOE is calculated as: \[
 \].
 
 A large positive WOE means that the bin is strongly associated with non-dafeults, while a large negative value demonstrates the opposite. After calculating WOE, the original value is replaced by WOE of the bin it belongs to. The method is suitable for using in glm models and iff the outcome is binary. 
+
+\section{1.6 Data Splitting}
+
+In our methodology, we partition the data into an 70\% training set and a 30\% final hold-out test set. All model development, including hyperparameter tuning and feature selection, is performed on the 70\% training set using a technique called \textbf{k-fold cross-validation}. This approach is methodologically superior to a simpler three-way split (e.g., 50\% train, 25\% validation, 25\% test) for several critical reasons.
+
+\subsection{1.6.1 Superiority Over a 50/25/25 Split}
+
+\begin{enumerate}
+    \item \textbf{Maximizes Data for Model Training:}
+    The most significant drawback of a 50/25/25 split is that the model is only ever trained on 50\% of the available data. In contrast, with an 70/30 split and k-fold cross-validation, the model is repeatedly trained on a much larger portion of the data (e.g., in 5-fold CV, it trains on 70\% of the 70\% training set, which is 64\% of the total data, and this is done 5 times). More training data allows the model to learn more complex patterns and generalize better, reducing the risk of underfitting.
+
+    \item \textbf{Robust and Stable Performance Estimation:}
+    In a 50/25/25 split, model performance is evaluated and tuned based on a single, static 25\% validation set. The results on this single set can be highly variable depending on the "luck of the draw" of that particular split. A different random split could lead to different hyperparameter choices and a misleading performance estimate.
+
+    Cross-validation solves this problem. By creating multiple (k) validation sets from the training data and averaging the performance metrics across all k folds, it provides a much more stable and reliable estimate of the model's true performance. It mitigates the risk of overfitting to a single validation set, leading to a more robust final model.
+
+    \item \textbf{More Efficient Use of Data:}
+    With cross-validation, every single observation in the 70\% training set is used as part of a validation set exactly once. This ensures that the entire training dataset is leveraged for both training and validation, making the process highly data-efficient. In a 50/25/25 split, the 25\% validation set is never used for training, and the 50\% training set is never used for validation, effectively "wasting" data from the perspective of each task.
+\end{enumerate}
+
+\subsection{1.6.2 Summary}
+
+The following table provides a direct comparison of the two approaches.
+
+<!-- \begin{table}[h!] -->
+<!-- \centering -->
+<!-- \caption{Comparison of Data Splitting Strategies} -->
+<!-- \label{tab:split-comparison} -->
+<!-- \begin{tabular}{p{4cm}p{5cm}p{5cm}} -->
+<!-- \toprule -->
+<!-- \textbf{Aspect} & \textbf{70/30 Split with Cross-Validation} & \textbf{50/25/25 Train/Validation/Test Split} \\ -->
+<!-- \midrule -->
+<!-- \textbf{Training Data Size} & Large (e.g., 64\%-72\% of total data used in each CV fold). & Small (fixed at 50\% of total data). \\ -->
+<!-- \midrule -->
+<!-- \textbf{Performance Estimate Reliability} & \textbf{High.} Performance is averaged over multiple validation sets, leading to a stable and robust estimate. & \textbf{Low to Medium.} Performance depends on a single, potentially biased validation set. \\ -->
+<!-- \midrule -->
+<!-- \textbf{Risk of Overfitting to Validation Set} & \textbf{Low.} It is difficult to overfit to multiple, distinct validation sets simultaneously. & \textbf{High.} Hyperparameters can be easily tuned to perform well on this specific 25\% set by chance. \\ -->
+<!-- \midrule -->
+<!-- \textbf{Data Efficiency} & \textbf{Very High.} Every observation in the training set is used for both training and validation across the folds. & \textbf{Medium.} Data is strictly segregated; the validation set is never learned from. \\ -->
+<!-- \midrule -->
+<!-- \textbf{Computational Cost} & Higher, as the model must be trained k times. & Lower, as the model is only trained once per hyperparameter set. \\ -->
+<!-- \bottomrule -->
+<!-- \end{tabular} -->
+<!-- \end{table} -->
+
+In conclusion, while a simple three-way split is faster, the 70/30 split combined with cross-validation is the modern gold standard. It produces more robust, reliable, and better-performing models by using the available data more effectively, which is a trade-off well worth the additional computational cost.
+
