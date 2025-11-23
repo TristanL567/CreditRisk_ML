@@ -163,6 +163,14 @@ Company_Inconsistent2 <- Data[Pos,]
 Data_Visualisation <- rbind(Company_Inconsistent1, Company_Inconsistent2)
 
 
+
+Sum_f8f9 <- rowSums(Data[,c("f8", "f9")])
+Delta_f7_and_f8f9 <- (Data$f7 - Sum_f8f9) / Data$f7
+summary(Delta_f7_and_f8f9)
+
+sum(Data$f7 == Data$f8 + Data$f9)
+
+
 #==== 02c - Dependent Variable Analysis =======================================#
 ## Part Tristan (Done).
 
