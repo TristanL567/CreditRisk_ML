@@ -99,7 +99,58 @@ Data <- Data[, -which(names(Data) %in% Exclude)]
 Exclude <- c("id", "refdate", "size","sector", "y")
 Features <- Data[, -which(names(Data) %in% Exclude)]
 
-#==== 02b - Dependent Variable Analysis =======================================#
+#==== 02b - Accounting Formulas & Check =======================================#
+
+## ======================= ##
+## Delta: f1 AND f2 + f3
+## ======================= ##
+
+Aktiva_TotalAssets_f2f3 <- rowSums(Data[,c("f2", "f3")])
+Delta_f1_and_f2f3 <- (Data$f1 - Aktiva_TotalAssets_f2f3) / Data$f1
+summary(Delta_f1_and_f2f3)
+
+## No. of obs with a percentage deviation of more than 5%.
+Delta_f1_and_f2f3_abs <- abs(Delta_f1_and_f2f3)
+
+mean(Delta_f1_and_f2f3_abs > 0.05)
+sum(Delta_f1_and_f2f3_abs > 0.05)
+
+## ======================= ##
+## Delta: f3 AND f4 + f5
+## ======================= ##
+
+Aktiva_TotalAssets_SumConstrained <- rowSums(Data[,c("f4", "f5")])
+Delta_f3_and_f4f5 <- (Data$f3 - Aktiva_TotalAssets_SumConstrained) / Data$f3
+summary(Delta_f3_and_f4f5)
+
+## No. of obs with a percentage deviation of more than 5%.
+Delta_f3_and_f4f5_abs <- abs(Delta_f3_and_f4f5)
+
+mean(Delta_f3_and_f4f5_abs > 0.05, na.rm = TRUE)
+sum(Delta_f3_and_f4f5_abs > 0.05)
+
+## ======================= ##
+## Delta: f1 AND f6 + f10 + f11 
+##        Total Assets = Equity + Provisions + Liabilities
+## ======================= ##
+
+Sum_PassiveSide <- rowSums(Data[,c("f6", "f10", "f11")])
+Delta_f1_and_f6f10f11 <- (Data$f1 - Sum_PassiveSide) / Data$f1
+summary(Delta_f1_and_f6f10f11)
+
+## No. of obs with a percentage deviation of more than 5%.
+Delta_f1_and_f6f10f11_abs <- abs(Delta_f1_and_f6f10f11)
+
+mean(Delta_f1_and_f6f10f11_abs > 0.05, na.rm = TRUE)
+sum(Delta_f1_and_f6f10f11_abs > 0.05)
+
+## Now check the extreme cases. Which company is it?
+
+Pos <- which(Delta_f1_and_f6f10f11 == min(Delta_f1_and_f6f10f11))
+Company_Shit <- Data[Pos,]
+
+
+#==== 02c - Dependent Variable Analysis =======================================#
 ## Part Tristan (Done).
 
 tryCatch({
