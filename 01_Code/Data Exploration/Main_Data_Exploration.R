@@ -109,11 +109,18 @@ Aktiva_TotalAssets_f2f3 <- rowSums(Data[,c("f2", "f3")])
 Delta_f1_and_f2f3 <- (Data$f1 - Aktiva_TotalAssets_f2f3) / Data$f1
 summary(Delta_f1_and_f2f3)
 
+Min_f1_and_f2f3 <- min(Delta_f1_and_f2f3)
+
 ## No. of obs with a percentage deviation of more than 5%.
 Delta_f1_and_f2f3_abs <- abs(Delta_f1_and_f2f3)
 
 mean(Delta_f1_and_f2f3_abs > 0.05)
 sum(Delta_f1_and_f2f3_abs > 0.05)
+
+## Now check the extreme cases. Which company is it?
+
+Pos <- which(Delta_f1_and_f2f3 == Min_f1_and_f2f3)
+Company_Inconsistent1 <- Data[Pos,]
 
 ## ======================= ##
 ## Delta: f3 AND f4 + f5
@@ -147,7 +154,13 @@ sum(Delta_f1_and_f6f10f11_abs > 0.05)
 ## Now check the extreme cases. Which company is it?
 
 Pos <- which(Delta_f1_and_f6f10f11 == min(Delta_f1_and_f6f10f11))
-Company_Shit <- Data[Pos,]
+Company_Inconsistent2 <- Data[Pos,]
+
+## ======================= ##
+## Now visualize the extreme cases.
+## ======================= ##
+
+Data_Visualisation <- rbind(Company_Inconsistent1, Company_Inconsistent2)
 
 
 #==== 02c - Dependent Variable Analysis =======================================#

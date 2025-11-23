@@ -409,4 +409,3 @@ The following table provides a direct comparison of the two approaches.
 <!-- \end{table} -->
 
 In conclusion, while a simple three-way split is faster, the 70/30 split combined with cross-validation is the modern gold standard. It produces more robust, reliable, and better-performing models by using the available data more effectively, which is a trade-off well worth the additional computational cost.
-
