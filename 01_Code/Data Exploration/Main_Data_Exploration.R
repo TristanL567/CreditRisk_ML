@@ -629,17 +629,32 @@ tryCatch({
 ## ======================= ##
 ## 1.3.1. Informational Value.
 ## ======================= ##
-
+  
+  Data_IV <- Data
+  Data_IV$groupmember <- as.character(Data_IV$groupmember)
+  Data_IV$size <- factor(Data_IV$size, levels = c("Tiny", "Small"))
+  # Data_IV$public <- as.character(Data_IV$public)
+  
+  bins <- woebin(Data_IV, y = "y")
+  Data_binned <- woebin_ply(Data_IV, bins)
+  iv_summary <- iv(Data_binned, y = "y")
+  
+  names_iv <- iv_summary$variable
+  names_iv <- sub("_woe$", "", names_iv)
+  iv_summary$variable <- names_iv
+  # print(iv_summary)
+  
 ## Tells us how good a feature seperates between NoDefault (y=0) and Default (y=1).
-iv_summary <- iv(Data, y = "y")
-print(iv_summary %>% arrange(desc(info_value)))
+# iv_summary <- iv(Data, y = "y")
+# iv_summary_base <- iv_base(Data, y = "y")
+# print(iv_summary %>% arrange(desc(info_value)))
 
 iv_summary <- iv_summary %>%
   mutate(
     variable = coalesce(var_names[variable], variable)
   )
 
-iv_summary$info_value <- round(iv_summary$info_value, 1)
+iv_summary$info_value <- round(iv_summary$info_value, 2)
 print(iv_summary %>% arrange(desc(info_value)))
 
 ## Plot the informational value.
@@ -660,7 +675,7 @@ iv_summary <- iv_summary %>%
 
 plot_IV <- ggplot(iv_summary, aes(x = info_value, y = reorder(variable, info_value))) +
     geom_col(aes(fill = power_category), width = 0.75, alpha = 0.9) + 
-    geom_text(aes(label = sprintf("%.1f", info_value)), 
+    geom_text(aes(label = sprintf("%.2f", info_value)), 
             hjust = -0.2, 
             size = 3.5, 
             fontface = "bold", 
