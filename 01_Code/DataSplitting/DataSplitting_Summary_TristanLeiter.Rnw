@@ -1,0 +1,247 @@
+%==== KNITR ===================================================================%
+
+<<echo=FALSE, eval = !knitr::is_latex_output()>>=
+library(knitr)
+
+Path <- file.path(here::here("")) ## You need to install the package first incase you do not have it.
+Directory <- file.path(Path, "01_Code/DataSplitting")
+Directory_LaTeX <- file.path(Directory, "DataSplitting_Summary_TristanLeiter.Rnw")
+setwd(Directory)
+
+# knit2pdf(Directory_LaTeX)
+
+@
+
+%==== START ===================================================================%
+
+\documentclass{report}
+
+\usepackage[left=2cm, right=2cm, top=1cm, bottom=2cm]{geometry}
+
+% Font.
+
+
+% Main packages.
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs} 
+\usepackage{rotating} 
+\usepackage{lmodern}
+
+% Citations.
+\usepackage{natbib}
+\setcitestyle{authoryear,open={(},close={)}} %Citation-related commands
+
+%% Testing different layout.
+\usepackage{geometry}
+\usepackage{xcolor}
+
+% Required for Table.
+
+
+%%
+
+% \title{Master Thesis - Research Proposal}
+% \author{Tristan Leiter}
+% \date{\today}
+
+%==== DOCUMENT START ==========================================================%
+
+\begin{document}
+
+\begin{titlepage}
+    \newgeometry{top=3cm, bottom=3cm, left=2.5cm, right=2.5cm}
+    \centering
+    
+    % --- University Placeholder ---
+    % \includegraphics[width=0.4\textwidth]{logo.png} \par
+    {\scshape\LARGE Vienna University of Economics and Business \par}
+    \vspace{1cm}
+    {\scshape\Large OeNB ILAB \par}
+    
+    \vspace{2.5cm}
+    
+    % --- Title Section ---
+    \hrule height 2pt
+    \vspace{0.5cm}
+    { \huge \bfseries OeNB ILAB: \\[0.3cm] Data-Splitting \par}
+    \vspace{0.5cm}
+    \hrule height 2pt
+    
+    \vspace{2cm}
+    
+    % --- Author Section ---
+    \Large
+    \textbf{Author:} \\
+    Tristan \textsc{Leiter}
+    
+    \vspace{1.5cm}
+    
+    % --- Metadata ---
+    \normalsize
+    \textbf{Submission Date:} \\
+    \today
+
+    \vfill
+    
+\end{titlepage}
+\restoregeometry
+
+% \maketitle
+
+%==== ABSTRACT ================================================================%
+
+% \begin{abstract}
+% This report demonstrates the integration of R code and its output within a LaTeX document using Sweave. It covers the basic structure of a report, including a summary, chapters with subchapters, and a bibliography.
+% \end{abstract}
+
+%==== Table of content ========================================================%
+
+% \tableofcontents
+% \newpage
+
+%==== Chapter 1: Summary ======================================================%
+
+\chapter{Problem Description}
+
+\section{Introduction}
+
+
+
+
+
+
+%==== Chapter 1: Problem Description ==========================================%
+
+\chapter{Problem Description}
+
+\section{Introduction}
+
+% The theoretical foundation of modern portfolio management relies on the diversification of idiosyncratic risk. Empirical evidence suggests that the distribution of individual stock returns is not normally distributed, but is instead characterized by extreme skewness and "fat tails". \\
+
+Research by J.P. Morgan Asset Management highlights an empirical phenomenon referred to as "The Agony and the Ecstasy" \citep{Cembalest2014, Cembalest2024} revealing that equity indices, like the Russell 3000, are overwhelmingly influenced by extreme stock performances. While a small percentage of winners contribute the vast majority of excess returns, approximately 40\% of all constituents suffer a "catastrophic decline," which is defined as a drawdown of 70\% or more from their peak without a subsequent recovery. \\
+
+Recent literature formalizes this phenomenon as a \textbf{"Catastrophic Stock Implosion"} (CSI) \citep{Tewari2024}. Unlike standard volatility, an implosion represents a distinct market event characterized by a severe price downturn followed by prolonged stagnation and minimal probability of recovery. This presents a critical challenge for index construction: passive investing captures the "Ecstasy" of winners but systematically forces investors to hold the "Agony" of these imploding assets (at least until removal from the constituent index). Crucially, as explored by \citet{Cembalest2014, Cembalest2024}, these declines are not limited to speculative "junk" companies; a significant portion of losers display "healthy" fundamentals prior to collapse, suggesting traditional metrics fail to capture the dynamics preceding permanent capital decline.
+
+\section{Status Quo}
+
+\begin{enumerate}
+    \item \textbf{The Quality Trap:}  Recent literature has explored indicators which are perceived to be synonymous with healthy stock fundamentals. \citet{Penman2018} suggest that the Book-to-Price ratio (B/P) is misleading. Low B/P values reflect uncertainty about future cash-flows rather than
+"cheap" buying opportunities. Additionally, \citet{Altman2016} argue that, amongst others, profitability is time-varying and find low predictive ability for longer time-periods. Specifically, while they find that profitability ratios like Return on Assets (ROA) provide efficient accuracy for a short horizon of two years , these measures fail to be consistent predictors over a ten-year horizon. They observe that in multivariate models, profitability is rendered largely insignificant when tested against solvency measures, such as the Equity Ratio, which dominates the prediction of distress irrespective of the horizon length.
+
+  \item \textbf{Predictive Ability:} Traditional bankruptcy models heavily relied on linear combinations of ratios, like the Z-score introduced by \citep{Altman1968}. Since then, a variety of
+risk-management models have been introduced, culminating in modern ML applications, such as
+Random Forest (RF) or support vector machines \citep{Barboza2017}. Even though logit/probit models
+work reasonably well, \citet{Jones2017} also recommends the use of more advanced machine-learning
+methods, like AdaBoost or RF. \\
+  
+\item \textbf{Misalignment of Prediction Horizons and Objectives:} 
+While traditional bankruptcy models aim to minimize credit risk, they often fail to minimize market risk. A fundamental disconnect exists between \textit{legal insolvency} and \textit{market implosion}.
+
+\begin{itemize}
+    \item \textbf{Lagging Indicators:} Legal bankruptcy is frequently the final stage of a long deterioration process. By the time a traditional Altman Z-Score or structural model flags a company as distressed, the market has often already priced in the failure, resulting in a "Zombie state" where the asset lingers at depressed valuations \citep{Tewari2024}. For an equity investor, the capital is lost at the \textit{implosion} event, not the bankruptcy filing.
+    \item \textbf{The Cost of False Positives (Type I Errors):} In the context of equity indexing, the cost of a False Positive is mainly the opportunity cost. As noted in the "Agony and Ecstasy" framework, index returns are driven by a small tail of extreme winners. Traditional models, which penalize negative skewness too aggressively, risk flagging volatile but successful growth stocks as "distressed." Excluding a future "Ecstasy" stock (like NVIDIA) due to a conservative model, which produces too many False Positives, would severely underperform the benchmark, negating the benefits of avoiding the "Agony" stocks.
+\end{itemize}
+
+\end{enumerate}
+
+\section{Research Gap and Proposed Methodology}
+
+\subsection{Implications of Current Limitations}
+ 
+\citet{Jabeur2021, Jabeur2023} have demonstrated that ML models, such as Gradient Boosting and Neural Networks,
+outperform statistical models in predicting financial distress by capturing non-linear relationships between variables. \citet{Tewari2024} have built on these insights and applied modern ML-techniques to market-based risk-modelling, for which they find that XGBoost can predict up to 61\% of implosions in the test set
+with a false positive rate of less than 3\%. \\
+
+While the literature has identified a variety of ML-methods for credit-risk modelling, 
+there is a lack of research on applying modern ML techniques to the specific problem of 
+ \textit{market-based} catastrophic stock declines. Ensemble methods, like bagging and boosting,
+ or Neural Networks are well suited to not only improve predictive accuracy, but also to 
+ capture the time-series dynamics of individual stock risk. \\
+
+% \begin{enumerate}
+%     \item \textbf{From Ratios to Raw Data:} By utilizing raw financial data rather than derivative ratios, Machine Learning (ML) algorithms can autonomously learn complex, non-linear dependencies and interaction effects that traditional ratios (like Book-to-Price) fail to capture.
+%     \item \textbf{From Static to Dynamic:} Financial distress is rarely a static state but a sequence of deteriorating signals. Traditional cross-sectional models ignore the temporal trajectory of firm fundamentals.
+% \end{enumerate}
+
+\subsection{Proposed Approach: The "Crash-Filtered" Index}
+
+This thesis proposes bridging the gap between distress prediction and active index construction. While \citet{Tewari2024} established the concept of Catastrophic Stock Implosion (CSI), it remains unknown whether these insights can be operationalized into a viable risk-mitigation strategy. To address the "Agony and Ecstasy" dilemma, this research moves from "pure volatility forecasting" to "probabilistic implosion modeling" through the following three-stage methodology:
+
+\begin{enumerate}
+    \item \textbf{Model Fitting and Selection:} \\
+    The research will model the probability of market-risk loss, specifically the CSI event, by adopting the definition established by \citet{Tewari2024}. The methodology extends current literature by moving beyond static snapshots of financial health. In addition to advanced ensemble methods (e.g., XGBoost, CatBoost) capable of handling non-linear interactions, this approach incorporates Deep Learning architectures, specifically Long Short-Term Memory (LSTM) networks. This extension allows the model to capture \textit{latent temporal dependencies} and the rate of change in fundamental deterioration, aiming to reduce the detection lag associated with traditional models.
+
+    \item \textbf{Index Construction:} \\
+    Based on the model outputs, a "Crash-Filtered" equity index will be constructed. This process involves a systematic re-weighting or exclusion mechanism that penalizes index constituents exhibiting a likelihood of implosion exceeding a calibrated threshold. The primary objective is to penalize identified "Agony" candidates (permanent capital loss or capital loss exceeding a threshold) while retaining the "Ecstasy" winners (usually featuring high volatility and returns). This distinction is critical to isolating the alpha generated purely by tail-risk mitigation, rather than by a generic low-beta factor tilt.
+
+    \item \textbf{Backtesting and Performance Evaluation:} \\
+    The efficacy of the strategy will be validated through out-of-sample backtesting using a rolling-forward cross-validation framework. The performance of the "Crash-Filtered" index will be benchmarked against:
+    \begin{itemize}
+        \item The unfiltered market-weighted benchmark (e.g., Russell 3000) to test for alpha generation.
+        \item Traditional volatility-weighted portfolios (e.g., Minimum Volatility indices) to test for superior drawdown characteristics.
+    \end{itemize}
+    Evaluation metrics will prioritize risk-adjusted returns and tail-risk characteristics.
+\end{enumerate}
+
+
+%==== Chapter 2: Research Question ============================================%
+
+\chapter{Research Question}
+
+Based on the identified problem that standard metrics fail to distinguish between "recoverable volatility" and "permanent implosion" and that perceived quality-signals can be misleading, the following research question could be explored:
+
+\section{Main Research Question}
+
+\textit{Does a ML-risk filtered equity index, constructed by excluding stocks with a high implied probability of catastrophic implosion, generate statistically significant superior risk-adjusted returns compared to the market-weighted benchmark and traditional volatility-filtered indices?}
+
+\subsection{Sub-Question 1: Predictive Superiority}
+
+\textit{Can Machine Learning models (e.g., CatBoost, XGBoost or Neural Networks) calibrated to the definition of "Catastrophic Implosion" outperform traditional distress models (e.g., Altman Z-Score) in distinguishing between permanent capital loss and temporary drawdown?} \\
+
+This tests the hypothesis that avoiding \textit{implosions} (permanent loss) provides a distinct risk profile compared to avoiding \textit{volatility} (temporary noise), potentially allowing the investor to retain exposure to high-growth, high-volatility winners that do not implode.
+
+\subsection{Sub-Question 2: Portfolio Distinction}
+
+\textit{Does the "Implosion-Filtered" portfolio exhibit lower risk characteristics (measured by maximum drawdown and expected shortfall) than standard risk-controlling models (e.g., low volatility, low beta)?} \\ 
+
+%==== Chapter 3: Data =========================================================%
+
+
+
+
+
+
+
+
+%==== Chapter 4: Expected Results =============================================%
+
+% \chapter{Expected Results}
+% We expect to validate the findings regarding distress risk discussed by \citet{Campbell2005}.
+
+
+%==== Chapter 5: Methodology ==================================================%
+
+
+
+%==== Chapter 6: Research Background ==========================================%
+
+
+
+%==== Chapter 7: References ===================================================%
+
+\bibliographystyle{plainnat} 
+\bibliography{references}
+
+%==== Appendix ================================================================%
+
+% \appendix 
+% 
+% \chapter{Overview}
+
+%==== END =====================================================================%
+
+\end{document}
