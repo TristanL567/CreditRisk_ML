@@ -15,7 +15,7 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 
 ## Needs to enable checking for install & if not then autoinstall.
 
-packages <- c("dplyr", "caret",
+packages <- c("dplyr", "caret"
 )
 
 for(i in 1:length(packages)){
