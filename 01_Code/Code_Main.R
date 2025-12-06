@@ -99,6 +99,21 @@ Data <- Data[, -which(names(Data) %in% Exclude)]
 Exclude <- c(paste("r", seq(1:18), sep = "")) ## Drop all ratios for now.
 Data <- Data[, -which(names(Data) %in% Exclude)]
 
+## ======================= ##
+## Apply filters
+## ======================= ##
+tol <- 2   
+
+condition <- with(Data,
+                  f10 >= -tol &               
+                    (f2 + f3) <= f1 + tol &       
+                    (f4 + f5) <= f3 + tol &      
+                    (f6 + f11) <= 1 + tol          
+)
+
+Data<- Data %>%
+  filter(!condition )
+
 
 #==== 02b - Splitting the dataset =============================================#
 ## New approach with 80% training and 20% test set size.
