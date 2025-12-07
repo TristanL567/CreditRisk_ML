@@ -25,7 +25,7 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 packages <- c("here", "corrplot", "dplyr", "tidyr", "car",
               "reshape2", "ggplot2",
               "rsample", "DataExplorer",  ## Necessary for stratified sampling.
-              "scorecard", "gt", "reshape2"
+              "scorecard", "gt", "reshape2", "scales"
 )
 
 for(i in 1:length(packages)){
@@ -98,6 +98,24 @@ Data <- Data[, -which(names(Data) %in% Exclude)]
 
 Exclude <- c("id", "refdate", "size","sector", "y")
 Features <- Data[, -which(names(Data) %in% Exclude)]
+
+## ======================= ##
+## Filtering f10 >= 0; f2 + f3 <= f1; f4+f5 <= f3; f6+f11 <=1;
+## ======================= ##
+
+#Allow rounding error of 2
+
+tol <- 2   
+
+condition <- with(Data,
+                  f10 >= -tol &               
+                    (f2 + f3) <= f1 + tol &       
+                    (f4 + f5) <= f3 + tol &      
+                    (f6 + f11) <= 1 + tol          
+)
+
+Data<- Data %>%
+  filter(!condition )
 
 #==== 02b - Accounting Formulas & Check =======================================#
 
@@ -248,9 +266,65 @@ var_names <- c(
   f11 = "Liabilities"
 )
 
+## ======================= ##
+## 1.2.1a Descriptive statistics - simple tables ##
+## ======================= ##
+
+prop_group  <- prop.table(table(Data$groupmember))
+prop_size   <- prop.table(table(Data$size))
+prop_sector <- prop.table(table(Data$sector))
+
+round(prop_group, 4)
+round(prop_size, 4)
+round(prop_sector, 4)
+
+#Plot
+
+plot_prop_bar <- function(prop_table, xlab = "", ylab = "Proportion") {
+  
+  df <- data.frame(
+    Category   = names(prop_table),
+    Proportion = as.numeric(prop_table)
+  )
+  
+  ggplot(df, aes(x = Category, y = Proportion)) +
+    geom_col(fill = blue, width = 0.8) +
+    
+    geom_text(
+      aes(label = percent(Proportion, accuracy = 0.1)),
+      vjust = -0.5,    
+      size = 4,
+      fontface = "bold"
+    ) +
+    
+    theme_minimal(base_size = 14) +
+    labs(x = xlab, y = ylab) +
+    
+    scale_y_continuous(
+      labels = percent_format(accuracy = 1),
+      expand = expansion(mult = c(0, 0.10))
+    ) +
+    
+    theme(
+      axis.text.x = element_text(angle = 0, hjust = 0.5),
+      panel.grid.minor = element_blank()
+    )
+}
+
+p_group <- plot_prop_bar(
+  prop_group,
+  xlab = "Group Member (0 = No, 1 = Yes)"
+)
+p_size   <- plot_prop_bar(prop_size,   xlab = "Size")
+p_sector <- plot_prop_bar(prop_sector, xlab = "Sector")
+
+
+ggsave(filename = file.path(Path, "group_stats.png"),p_group, width = 10, height = 8, dpi = 300)
+ggsave(file.path(Path, "size_stats.png"),   p_size,   width = 10, height = 8, dpi = 300)
+ggsave(file.path(Path, "sector_stats.png"), p_sector, width = 10, height = 8, dpi = 300)
 
 ## ======================= ##
-## 1.2.1 Distributions and data dependancy ##
+## 1.2.1b Distributions and data dependancy ##
 ## ======================= ##
 
 f1_f11 <- Data %>% dplyr::select(f1:f11)
@@ -300,6 +374,29 @@ ggsave(
   dpi = 300,
   limitsize = FALSE
 )
+
+#Public distribution
+public_dis<-ggplot(Data %>% filter(public > 0), aes(x = public)) + 
+  geom_histogram(fill = blue, color = "white", bins = 30) +
+  scale_x_log10() +
+  labs(
+    title = "Distribution of Variable Public",
+    x = "public (log scale)",
+    y = "Frequency"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title.x = element_text(size = 13, face = "bold"),
+    axis.title.y = element_text(size = 13, face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+ggsave(filename = file.path(Path, "public_distribution.png"),public_dis, width = 10, height = 8, dpi = 300)
+
+
 
 
 ## ======================= ##
@@ -372,6 +469,50 @@ ggsave(
   dpi = 300,
   limitsize = FALSE
 )
+
+#Class wide density plot for public
+
+public_y <- Data %>% 
+  mutate(
+    y = factor(y, levels = c(0, 1),
+               labels = c("No default", "Default"))
+  ) %>%
+  dplyr::select(y, public)
+
+public_dis_class<-ggplot(public_y %>% dplyr::filter(public > 0),
+       aes(x = public, colour = y, fill = y)) +
+  geom_density(
+    alpha    = 0.4,
+    position = "identity",
+    aes(y = after_stat(scaled))
+  ) +
+  scale_x_log10() +
+  scale_color_manual(
+    values = c("No default" = blue, "Default" = red),
+    name   = "Class"
+  ) +
+  scale_fill_manual(
+    values = c("No default" = blue, "Default" = red),
+    name   = "Class"
+  ) +
+  labs(
+    title = "Distribution of Public Variable\nby Default Status",
+    x     = "public (log scale)",
+    y     = "Scaled density",
+    fill  = "Class",
+    color = "Class"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title      = element_text(face = "bold", size = 16),
+    axis.title.x    = element_text(size = 13, face = "bold"),
+    axis.title.y    = element_text(size = 13, face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(colour = "#d9d9d9"),
+    plot.margin     = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+ggsave(filename = file.path(Path, "public_dis_class.png"),public_dis_class, width = 10, height = 8, dpi = 300)
 
 ## ======================= ##
 ## 1.2.2  Distribution of binary predictors
