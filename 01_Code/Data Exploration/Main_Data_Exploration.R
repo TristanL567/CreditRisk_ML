@@ -278,6 +278,25 @@ round(prop_group, 4)
 round(prop_size, 4)
 round(prop_sector, 4)
 
+summarize_prop <- function(x) {
+  tb <- table(x)
+  prop <- prop.table(tb)
+  
+  data.frame(
+    Category = names(tb),
+    Count = as.numeric(tb),
+    Proportion = round(as.numeric(prop), 4)
+  )
+}
+
+summary_group  <- summarize_prop(Data$groupmember)
+summary_size   <- summarize_prop(Data$size)
+summary_sector <- summarize_prop(Data$sector)
+
+summary_group
+summary_size
+summary_sector
+
 #Plot
 
 plot_prop_bar <- function(prop_table, xlab = "", ylab = "Proportion") {
