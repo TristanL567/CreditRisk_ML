@@ -342,6 +342,60 @@ ggsave(filename = file.path(Path, "group_stats.png"),p_group, width = 10, height
 ggsave(file.path(Path, "size_stats.png"),   p_size,   width = 10, height = 8, dpi = 300)
 ggsave(file.path(Path, "sector_stats.png"), p_sector, width = 10, height = 8, dpi = 300)
 
+#### Rate of default in the categorical variables
+
+round(prop.table(table(Data$groupmember, Data$y), 1), 4)
+round(prop.table(table(Data$size, Data$y), 1), 4)
+round(prop.table(table(Data$sector, Data$y), 1), 4)
+
+
+plot_default_bar <- function(data, var, default_var = "y",
+                             xlab = "", ylab = "Default Rate") {
+  
+ 
+  df <- prop.table(table(data[[var]], data[[default_var]]), 1) %>%
+    as.data.frame()
+  
+  names(df) <- c("Category", "Default", "Proportion")
+  
+
+  df <- df %>% filter(Default == 1)
+  
+  ggplot(df, aes(x = Category, y = Proportion)) +
+    geom_col(fill = blue, width = 0.8) +
+    
+
+    geom_text(
+      aes(label = percent(Proportion, accuracy = 0.1)),
+      vjust = -0.5,
+      size = 4,
+      fontface = "bold"
+    ) +
+    
+    theme_minimal(base_size = 14) +
+    labs(x = xlab, y = ylab) +
+    
+    scale_y_continuous(
+      labels = percent_format(accuracy = 1),
+      expand = expansion(mult = c(0, 0.10))
+    ) +
+    
+    theme(
+      axis.text.x = element_text(angle = 0, hjust = 0.5),
+      panel.grid.minor = element_blank()
+    )
+}
+
+
+p_group_d <- plot_default_bar(Data, "groupmember", xlab = "Groupmember (0 = No, 1 = Yes)")
+p_size_d <- plot_default_bar(Data, "size", xlab = "Firm Size")
+p_sector_d <- plot_default_bar(Data, "sector",xlab = "Sector")
+
+ggsave(filename = file.path(Path, "group_stats_default.png"),p_group_d, width = 10, height = 8, dpi = 300)
+ggsave(file.path(Path, "size_stats_default.png"),   p_size_d,   width = 10, height = 8, dpi = 300)
+ggsave(file.path(Path, "sector_stats_default.png"), p_sector_d, width = 10, height = 8, dpi = 300)
+
+
 ## ======================= ##
 ## 1.2.1b Distributions and data dependancy ##
 ## ======================= ##
