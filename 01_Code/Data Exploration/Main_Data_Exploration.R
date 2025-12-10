@@ -1709,3 +1709,431 @@ ggsave(
   dpi = 300,          
   bg = "white"         
 )
+
+
+
+## ======================= ##
+## 4.1- Univariate analysis
+## ======================= ##
+
+library(purrr)
+library(broom)
+library(pROC)
+
+df <- Data
+dep_var <- "y"
+predictors <- setdiff(names(df), dep_var)
+
+
+run_univariate <- function(data, var_name) {
+  
+  form <- as.formula(paste(dep_var, "~", var_name))
+  model <- glm(form, data = data, family = binomial())
+  
+  tb <- tidy(model)
+  if (nrow(tb) < 2L) {
+    return(tibble(
+      variable = var_name,
+      beta     = NA_real_,
+      p_value  = NA_real_,
+      auc      = NA_real_
+    ))
+  }
+  
+  beta <- tb$estimate[2]
+  pval <- tb$p.value[2]
+  
+  preds <- predict(model, type = "response")
+  roc_obj <- roc(data[[dep_var]], preds, quiet = TRUE)
+  auc_val <- as.numeric(auc(roc_obj))
+  
+  tibble(
+    variable = var_name,
+    beta     = beta,
+    p_value  = pval,
+    auc      = auc_val
+  )
+}
+
+# Run for all predictors 
+univar_overall <- map_dfr(predictors, ~ run_univariate(df, .x))
+
+# Display sorted by AUC
+univar_overall %>%
+  mutate(
+    beta    = round(beta, 6),
+    p_value = signif(p_value, 3),
+    auc     = round(auc, 3)
+  ) %>%
+  arrange(desc(auc)) %>%
+  print()
+
+
+
+
+# ---- Plot by AUC ----
+auc_plot_data <- univar_overall %>%
+  mutate(
+    auc     = round(auc, 3),
+    # AUC-based categories (adjust if you like)
+    pred_class = case_when(
+      auc >= 0.70 ~ "Strong",
+      auc >= 0.55 ~ "Medium",
+      TRUE        ~ "Weak"
+    )
+  ) %>%
+  arrange(auc) %>%              
+  mutate(
+    variable = factor(variable, levels = variable)  # keep order in plot
+  )
+
+
+
+ggplot(auc_plot_data, aes(x = variable, y = auc, fill = pred_class)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = auc),
+            hjust = -0.2, size = 3.5) +
+  coord_flip(clip = "off") +
+  
+  # Threshold reference lines
+  geom_vline(xintercept = 0.55, linetype = "dashed", colour = "grey70") +
+  geom_vline(xintercept = 0.70, linetype = "dashed", colour = "grey70") +
+  
+  # Your custom colors
+  scale_fill_manual(
+    name = "Predictive Power",
+    values = c(
+      "Strong" = red,
+      "Medium"      = orange,
+      "Weak"        = grey
+    )
+  ) +
+  
+  scale_y_continuous(
+    limits = c(0, max(auc_plot_data$auc) + 0.05),
+    expand = expansion(mult = c(0, 0.05))
+  ) +
+  
+  labs(
+    x = NULL,
+    y = "AUC",
+    title = "Univariate Predictive Power (AUC)",
+    subtitle = "Higher AUC indicates better separation of defaults vs non-defaults"
+  ) +
+  
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position   = "bottom",
+    legend.title      = element_text(face = "bold"),
+    axis.title.x      = element_text(margin = margin(t = 8)),
+    plot.margin       = margin(10, 40, 20, 10),
+    panel.grid.minor  = element_blank()
+  )
+
+
+
+# ---- Plot by beta ----
+auc_plot_data <- univar_overall %>%
+  mutate(
+    beta = round(beta, 6),
+    auc  = round(auc, 3),
+    pred_class = case_when(
+      auc >= 0.70 ~ "Strong",
+      auc >= 0.55 ~ "Medium",
+      TRUE        ~ "Weak"
+    )
+  ) %>%
+  arrange(beta) %>%                       # <- order by beta (ascending)
+  mutate(
+    variable = factor(variable, levels = variable)
+  )
+
+
+ggplot(auc_plot_data, aes(x = variable, y = auc, fill = pred_class)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = auc),
+            hjust = -0.2, size = 3.5) +
+  coord_flip(clip = "off") +
+  
+  geom_vline(xintercept = 0.55, linetype = "dashed", colour = "grey70") +
+  geom_vline(xintercept = 0.70, linetype = "dashed", colour = "grey70") +
+  
+  scale_fill_manual(
+    name = "Predictive Power",
+    values = c(
+      "Strong"  = red,
+      "Medium"  = orange,
+      "Weak"    = grey
+    )
+  ) +
+  
+  scale_y_continuous(
+    limits = c(0, max(auc_plot_data$auc) + 0.05),
+    expand = expansion(mult = c(0, 0.05))
+  ) +
+  
+  labs(
+    x = NULL,
+    y = "AUC",
+    title = "Univariate Predictive Power (AUC)",
+    subtitle = "Variables ordered by ascending coefficient (beta)"
+  ) +
+  
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position   = "bottom",
+    legend.title      = element_text(face = "bold"),
+    axis.title.x      = element_text(margin = margin(t = 8)),
+    plot.margin       = margin(10, 40, 20, 10),
+    panel.grid.minor  = element_blank()
+  )
+
+
+
+## ======================= ##
+## 4.2- Univariate analysis for sector
+## ======================= ##
+
+df_list <- split(Data, Data$sector)
+names(df_list) 
+predictors <- setdiff(names(Data), c("y", "sector"))
+
+univar_sector_results <- lapply(names(df_list), function(sec) {
+  
+  df_sec <- df_list[[sec]]
+  
+  map_dfr(predictors, ~ run_univariate(df_sec, .x)) %>%
+    mutate(sector = sec)
+}) %>%
+  bind_rows()
+
+
+univar_sector_results %>%
+  mutate(
+    beta    = round(beta, 6),
+    auc     = round(auc, 3),
+    p_value = signif(p_value, 3)
+  ) %>%
+  group_by(sector) %>%
+  arrange(desc(auc), .by_group = TRUE) %>%
+  print(n = 100)
+
+
+#Plot
+plot_sector <- function(sec) {
+  
+  dfp <- univar_sector_results %>%
+    filter(sector == sec) %>%
+    mutate(
+      auc = round(auc, 3),
+      pred_class = case_when(
+        auc >= 0.70 ~ "Strong",
+        auc >= 0.55 ~ "Medium",
+        TRUE        ~ "Weak"
+      ),
+      pred_class = factor(pred_class, levels = c("Strong", "Medium", "Weak"))
+    ) %>%
+    arrange(auc) %>%
+    mutate(
+      variable = factor(variable, levels = variable)
+    )
+  
+  ggplot(dfp, aes(x = variable, y = auc, fill = pred_class)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = auc), hjust = -0.2, size = 3.5) +
+    coord_flip(clip = "off") +
+    geom_vline(xintercept = 0.55, linetype = "dashed", colour = "grey70") +
+    geom_vline(xintercept = 0.70, linetype = "dashed", colour = "grey70") +
+    scale_fill_manual(
+      name   = "Predictive Power",
+      values = c(
+        "Strong"  = red,
+        "Medium"  = orange,
+        "Weak"    = grey
+      )
+    ) +
+    labs(
+      title = paste("Univariate Predictive Power – Sector:", sec),
+      y = "AUC",
+      x = NULL
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      legend.position  = "bottom",
+      legend.title     = element_text(face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+}
+
+plot_sector("manufacture")
+plot_sector("wholesale")
+plot_sector("real estate")
+plot_sector("construction")
+plot_sector("service")
+plot_sector("retail")
+plot_sector("energy")
+
+
+
+## ======================= ##
+## 4.3 - Univariate analysis for size
+## ======================= ##
+
+
+size_list <- split(Data, Data$size)
+names(size_list)   # check available size groups
+
+
+predictors_size <- setdiff(names(Data), c("y", "size"))
+
+
+univar_size_results <- lapply(names(size_list), function(sz) {
+  
+  df_sz <- size_list[[sz]]
+  
+  map_dfr(predictors_size, ~ run_univariate(df_sz, .x)) %>%
+    mutate(size = sz)
+}) %>%
+  bind_rows()
+
+
+univar_size_results %>%
+  mutate(
+    beta    = round(beta, 6),
+    auc     = round(auc, 3),
+    p_value = signif(p_value, 3)
+  ) %>%
+  group_by(size) %>%
+  arrange(desc(auc), .by_group = TRUE) %>%
+  print(n = 100)
+
+#Plot
+
+plot_size <- function(sz) {
+  
+  dfp <- univar_size_results %>%
+    filter(size == sz) %>%
+    mutate(
+      auc = round(auc, 3),
+      pred_class = case_when(
+        auc >= 0.70 ~ "Strong",
+        auc >= 0.55 ~ "Medium",
+        TRUE        ~ "Weak"
+      ),
+      pred_class = factor(pred_class, levels = c("Strong", "Medium", "Weak"))
+    ) %>%
+    arrange(auc) %>%
+    mutate(
+      variable = factor(variable, levels = variable)
+    )
+  
+  ggplot(dfp, aes(x = variable, y = auc, fill = pred_class)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = auc), hjust = -0.2, size = 3.5) +
+    coord_flip(clip = "off") +
+    geom_vline(xintercept = 0.55, linetype = "dashed", colour = "grey70") +
+    geom_vline(xintercept = 0.70, linetype = "dashed", colour = "grey70") +
+    scale_fill_manual(
+      name   = "Predictive Power",
+      values = c(
+        "Strong"  = red,
+        "Medium"  = orange,
+        "Weak"    = grey
+      )
+    ) +
+    labs(
+      title = paste("Univariate Predictive Power – Size group:", sz),
+      y = "AUC",
+      x = NULL
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      legend.position  = "bottom",
+      legend.title     = element_text(face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+}
+
+plot_size("Tiny")
+plot_size("Small")
+
+## ======================= ##
+## 4.3 - Univariate analysis groupmember
+## ======================= ##
+
+
+gm_list <- split(Data, Data$groupmember)
+names(gm_list)   # see available groups (e.g. "0", "1")
+
+
+predictors_gm <- setdiff(names(Data), c("y", "groupmember"))
+
+
+univar_group_results <- lapply(names(gm_list), function(gm) {
+  
+  df_gm <- gm_list[[gm]]
+  
+  map_dfr(predictors_gm, ~ run_univariate(df_gm, .x)) %>%
+    mutate(groupmember = gm)
+}) %>%
+  bind_rows()
+
+
+univar_group_results %>%
+  mutate(
+    beta    = round(beta, 6),
+    auc     = round(auc, 3),
+    p_value = signif(p_value, 3)
+  ) %>%
+  group_by(groupmember) %>%
+  arrange(desc(auc), .by_group = TRUE) %>%
+  print(n = 100)
+
+
+plot_groupmember <- function(gm) {
+  
+  dfp <- univar_group_results %>%
+    filter(groupmember == gm) %>%
+    mutate(
+      auc = round(auc, 3),
+      pred_class = case_when(
+        auc >= 0.70 ~ "Strong",
+        auc >= 0.55 ~ "Medium",
+        TRUE        ~ "Weak"
+      ),
+      pred_class = factor(pred_class, levels = c("Strong", "Medium", "Weak"))
+    ) %>%
+    arrange(auc) %>%
+    mutate(
+      variable = factor(variable, levels = variable)
+    )
+  
+  ggplot(dfp, aes(x = variable, y = auc, fill = pred_class)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = auc), hjust = -0.2, size = 3.5) +
+    coord_flip(clip = "off") +
+    geom_vline(xintercept = 0.55, linetype = "dashed", colour = "grey70") +
+    geom_vline(xintercept = 0.70, linetype = "dashed", colour = "grey70") +
+    scale_fill_manual(
+      name   = "Predictive Power",
+      values = c(
+        "Strong"  = red,
+        "Medium"  = orange,
+        "Weak"    = grey
+      )
+    ) +
+    labs(
+      title = paste("Univariate Predictive Power – Group member:", gm),
+      y = "AUC",
+      x = NULL
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      legend.position  = "bottom",
+      legend.title     = element_text(face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+}
+
+plot_groupmember("0")   
+plot_groupmember("1")
