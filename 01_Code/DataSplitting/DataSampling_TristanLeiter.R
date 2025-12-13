@@ -15,7 +15,7 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 
 ## Needs to enable checking for install & if not then autoinstall.
 
-packages <- c("dplyr", "caret"
+packages <- c("dplyr", "caret", "lubridate"
 )
 
 for(i in 1:length(packages)){
@@ -35,9 +35,17 @@ for(i in 1:length(packages)){
 
 #==== 1C - Parameters =========================================================#
 
+## Directories.
+Data_Path <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/Data/WS2025" ## Needs to be set manually.
+Data_Directory <- file.path(Data_Path, "data.rda")
+Charts_Directory <- file.path(Path, "03_Charts")
+
+## Data Sampling.
+set.seed(123)
+
 
 #==============================================================================#
-#==== 02 - Stratified Sampling ================================================#
+#==== 02 - Stratified Sampling (multivariate approach) ========================#
 #==============================================================================#
 
 ## The idea is to fix the default ratio across sectors and overall.
@@ -47,96 +55,160 @@ for(i in 1:length(packages)){
 
 #==== 02. - Functions =========================================================#
 
-analyze_distribution <- function(df, dataset_name) {
-  cat(paste0("\n--- ", dataset_name, " Analysis ---\n"))
-  overall_default <- mean(as.numeric(as.character(df$Target)))
-  cat(sprintf("Overall Default Rate: %.2f%%\n", overall_default * 100))
-  cat("\nRelative Year Distribution (%):\n")
-  print(prop.table(table(df$Year)) * 100)
+analyze_distribution <- function(df, dataset_name, 
+                                 target_col = "y", 
+                                 sector_col = "sector", 
+                                 date_col = "refdate",
+                                 id_col = "id") {
   
-  cat("\nDefault Rates by Sector (%):\n")
-  sector_stats <- df %>%
+  # 1. Standardize column names for internal processing
+  df_metrics <- df %>%
+    rename(Target = all_of(target_col),
+           Sector = all_of(sector_col),
+           ID = all_of(id_col)) %>%
+    mutate(
+      # Ensure Target is numeric 0/1 for calculation
+      TargetNum = as.numeric(as.character(Target)),
+      # Extract Year if date_col is present, otherwise look for 'Year'
+      Year = if(date_col %in% names(df)) year(get(date_col)) else Year
+    )
+  
+  cat(paste0("\n========================================\n"))
+  cat(paste0("   ANALYSIS: ", dataset_name, "\n"))
+  cat(paste0("========================================\n"))
+  
+  # --- 2. Global Rates (Firm vs Observation) ---
+  # Firm Level: Did the firm EVER default?
+  firm_stats <- df_metrics %>%
+    group_by(ID) %>%
+    summarize(EverDefault = max(TargetNum), .groups = 'drop')
+  
+  cat("\n[1] GLOBAL DEFAULT RATES\n")
+  cat(sprintf("  • Observation Level (Weighted by duration): %5.2f%%\n", mean(df_metrics$TargetNum) * 100))
+  cat(sprintf("  • Firm Level (Unique Entities):             %5.2f%%\n", mean(firm_stats$EverDefault) * 100))
+  cat(sprintf("  • Total Firms: %d | Total Obs: %d\n", nrow(firm_stats), nrow(df_metrics)))
+  
+  # --- 3. Stratification Check (Sector x Default) ---
+  # This verifies if your multivariate split worked
+  cat("\n[2] FIRM-LEVEL BALANCE BY SECTOR\n")
+  sector_summary <- df_metrics %>%
+    group_by(ID, Sector) %>%
+    summarize(EverDefault = max(TargetNum), .groups = 'drop') %>%
     group_by(Sector) %>%
     summarize(
-      Count = n(),
-      Defaults = sum(Target == "1"),
-      DefaultRate = mean(as.numeric(as.character(Target))) * 100
-    )
-  print(sector_stats)
+      Firms = n(),
+      Def_Firms = sum(EverDefault),
+      Def_Rate = (sum(EverDefault) / n()) * 100
+    ) %>%
+    mutate(across(where(is.numeric), \(x) round(x, 2)))
+  
+  print(as.data.frame(sector_summary))
+  
+  # --- 4. Temporal Stability ---
+  cat("\n[3] OBSERVATIONS BY YEAR (%)\n")
+  print(round(prop.table(table(df_metrics$Year)) * 100, 2))
 }
 
-#==== 02A - Setup & Data ======================================================#
+#==== 02a - Read the data file ================================================#
 
-set.seed(123)
-n_companies <- 1000
-ids <- 1:n_companies
+Data <- load(Data_Directory)
+Data <- d
 
-sectors <- sample(c("Energy", "Retail", "Tech", "Finance"), n_companies, replace = TRUE, prob = c(0.1, 0.4, 0.3, 0.2))
-defaults <- sample(c(0, 1), n_companies, replace = TRUE, prob = c(0.95, 0.05))
-company_info <- data.frame(CompanyID = ids, Sector = sectors, EverDefault = defaults)
 
-## Create the df.
-df_panel <- data.frame()
-for(year in 2020:2022) {
-  temp <- company_info
-  temp$Year <- year
-  temp$Rev <- runif(n_companies)
-  temp$Debt <- runif(n_companies)
-  df_panel <- rbind(df_panel, temp)
-}
+# Exclude <- c("id", "refdate") ## Drop the id and ref_date (year) for now.
+# Data <- Data[, -which(names(Data) %in% Exclude)]
 
-# Ensure Target is a Factor for classification
-df_panel$Target <- as.factor(df_panel$EverDefault)
-df_panel <- df_panel %>% select(-EverDefault)
+## Drop all ratios for now.
+Exclude <- c(paste("r", seq(1:18), sep = "")) ## Drop all ratios for now.
+Data <- Data[, -which(names(Data) %in% Exclude)]
 
-print(table(df_panel$Sector, df_panel$Target))
+Exclude <- c("id", "refdate", "size","sector", "y")
+Features <- Data[, -which(names(Data) %in% Exclude)]
 
-## Group by ID (long-format).
-company_summary <- df_panel %>%
-  group_by(CompanyID, Sector) %>%
-  summarize(Target = max(as.character(Target)), .groups = 'drop')
+Data_split <- Data
 
-#==== 02B - Multi-variate stratified sampling =================================#
+#==== 02B - Setup & Data ======================================================#
 
-## Stratification by sector.
-company_summary$StratKey <- paste(company_summary$Sector, company_summary$Target, sep = "_")
+##==============================##
+## Setup.
+##==============================##
 
-## Now guarantee that no sector has 0 defaults in the test or train set.
-test_forced_ids <- company_summary %>%
-  filter(Target == "1") %>%
-  group_by(Sector) %>%
-  sample_n(1) %>% 
-  pull(CompanyID)
+head(Data_split)
 
-remaining_pool <- company_summary %>% filter(!CompanyID %in% test_forced_ids) ## Removes the obs. from the pool.
+# 1. Define the stratification variables.
+strat_vars <- c("sector", "y")
 
-## Split 70/30.
-train_idx <- createDataPartition(remaining_pool$StratKey, p = 0.7, list = FALSE)
-train_pool_ids <- remaining_pool$CompanyID[train_idx]
-test_pool_ids  <- remaining_pool$CompanyID[-train_idx]
+# 2. Create the Firm Profile (One row per ID).
+firm_profile <- Data_split %>%
+  group_by(id) %>%
+  summarise(
+    y = max(y), 
+    sector = first(sector),
+    size = first(size),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    Strat_Key = interaction(select(., all_of(strat_vars)), drop = TRUE)
+  )
 
-## Now split. 
-final_train_ids <- train_pool_ids
-final_test_ids  <- c(test_pool_ids, test_forced_ids)
-train_data_fixed <- df_panel %>% filter(CompanyID %in% final_train_ids)
-test_data_fixed  <- df_panel %>% filter(CompanyID %in% final_test_ids)
+print("Distribution of Stratification Groups:")
+print(table(firm_profile$Strat_Key))
 
-## Split based on ID.
-cat("\n--- TRAIN SET DEFAULTS (Should be >= 1 for all sectors) ---\n")
-print(table(train_data_fixed$Sector, train_data_fixed$Target))
+##==============================##
+## Data partition.
+##==============================##
 
-cat("\n--- TEST SET DEFAULTS (Should be >= 1 for all sectors) ---\n")
-print(table(test_data_fixed$Sector, test_data_fixed$Target))
+train_index <- createDataPartition(
+  y = firm_profile$Strat_Key, 
+  p = 0.70, 
+  list = FALSE, 
+  times = 1
+)
+
+train_ids <- firm_profile$id[train_index]
+test_ids  <- firm_profile$id[-train_index]
+
+# 4. Create Final Long-Format Sets
+Train <- Data_split %>% filter(id %in% train_ids)
+Test <- Data_split %>% filter(id %in% test_ids)
+
+##==============================##
+## Validation.
+##==============================##
+
+# Check 1: Are IDs mutually exclusive?
+intersect_check <- length(intersect(Train$id, Test$id))
+cat(paste0("\nOverlapping IDs: ", intersect_check, " (Should be 0)\n"))
+
+# Check 2: Did we preserve the default rate?
+cat("\nDefault Rate Comparison:\n")
+print(rbind(
+  Original = prop.table(table(firm_profile$y)),
+  Train    = prop.table(table(firm_profile$y[train_index])),
+  Test     = prop.table(table(firm_profile$y[-train_index]))
+))
+
+# Check 3: Did we preserve the sector distribution?
+cat("\nSector Distribution Comparison:\n")
+print(rbind(
+  Original = prop.table(table(firm_profile$sector)),
+  Train    = prop.table(table(firm_profile$sector[train_index])),
+  Test     = prop.table(table(firm_profile$sector[-train_index]))
+))
 
 #==== 02C - Analysis of the results ===========================================#
 
-# Run analysis
-analyze_distribution(train_data_fixed, "TRAIN SET")
-analyze_distribution(test_data_fixed, "TEST SET")
+# Analyze the Training Set
+analyze_distribution(Train, "TRAIN SET", 
+                     target_col = "y", 
+                     sector_col = "sector", 
+                     date_col = "refdate")
 
-# Optional: Verify that companies are not split across sets
-intersect_ids <- length(intersect(train_data_fixed$CompanyID, test_data_fixed$CompanyID))
-cat(paste0("\nNumber of Companies leaking between Train and Test: ", intersect_ids, "\n"))
+# Analyze the Test Set
+analyze_distribution(Test, "TEST SET", 
+                     target_col = "y", 
+                     sector_col = "sector", 
+                     date_col = "refdate")
 
 #==============================================================================#
 #==== 03 - SMOTE (+ Extions; see Zhao et al. (2024)) ==========================#
