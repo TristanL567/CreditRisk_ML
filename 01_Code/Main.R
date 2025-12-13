@@ -88,6 +88,19 @@ Data_Sampled <- MVstratifiedsampling(Data,
 Train <- Data_Sampled[["Train"]]
 Test <- Data_Sampled[["Test"]]
 
+## Quick validation.
+# Analyze the Training Set
+analyse_MVstratifiedsampling(Train, "TRAIN SET", 
+                             target_col = "y", 
+                             sector_col = "sector", 
+                             date_col = "refdate")
+
+# Analyze the Test Set
+analyse_MVstratifiedsampling(Train, "TRAIN SET", 
+                             target_col = "y", 
+                             sector_col = "sector", 
+                             date_col = "refdate")
+
 ## Exclude id and refdate.
 Exclude <- c("id", "refdate") ## Drop the id and ref_date (year) for now.
 Train <- Train[, -which(names(Train) %in% Exclude)]
