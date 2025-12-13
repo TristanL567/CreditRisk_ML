@@ -25,7 +25,7 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 packages <- c("here", "corrplot", "dplyr", "tidyr", "car",
               "reshape2", "ggplot2",
               "rsample", "DataExplorer",  ## Necessary for stratified sampling.
-              "scorecard", "gt", "reshape2"
+              "scorecard", "gt", "reshape2", "scales"
 )
 
 for(i in 1:length(packages)){
@@ -98,6 +98,24 @@ Data <- Data[, -which(names(Data) %in% Exclude)]
 
 Exclude <- c("id", "refdate", "size","sector", "y")
 Features <- Data[, -which(names(Data) %in% Exclude)]
+
+## ======================= ##
+## Filtering f10 >= 0; f2 + f3 <= f1; f4+f5 <= f3; f6+f11 <=1;
+## ======================= ##
+
+#Allow rounding error of 2
+
+tol <- 2   
+
+condition <- with(Data,
+                  f10 >= -tol &               
+                    (f2 + f3) <= f1 + tol &       
+                    (f4 + f5) <= f3 + tol &      
+                    (f6 + f11) <= 1 + tol          
+)
+
+Data<- Data %>%
+  filter(!condition )
 
 #==== 02b - Accounting Formulas & Check =======================================#
 
@@ -248,9 +266,138 @@ var_names <- c(
   f11 = "Liabilities"
 )
 
+## ======================= ##
+## 1.2.1a Descriptive statistics - simple tables ##
+## ======================= ##
+
+prop_group  <- prop.table(table(Data$groupmember))
+prop_size   <- prop.table(table(Data$size))
+prop_sector <- prop.table(table(Data$sector))
+
+round(prop_group, 4)
+round(prop_size, 4)
+round(prop_sector, 4)
+
+summarize_prop <- function(x) {
+  tb <- table(x)
+  prop <- prop.table(tb)
+  
+  data.frame(
+    Category = names(tb),
+    Count = as.numeric(tb),
+    Proportion = round(as.numeric(prop), 4)
+  )
+}
+
+summary_group  <- summarize_prop(Data$groupmember)
+summary_size   <- summarize_prop(Data$size)
+summary_sector <- summarize_prop(Data$sector)
+
+summary_group
+summary_size
+summary_sector
+
+#Plot
+
+plot_prop_bar <- function(prop_table, xlab = "", ylab = "Proportion") {
+  
+  df <- data.frame(
+    Category   = names(prop_table),
+    Proportion = as.numeric(prop_table)
+  )
+  
+  ggplot(df, aes(x = Category, y = Proportion)) +
+    geom_col(fill = blue, width = 0.8) +
+    
+    geom_text(
+      aes(label = percent(Proportion, accuracy = 0.1)),
+      vjust = -0.5,    
+      size = 4,
+      fontface = "bold"
+    ) +
+    
+    theme_minimal(base_size = 14) +
+    labs(x = xlab, y = ylab) +
+    
+    scale_y_continuous(
+      labels = percent_format(accuracy = 1),
+      expand = expansion(mult = c(0, 0.10))
+    ) +
+    
+    theme(
+      axis.text.x = element_text(angle = 0, hjust = 0.5),
+      panel.grid.minor = element_blank()
+    )
+}
+
+p_group <- plot_prop_bar(
+  prop_group,
+  xlab = "Group Member (0 = No, 1 = Yes)"
+)
+p_size   <- plot_prop_bar(prop_size,   xlab = "Size")
+p_sector <- plot_prop_bar(prop_sector, xlab = "Sector")
+
+
+ggsave(filename = file.path(Path, "group_stats.png"),p_group, width = 10, height = 8, dpi = 300)
+ggsave(file.path(Path, "size_stats.png"),   p_size,   width = 10, height = 8, dpi = 300)
+ggsave(file.path(Path, "sector_stats.png"), p_sector, width = 10, height = 8, dpi = 300)
+
+#### Rate of default in the categorical variables
+
+round(prop.table(table(Data$groupmember, Data$y), 1), 4)
+round(prop.table(table(Data$size, Data$y), 1), 4)
+round(prop.table(table(Data$sector, Data$y), 1), 4)
+
+
+plot_default_bar <- function(data, var, default_var = "y",
+                             xlab = "", ylab = "Default Rate") {
+  
+ 
+  df <- prop.table(table(data[[var]], data[[default_var]]), 1) %>%
+    as.data.frame()
+  
+  names(df) <- c("Category", "Default", "Proportion")
+  
+
+  df <- df %>% filter(Default == 1)
+  
+  ggplot(df, aes(x = Category, y = Proportion)) +
+    geom_col(fill = blue, width = 0.8) +
+    
+
+    geom_text(
+      aes(label = percent(Proportion, accuracy = 0.1)),
+      vjust = -0.5,
+      size = 4,
+      fontface = "bold"
+    ) +
+    
+    theme_minimal(base_size = 14) +
+    labs(x = xlab, y = ylab) +
+    
+    scale_y_continuous(
+      labels = percent_format(accuracy = 1),
+      expand = expansion(mult = c(0, 0.10))
+    ) +
+    
+    theme(
+      axis.text.x = element_text(angle = 0, hjust = 0.5),
+      panel.grid.minor = element_blank()
+    )
+}
+
+
+p_group_d <- plot_default_bar(Data, "groupmember", xlab = "Groupmember (0 = No, 1 = Yes)")
+p_size_d <- plot_default_bar(Data, "size", xlab = "Firm Size")
+p_sector_d <- plot_default_bar(Data, "sector",xlab = "Sector")
+
+ggsave(filename = file.path(Path, "group_stats_default.png"),p_group_d, width = 10, height = 8, dpi = 300)
+ggsave(file.path(Path, "size_stats_default.png"),   p_size_d,   width = 10, height = 8, dpi = 300)
+ggsave(file.path(Path, "sector_stats_default.png"), p_sector_d, width = 10, height = 8, dpi = 300)
+
 
 ## ======================= ##
-## 1.2.1 Distributions and data dependancy ##
+## 1.2.1b Distributions and data dependancy ##
 ## ======================= ##
 
 f1_f11 <- Data %>% dplyr::select(f1:f11)
@@ -300,6 +447,29 @@ ggsave(
   dpi = 300,
   limitsize = FALSE
 )
+
+#Public distribution
+public_dis<-ggplot(Data %>% filter(public > 0), aes(x = public)) + 
+  geom_histogram(fill = blue, color = "white", bins = 30) +
+  scale_x_log10() +
+  labs(
+    title = "Distribution of Variable Public",
+    x = "public (log scale)",
+    y = "Frequency"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title.x = element_text(size = 13, face = "bold"),
+    axis.title.y = element_text(size = 13, face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+ggsave(filename = file.path(Path, "public_distribution.png"),public_dis, width = 10, height = 8, dpi = 300)
+
+
 
 
 ## ======================= ##
@@ -372,6 +542,50 @@ ggsave(
   dpi = 300,
   limitsize = FALSE
 )
+
+#Class wide density plot for public
+
+public_y <- Data %>% 
+  mutate(
+    y = factor(y, levels = c(0, 1),
+               labels = c("No default", "Default"))
+  ) %>%
+  dplyr::select(y, public)
+
+public_dis_class<-ggplot(public_y %>% dplyr::filter(public > 0),
+       aes(x = public, colour = y, fill = y)) +
+  geom_density(
+    alpha    = 0.4,
+    position = "identity",
+    aes(y = after_stat(scaled))
+  ) +
+  scale_x_log10() +
+  scale_color_manual(
+    values = c("No default" = blue, "Default" = red),
+    name   = "Class"
+  ) +
+  scale_fill_manual(
+    values = c("No default" = blue, "Default" = red),
+    name   = "Class"
+  ) +
+  labs(
+    title = "Distribution of Public Variable\nby Default Status",
+    x     = "public (log scale)",
+    y     = "Scaled density",
+    fill  = "Class",
+    color = "Class"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title      = element_text(face = "bold", size = 16),
+    axis.title.x    = element_text(size = 13, face = "bold"),
+    axis.title.y    = element_text(size = 13, face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(colour = "#d9d9d9"),
+    plot.margin     = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+ggsave(filename = file.path(Path, "public_dis_class.png"),public_dis_class, width = 10, height = 8, dpi = 300)
 
 ## ======================= ##
 ## 1.2.2  Distribution of binary predictors
@@ -1495,3 +1709,431 @@ ggsave(
   dpi = 300,          
   bg = "white"         
 )
+
+
+
+## ======================= ##
+## 4.1- Univariate analysis
+## ======================= ##
+
+library(purrr)
+library(broom)
+library(pROC)
+
+df <- Data
+dep_var <- "y"
+predictors <- setdiff(names(df), dep_var)
+
+
+run_univariate <- function(data, var_name) {
+  
+  form <- as.formula(paste(dep_var, "~", var_name))
+  model <- glm(form, data = data, family = binomial())
+  
+  tb <- tidy(model)
+  if (nrow(tb) < 2L) {
+    return(tibble(
+      variable = var_name,
+      beta     = NA_real_,
+      p_value  = NA_real_,
+      auc      = NA_real_
+    ))
+  }
+  
+  beta <- tb$estimate[2]
+  pval <- tb$p.value[2]
+  
+  preds <- predict(model, type = "response")
+  roc_obj <- roc(data[[dep_var]], preds, quiet = TRUE)
+  auc_val <- as.numeric(auc(roc_obj))
+  
+  tibble(
+    variable = var_name,
+    beta     = beta,
+    p_value  = pval,
+    auc      = auc_val
+  )
+}
+
+# Run for all predictors 
+univar_overall <- map_dfr(predictors, ~ run_univariate(df, .x))
+
+# Display sorted by AUC
+univar_overall %>%
+  mutate(
+    beta    = round(beta, 6),
+    p_value = signif(p_value, 3),
+    auc     = round(auc, 3)
+  ) %>%
+  arrange(desc(auc)) %>%
+  print()
+
+
+
+
+# ---- Plot by AUC ----
+auc_plot_data <- univar_overall %>%
+  mutate(
+    auc     = round(auc, 3),
+    # AUC-based categories (adjust if you like)
+    pred_class = case_when(
+      auc >= 0.70 ~ "Strong",
+      auc >= 0.55 ~ "Medium",
+      TRUE        ~ "Weak"
+    )
+  ) %>%
+  arrange(auc) %>%              
+  mutate(
+    variable = factor(variable, levels = variable)  # keep order in plot
+  )
+
+
+
+ggplot(auc_plot_data, aes(x = variable, y = auc, fill = pred_class)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = auc),
+            hjust = -0.2, size = 3.5) +
+  coord_flip(clip = "off") +
+  
+  # Threshold reference lines
+  geom_vline(xintercept = 0.55, linetype = "dashed", colour = "grey70") +
+  geom_vline(xintercept = 0.70, linetype = "dashed", colour = "grey70") +
+  
+  # Your custom colors
+  scale_fill_manual(
+    name = "Predictive Power",
+    values = c(
+      "Strong" = red,
+      "Medium"      = orange,
+      "Weak"        = grey
+    )
+  ) +
+  
+  scale_y_continuous(
+    limits = c(0, max(auc_plot_data$auc) + 0.05),
+    expand = expansion(mult = c(0, 0.05))
+  ) +
+  
+  labs(
+    x = NULL,
+    y = "AUC",
+    title = "Univariate Predictive Power (AUC)",
+    subtitle = "Higher AUC indicates better separation of defaults vs non-defaults"
+  ) +
+  
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position   = "bottom",
+    legend.title      = element_text(face = "bold"),
+    axis.title.x      = element_text(margin = margin(t = 8)),
+    plot.margin       = margin(10, 40, 20, 10),
+    panel.grid.minor  = element_blank()
+  )
+
+
+
+# ---- Plot by beta ----
+auc_plot_data <- univar_overall %>%
+  mutate(
+    beta = round(beta, 6),
+    auc  = round(auc, 3),
+    pred_class = case_when(
+      auc >= 0.70 ~ "Strong",
+      auc >= 0.55 ~ "Medium",
+      TRUE        ~ "Weak"
+    )
+  ) %>%
+  arrange(beta) %>%                       # <- order by beta (ascending)
+  mutate(
+    variable = factor(variable, levels = variable)
+  )
+
+
+ggplot(auc_plot_data, aes(x = variable, y = auc, fill = pred_class)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = auc),
+            hjust = -0.2, size = 3.5) +
+  coord_flip(clip = "off") +
+  
+  geom_vline(xintercept = 0.55, linetype = "dashed", colour = "grey70") +
+  geom_vline(xintercept = 0.70, linetype = "dashed", colour = "grey70") +
+  
+  scale_fill_manual(
+    name = "Predictive Power",
+    values = c(
+      "Strong"  = red,
+      "Medium"  = orange,
+      "Weak"    = grey
+    )
+  ) +
+  
+  scale_y_continuous(
+    limits = c(0, max(auc_plot_data$auc) + 0.05),
+    expand = expansion(mult = c(0, 0.05))
+  ) +
+  
+  labs(
+    x = NULL,
+    y = "AUC",
+    title = "Univariate Predictive Power (AUC)",
+    subtitle = "Variables ordered by ascending coefficient (beta)"
+  ) +
+  
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position   = "bottom",
+    legend.title      = element_text(face = "bold"),
+    axis.title.x      = element_text(margin = margin(t = 8)),
+    plot.margin       = margin(10, 40, 20, 10),
+    panel.grid.minor  = element_blank()
+  )
+
+
+
+## ======================= ##
+## 4.2- Univariate analysis for sector
+## ======================= ##
+
+df_list <- split(Data, Data$sector)
+names(df_list) 
+predictors <- setdiff(names(Data), c("y", "sector"))
+
+univar_sector_results <- lapply(names(df_list), function(sec) {
+  
+  df_sec <- df_list[[sec]]
+  
+  map_dfr(predictors, ~ run_univariate(df_sec, .x)) %>%
+    mutate(sector = sec)
+}) %>%
+  bind_rows()
+
+
+univar_sector_results %>%
+  mutate(
+    beta    = round(beta, 6),
+    auc     = round(auc, 3),
+    p_value = signif(p_value, 3)
+  ) %>%
+  group_by(sector) %>%
+  arrange(desc(auc), .by_group = TRUE) %>%
+  print(n = 100)
+
+
+#Plot
+plot_sector <- function(sec) {
+  
+  dfp <- univar_sector_results %>%
+    filter(sector == sec) %>%
+    mutate(
+      auc = round(auc, 3),
+      pred_class = case_when(
+        auc >= 0.70 ~ "Strong",
+        auc >= 0.55 ~ "Medium",
+        TRUE        ~ "Weak"
+      ),
+      pred_class = factor(pred_class, levels = c("Strong", "Medium", "Weak"))
+    ) %>%
+    arrange(auc) %>%
+    mutate(
+      variable = factor(variable, levels = variable)
+    )
+  
+  ggplot(dfp, aes(x = variable, y = auc, fill = pred_class)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = auc), hjust = -0.2, size = 3.5) +
+    coord_flip(clip = "off") +
+    geom_vline(xintercept = 0.55, linetype = "dashed", colour = "grey70") +
+    geom_vline(xintercept = 0.70, linetype = "dashed", colour = "grey70") +
+    scale_fill_manual(
+      name   = "Predictive Power",
+      values = c(
+        "Strong"  = red,
+        "Medium"  = orange,
+        "Weak"    = grey
+      )
+    ) +
+    labs(
+      title = paste("Univariate Predictive Power – Sector:", sec),
+      y = "AUC",
+      x = NULL
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      legend.position  = "bottom",
+      legend.title     = element_text(face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+}
+
+plot_sector("manufacture")
+plot_sector("wholesale")
+plot_sector("real estate")
+plot_sector("construction")
+plot_sector("service")
+plot_sector("retail")
+plot_sector("energy")
+
+
+
+## ======================= ##
+## 4.3 - Univariate analysis for size
+## ======================= ##
+
+
+size_list <- split(Data, Data$size)
+names(size_list)   # check available size groups
+
+
+predictors_size <- setdiff(names(Data), c("y", "size"))
+
+
+univar_size_results <- lapply(names(size_list), function(sz) {
+  
+  df_sz <- size_list[[sz]]
+  
+  map_dfr(predictors_size, ~ run_univariate(df_sz, .x)) %>%
+    mutate(size = sz)
+}) %>%
+  bind_rows()
+
+
+univar_size_results %>%
+  mutate(
+    beta    = round(beta, 6),
+    auc     = round(auc, 3),
+    p_value = signif(p_value, 3)
+  ) %>%
+  group_by(size) %>%
+  arrange(desc(auc), .by_group = TRUE) %>%
+  print(n = 100)
+
+#Plot
+
+plot_size <- function(sz) {
+  
+  dfp <- univar_size_results %>%
+    filter(size == sz) %>%
+    mutate(
+      auc = round(auc, 3),
+      pred_class = case_when(
+        auc >= 0.70 ~ "Strong",
+        auc >= 0.55 ~ "Medium",
+        TRUE        ~ "Weak"
+      ),
+      pred_class = factor(pred_class, levels = c("Strong", "Medium", "Weak"))
+    ) %>%
+    arrange(auc) %>%
+    mutate(
+      variable = factor(variable, levels = variable)
+    )
+  
+  ggplot(dfp, aes(x = variable, y = auc, fill = pred_class)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = auc), hjust = -0.2, size = 3.5) +
+    coord_flip(clip = "off") +
+    geom_vline(xintercept = 0.55, linetype = "dashed", colour = "grey70") +
+    geom_vline(xintercept = 0.70, linetype = "dashed", colour = "grey70") +
+    scale_fill_manual(
+      name   = "Predictive Power",
+      values = c(
+        "Strong"  = red,
+        "Medium"  = orange,
+        "Weak"    = grey
+      )
+    ) +
+    labs(
+      title = paste("Univariate Predictive Power – Size group:", sz),
+      y = "AUC",
+      x = NULL
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      legend.position  = "bottom",
+      legend.title     = element_text(face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+}
+
+plot_size("Tiny")
+plot_size("Small")
+
+## ======================= ##
+## 4.3 - Univariate analysis groupmember
+## ======================= ##
+
+
+gm_list <- split(Data, Data$groupmember)
+names(gm_list)   # see available groups (e.g. "0", "1")
+
+
+predictors_gm <- setdiff(names(Data), c("y", "groupmember"))
+
+
+univar_group_results <- lapply(names(gm_list), function(gm) {
+  
+  df_gm <- gm_list[[gm]]
+  
+  map_dfr(predictors_gm, ~ run_univariate(df_gm, .x)) %>%
+    mutate(groupmember = gm)
+}) %>%
+  bind_rows()
+
+
+univar_group_results %>%
+  mutate(
+    beta    = round(beta, 6),
+    auc     = round(auc, 3),
+    p_value = signif(p_value, 3)
+  ) %>%
+  group_by(groupmember) %>%
+  arrange(desc(auc), .by_group = TRUE) %>%
+  print(n = 100)
+
+
+plot_groupmember <- function(gm) {
+  
+  dfp <- univar_group_results %>%
+    filter(groupmember == gm) %>%
+    mutate(
+      auc = round(auc, 3),
+      pred_class = case_when(
+        auc >= 0.70 ~ "Strong",
+        auc >= 0.55 ~ "Medium",
+        TRUE        ~ "Weak"
+      ),
+      pred_class = factor(pred_class, levels = c("Strong", "Medium", "Weak"))
+    ) %>%
+    arrange(auc) %>%
+    mutate(
+      variable = factor(variable, levels = variable)
+    )
+  
+  ggplot(dfp, aes(x = variable, y = auc, fill = pred_class)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = auc), hjust = -0.2, size = 3.5) +
+    coord_flip(clip = "off") +
+    geom_vline(xintercept = 0.55, linetype = "dashed", colour = "grey70") +
+    geom_vline(xintercept = 0.70, linetype = "dashed", colour = "grey70") +
+    scale_fill_manual(
+      name   = "Predictive Power",
+      values = c(
+        "Strong"  = red,
+        "Medium"  = orange,
+        "Weak"    = grey
+      )
+    ) +
+    labs(
+      title = paste("Univariate Predictive Power – Group member:", gm),
+      y = "AUC",
+      x = NULL
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      legend.position  = "bottom",
+      legend.title     = element_text(face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+}
+
+plot_groupmember("0")   
+plot_groupmember("1")

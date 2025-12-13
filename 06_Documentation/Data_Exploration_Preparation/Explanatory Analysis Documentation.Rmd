@@ -14,7 +14,6 @@ Charts_Data_Exploration_Directory <- file.path(Charts_Directory, "Data Explorati
 
 # knit2pdf(Directory)
 ```
-
 \section{1.1 Dependent variable}
 
 In this credit risk dataset, the target variable, y, is inherently imbalanced. The number of non-defaults (0) significantly outnumbers the number of defaults (1). This is a common and expected characteristic of credit risk data.
@@ -24,6 +23,7 @@ This imbalance poses a significant challenge for model development. If we were t
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
 knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "01_Defaults_per_Sector.png"))
 ```
+
 
 Secondly, the defaults also vary across business sectors. The service sector has the highest default rate,
 0.01, whilst the energy sector has the lowest rate of defaults (0.0025).
@@ -79,7 +79,21 @@ The used \texttt{initial\_split} function does not simply take a random 70\% of 
 
 \section{1.2 Distribution and bivariate Data Analysis}
 
-\subsection{1.2.1 Distributions}
+\subsection{1.2.1a Summary Statistics (Simple tables)}
+
+```{r, echo=FALSE, out.width="80%", fig.align='center'}
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "group_stats.png"))
+```
+
+```{r, echo=FALSE, out.width="80%", fig.align='center'}
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "size_stats.png"))
+```
+
+```{r, echo=FALSE, out.width="80%", fig.align='center'}
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "sector_stats.png"))
+```
+
+\subsection{1.2.1b Distributions}
 
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
@@ -87,6 +101,12 @@ knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "010_distri
 ```
 
 The histograms on the logarithmic scale show that all Balance Sheet Predictors are heavily right-tailed and spread across several orders of magnitude. Without the log scale, the values would be too uneven to visualize properly. After applying the log scale, the distribution of most variables reminds a log-normal distribution. Most observations are relatively small, while a small number of very large values stretch the distributions far to the right. 
+
+```{r, echo=FALSE, out.width="80%", fig.align='center'}
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "public_distribution.png"))
+```
+
+The public variable is right-skewed because most observations are small, and a small number of very large values extend the tail to the right. When plotted on a log scale, these large values are compressed and the small values are stretched, which visually reverses the shape and makes the histogram appear left-sloping even though the actual distribution has a long right tail.
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
 knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "012_dis_binary.png"))
@@ -123,7 +143,6 @@ All variables show positive skewness, meaning they have long right tails. Equity
 \subsection{1.2.2 Data Dependency}
 
 ```{r, echo=FALSE, out.width="80%", fig.align='center'}
-
 knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "011_distribution.png"))
 ```
 The plot shows the distribution comparison for Balance Sheet Predictors. We applied scaled density to properly visualize the data, without scaling the distribution of the default class would be mostly invisible due to the class imbalance. 
@@ -133,6 +152,12 @@ The plot shows the distribution comparison for Balance Sheet Predictors. We appl
 **1. Invested capital (f2)**. Defaulted companies tend to have lower invested capital on average compared to non-default companies. Default distribution has a slightly heavier right tail, meaning a few defaulting customers have unusually high values of invested capital. 
 
 **2. Cash (f5), Net profit (f8), Retained Earning (GV) (f9)**. Defaulted companies tend to have lower cash, net profit and retained earning on average compared to non-default companies. 
+
+
+```{r, echo=FALSE, out.width="80%", fig.align='center'}
+knitr::include_graphics(file.path(Charts_Data_Exploration_Directory, "public_dis_class.png"))
+```
+Variable public shows clear separation between default and non-default companies. Firms with lower percentage of public ownership tend to default faster.
 
 
 \section{1.3 Feature selection}
