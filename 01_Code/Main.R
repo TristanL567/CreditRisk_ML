@@ -96,7 +96,7 @@ analyse_MVstratifiedsampling(Train, "TRAIN SET",
                              date_col = "refdate")
 
 # Analyze the Test Set
-analyse_MVstratifiedsampling(Train, "TRAIN SET", 
+analyse_MVstratifiedsampling(Test, "TEST SET", 
                              target_col = "y", 
                              sector_col = "sector", 
                              date_col = "refdate")
