@@ -1,0 +1,16 @@
+
+HPO_CONFIG - name and some parameters of an underlying model (ranger is random forest)
+
+get_learner_config - configurations for underlying models. Model name + parameter space for each model. There are some one can add, such as KNN. 
+Only tried ranger, as xgboost cannot work with factor variables.
+
+Data preparation - placeholder to just run a model. We will have our own thing. One function is only needed really:
+create_custom_cv - creates custom CV from task (to which train data is passed before) and fold_id - id of the fold corresponding observation from train belongs to (1-5 for 5 fold cv)
+
+checkpoint saves/loads - not tested so far, but in theory should save training progress so training can be continued from saved point
+
+run_hpo - looks if exists checkpoint to start with (not really tested). Evaluates 4*dim(parameter space from get_learner_config) using random search to get initial data. 
+Then does Bayesian Optimization. There are a bunch of parameters for stopping, number of evaluations and so on. Main thing - number of evaluations passed to HPO_CONFIG should be greater then
+4*dim(parameter space from get_learner_config) for it to get to Bayesian Optimization stage.
+
+Finally, prints some data, and a graph that should show for later iterations better performance (and for warmup it is random more or less)
