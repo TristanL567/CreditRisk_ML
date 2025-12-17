@@ -14,3 +14,9 @@ Then does Bayesian Optimization. There are a bunch of parameters for stopping, n
 4*dim(parameter space from get_learner_config) for it to get to Bayesian Optimization stage.
 
 Finally, prints some data, and a graph that should show for later iterations better performance (and for warmup it is random more or less)
+
+######################
+In order to run, need to install files and change data path few lines below  MAIN EXECUTION part
+For me, code runs without any problem.
+
+Note, code uses parallelization for faster computing which is OS-dependent. My OS is Windows, for MAC or Linux some changes should be made which I obviously cannot test. Should be easily fixable tho.
