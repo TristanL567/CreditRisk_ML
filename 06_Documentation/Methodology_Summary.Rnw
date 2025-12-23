@@ -147,21 +147,29 @@ We utilize a custom function, \texttt{MVstratifiedsampling}, to perform a strati
 \section{Feature engineering}
 
 \subsection{Standardization (Size Normalization)}
-Financial data often exhibits a "size effect," where absolute magnitude (e.g., total sales or debt in Euros) overshadows financial performance. To ensure comparability between large and small firms, we standardize absolute values by scaling them against a measure of firm size, typically \textbf{Total Assets}.
+Financial data often exhibits a "size effect," where absolute magnitude (e.g., total sales or debt in Euros) overshadows financial performance. To ensure comparability between large and small firms while preserving the risk signal associated with company size, we apply a two-step logic:
 
-This step converts raw financial figures into structural ratios (e.g., $\text{EBIT} \rightarrow \text{ROA}$), isolating efficiency from magnitude.
-
-\subsection{Quantile Transformation (Probability Integral Transform)}
-After size normalization, financial ratios typically remain highly skewed with heavy tails (non-Gaussian). We apply a \textbf{Quantile Transformation} using the Probability Integral Transform (PIT).
-
-To preserve macro-economic signals (e.g., a global downturn increasing leverage ratios across the board), we utilize a \textbf{Frozen Reference Approach}:
 \begin{enumerate}
-    \item \textbf{Training Phase:} We pool all years of the training set to establish a "Through-the-Cycle" cumulative distribution function (CDF).
-    \item \textbf{Testing Phase (Walking Forward):} We map future observations onto this fixed training CDF. This ensures that if the economy deteriorates (shifting the distribution right), the transformed Z-scores reflect this increased risk, rather than normalizing it away.
+    \item \textbf{Ratio Creation:} We scale absolute financial figures (e.g., Debt, Cash, EBIT) against \textbf{Total Assets}. This converts raw figures into structural ratios (e.g., $\text{EBIT} \rightarrow \text{ROA}$), isolating efficiency from magnitude.
+    \item \textbf{Size Retention:} We explicitly retain the \textbf{Total Assets} feature. In credit risk, size itself is often a predictor of stability (e.g., larger firms having better capital access). By keeping it as a feature, we allow the model to learn these non-linear interactions between "Efficiency" (ratios) and "Scale" (assets).
 \end{enumerate}
 
-The transformation chain for a variable $x$ is:
-$$ x_{ratio} = \frac{x_{raw}}{\text{Total Assets}} \quad \xrightarrow{ECDF_{train}} \quad u \in [0,1] \quad \xrightarrow{\Phi^{-1}} \quad z \sim N(0,1) $$
+\subsection{Quantile Transformation (Probability Integral Transform)}
+After size normalization, both the financial ratios and the size feature typically remain highly skewed with heavy tails (non-Gaussian). We apply a \textbf{Quantile Transformation} (Rank-Gauss) using the Probability Integral Transform (PIT) to all continuous features.
+
+To prevent data leakage and preserve macro-economic signals (e.g., a global downturn increasing leverage ratios across the board), we utilize a \textbf{Frozen Reference Approach}:
+\begin{enumerate}
+    \item \textbf{Training Phase:} We compute the ranks and Empirical Cumulative Distribution Function (ECDF) on the training set to establish a "Through-the-Cycle" reference distribution.
+    \item \textbf{Testing Phase (Walking Forward):} We map future observations (Test set) onto this fixed training ECDF. This ensures that if the economy deteriorates (shifting the test distribution right), the transformed Z-scores reflect this increased risk relative to the training baseline, rather than normalizing it away.
+\end{enumerate}
+
+The transformation chain for any continuous variable $x$ (whether a calculated ratio or raw Total Assets) is:
+
+$$ 
+x_{final} = \Phi^{-1}\left( ECDF_{train}(x_{input}) \right) \quad \text{where} \quad x_{final} \sim N(0,1) 
+$$
+
+Where $x_{input}$ is either the calculated ratio ($\frac{x_{raw}}{\text{Assets}}$) or the raw Size variable itself.
 
 % \subsection{Extreme Values}
 
