@@ -106,18 +106,68 @@ analyse_MVstratifiedsampling(Test, "TEST SET",
 ## Exclude id and refdate.
 Exclude <- c("id", "refdate") ## Drop the id and ref_date (year) for now.
 Train <- Train[, -which(names(Train) %in% Exclude)]
+Train_Backup <- Train
 Test <- Test[, -which(names(Test) %in% Exclude)]
+Test_Backup <- Test
 
 #==============================================================================#
 #==== 03 - Feature Engineering ================================================#
 #==============================================================================#
 
+DivideByTotalAssets <- TRUE
+
 #==== 03A - Standardization ===================================================#
 
+if(DivideByTotalAssets){
 
+asset_col <- "f1" 
+cols_to_scale <- c("f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11")
+
+safe_divide <- function(numerator, denominator) {
+  if_else(denominator == 0 | is.na(denominator), 
+          0,                       
+          numerator / denominator
+  )
+}
+
+Train <- Train %>%
+  mutate(
+    across(
+      .cols = all_of(cols_to_scale),
+      .fns = ~ safe_divide(.x, .data[[asset_col]])
+    )
+  ) %>%
+  as.data.frame()
+
+Test <- Test %>%
+  mutate(
+    across(
+      .cols = all_of(cols_to_scale),
+      .fns = ~ safe_divide(.x, .data[[asset_col]])
+    )
+  ) %>%
+  as.data.frame()
+
+}
 
 #==== 03B - Quantile Transformation ===========================================#
 
+num_cols <- c("f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11")
+
+Train_Transformed <- Train
+Test_Transformed <- Test
+
+for (col in num_cols) {
+  res <- QuantileTransformation(Train[[col]], Test[[col]])
+  Train_Transformed[[col]] <- res$train
+  Test_Transformed[[col]] <- res$test
+}
+
+summary(Train_Transformed$f1)
+
+## Now work with:
+## Train_Transformed
+## Test_Transformed
 
 #==============================================================================#
 #==== 04 - GLMs ===============================================================#
