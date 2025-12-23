@@ -66,11 +66,13 @@ set.seed(123)
 
 Data <- load(Data_Directory)
 Data <- d
-
+  
 #==== 02B - Pre-process checks ================================================#
 
 ## Apply the simple methodology to exclude some observations (outlined by the Leitner Notes).
 ## Remove all ratios.
+
+Data <- DataPreprocessing(DataPreprocessing)
 
 ## Drop all ratios for now.
 Exclude <- c(paste("r", seq(1:18), sep = "")) ## Drop all ratios for now.

@@ -152,7 +152,7 @@
 
 \subsection{Preprocessing}
 
-Based on the instructions from the client, we filter the balance sheet data based on the following constraints to remove noisy observations. To account for floating-point inconsistencies, we allow for a rounding error of 2 decimal places.
+Based on the instructions from the client, we filter the balance sheet data based on the following constraints to remove noisy observations. To account for floating-point inconsistencies, we add the condition that the difference must be greater than 2000 (as per client instructions).
 
 \begin{enumerate}
     \item $f_{10} \ge 0$
@@ -267,17 +267,17 @@ The following matrix outlines the distribution of project responsibilities among
 \centering
 \caption{Team Task Distribution Matrix}
 \label{tab:task_matrix}
-\begin{tabular}{p{6cm} c c c c}
+\begin{tabular}{p{6cm} c c c c c}
 \toprule
-\textbf{Task} & \textbf{Tristan} & \textbf{Nastia} & \textbf{Leonid} & \textbf{Martin} \\
+\textbf{Task} & \textbf{Implemented} &\textbf{Tristan} & \textbf{Nastia} & \textbf{Leonid} & \textbf{Martin} \\
 \midrule
-Data Preprocessing                   & \textbf{X} & \textbf{X} &            &            \\
+Data Preprocessing                   & Yes & \textbf{X} & \textbf{X} &            &            \\
 Feature Engineering (Standardization \& PIT)     
-                                     & \textbf{X} &            &            &            \\
-Stratified Sampling within Train Set &            &            &            & \textbf{X} \\
-GLMs and regularized GLMs            &            &            &            &            \\
-Random Forest and Boosting           & \textbf{X} & \textbf{X} &            &            \\
-Neural Networks                      &            &            &            &            \\
+                                     & Yes & \textbf{X} &            &            &            \\
+Stratified Sampling within Train Set & No  &            &            &            & \textbf{X} \\
+GLMs and regularized GLMs            & No  &            &            &            &            \\
+Random Forest and Boosting           & No  & \textbf{X} & \textbf{X} &            &            \\
+Neural Networks                      & No  &            &            &            &            \\
 \bottomrule
 \end{tabular}
 \end{table}
