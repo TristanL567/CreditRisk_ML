@@ -316,6 +316,64 @@ reported for completeness.
 
 \subsection{AdaBoost}
 
+\subsubsection{Model description}
+
+Empirical evidence on the performance of AdaBoost in credit-risk applications is mixed. While boosting methods are theoretically appealing, studies such as Zhou, Lai and Yen (2009) show that standard AdaBoost does not consistently outperform traditional models in highly imbalanced credit-scoring datasets. These findings suggest that AdaBoost can be sensitive to class imbalance and noise, both of which are characteristic features of default prediction data.
+
+Nevertheless, AdaBoost remains a relevant benchmark in credit-risk modelling for several reasons. First, it is a well-established ensemble method that improves predictive performance by sequentially focusing on hard-to-classify observations, which is a central challenge in default prediction. Second, large-scale benchmarking studies (Lessmann et al., 2015) emphasize that no single classifier dominates across datasets, making the inclusion of diverse model classes essential. Third, AdaBoost provides a useful contrast to bagging-based methods such as Random Forests, allowing the analysis to distinguish between bias-reduction mechanisms (boosting) and variance-reduction mechanisms (bagging).
+
+Consistent with the data-splitting strategy described in Section 1.1.2, AdaBoost is trained exclusively on the firm-level training set. The adaptive reweighting of observations is therefore applied only within the training data and does not introduce information leakage across firms.
+
+\subsubsection{Algorithm}
+
+1.Initialization
+
+All observations receive equal weights:
+\[
+w_i^{(1)} = \frac{1}{N}, \quad i = 1, \ldots, N.
+\]
+
+2.Iterative Boosting
+
+For boosting iteration \( m = 1, \ldots, M \):
+
+- A weak classifier \( h_m(x) \) is fitted using the current observation weights.
+
+- The weighted classification error is computed as 
+\[
+\varepsilon_m = \sum_{i=1}^{N} w_i^{(m)} \mathbf{1}\{ h_m(x_i) \neq y_i \}. 
+\]
+
+- The classifier weight is given by
+
+\[
+\alpha_m = \frac{1}{2} \ln\left( \frac{1 - \varepsilon_m}{\varepsilon_m} \right).
+\]
+
+3.Weight Update
+
+Observation weights are increased for misclassified observations:
+\[
+w_i^{(m+1)} = w_i^{(m)} \exp\left( \alpha_m \mathbf{1}\{ h_m(x_i) \neq y_i \} \right),
+\]
+and normalized such that
+\[
+\sum_{i=1}^{N} w_i^{(m+1)} = 1.
+\]
+
+4.Final Prediction
+
+The AdaBoost classifier is a weighted combination of all weak learners:
+\[
+H(x) = \operatorname{sign}\left( \sum_{m=1}^{M} \alpha_m h_m(x) \right).
+\]
+
+The resulting score is mapped into a default probability, which is used for ranking firms by credit risk.
+
+\subsubsection{Logic}
+
+In the presence of strong class imblance, AdaBoost improves default prediction by sequentially increasing the importance of misclassified firms in the training set. Since default events are rare, they tend to be misclassified in early iterations and therefore receive higher weights in subsequent boosting rounds. This mechanism forces later weak learners to focus on economically fragile and borderline firms. Combined with firm-level stratified sampling, AdaBoost concentrates model capacity on difficult default cases while preserving a clean out-of-sample evaluation on unseen firms.
+
 \subsection{XGBoost}
 
 \subsection{CatBoost}
