@@ -26,6 +26,15 @@ MVRandomForest <- function(Train,
                            seed           = 123){
   
 set.seed(seed)
+
+#Leakage check
+if (id_var %in% names(Train) && id_var %in% names(Test)) {
+  overlap_ids <- intersect(unique(Train[[id_var]]), unique(Test[[id_var]]))
+  if (length(overlap_ids) > 0) {
+    stop("Data leakage detected: some firm IDs appear in both Train and Test.")
+  }
+}
+
   
 #Prepare data  
 predictors <- setdiff(names(Train), c(target, id_var))
