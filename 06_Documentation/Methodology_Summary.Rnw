@@ -374,6 +374,33 @@ The resulting score is mapped into a default probability, which is used for rank
 
 In the presence of strong class imblance, AdaBoost improves default prediction by sequentially increasing the importance of misclassified firms in the training set. Since default events are rare, they tend to be misclassified in early iterations and therefore receive higher weights in subsequent boosting rounds. This mechanism forces later weak learners to focus on economically fragile and borderline firms. Combined with firm-level stratified sampling, AdaBoost concentrates model capacity on difficult default cases while preserving a clean out-of-sample evaluation on unseen firms.
 
+\subsection{Comments on code}
+
+\textbf{Firm-Level Data Leakage Prevention}
+
+Given the panel structure of the data, multiple observations may exist for the same firm across time. To ensure a valid out-of-sample evaluation, the data are split at the firm level, such that all observations of a given firm appear exclusively in either the training or the test set. 
+
+A leakage check is performed prior to model estimation to verify that no firm identifier appears in both sample. Formally, letting $\mathcal{I}_{\text{train}}$ and $\mathcal{I}_{\text{test}}$ denote the sets of firm identifiers in the training and test data, respectively, the following condition is enforced:
+
+\[
+\mathcal{I}_{\mathrm{train}} \cap \mathcal{I}_{\mathrm{test}} = \emptyset.
+\]
+
+\textbf{Handling via Observation Weight}
+
+The training data exhibits a strong class imbalance, with default events being rare relative to non-default observations. To address class imbalance, we assign observation-level weights based on inverse class frequencies:e.
+
+Let $N$ denote the total number of training observations, and let $N_{+}$ and $N_{-}$ denote the number of default and non-default observations, respectively. Initial observation weights are defined as
+\[
+w_i =
+\begin{cases}
+\frac{N}{2N_{+}}, & \text{if } y_i = 1, \\
+\frac{N}{2N_{-}}, & \text{if } y_i = 0.
+\end{cases}
+\]
+This weighting scheme ensures that defaults and non-defaults contribute equally to the estimation objective, preventing the boosting algorithm from being dominated by the majority class in early iterations. Within the AdaBoost framework, initial observation weights enter directly into the weighted exponential loss function, implying that reweighting observations is equivalent to introducing asymmetric misclassification costs. This approach is well established in the literature on cost-sensitive and imbalanced classification (Friedman et al., 2000; Elkan, 2001; He and Garcia, 2009) and is commonly applied in credit-risk modeling where default events are rare but economically critical (Baesens et al., 2003; Lessmann et al., 2015).
+
+
 \subsection{XGBoost}
 
 \subsection{CatBoost}
