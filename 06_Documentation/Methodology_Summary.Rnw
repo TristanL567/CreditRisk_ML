@@ -77,6 +77,8 @@ setwd(Directory)
     \Large
     \textbf{Author:} \\
     Tristan \textsc{Leiter}
+        Anastasia \textsc{Pryshchepa}
+
     
     \vspace{1.5cm}
     
@@ -280,7 +282,7 @@ reported to summarize classification outcomes at the 0.5 threshold.
 
 To assess the contribution of individual predictors, variable importance measures
 computed internally by the Random Forest algorithm are employed. In particular, we rely
-primarily on permutation-based importance measures following Breiman (2001), which
+primarily on permutation-based importance measures following \citet{breiman2001random}, which
 quantify how strongly predictive performance deteriorates when the information contained
 in a given predictor is destroyed.
 
@@ -307,7 +309,7 @@ all splits and trees. While the mean decrease in Gini provides insight into how 
 variable is used to create purer nodes during tree construction, it is known to be
 biased toward continuous predictors and predictors with many potential split points.
 
-Breiman (2001) originally expresses permutation importance as a percentage increase in
+\citet{breiman2001random} originally expresses permutation importance as a percentage increase in
 prediction error. The absolute formulation employed here is equivalent up to scaling and
 preserves the same ranking of predictors. Consequently, permutation-based importance is
 used as the primary criterion for ranking variables, while Gini-based importance is
@@ -318,9 +320,9 @@ reported for completeness.
 
 \subsubsection{Model description}
 
-Empirical evidence on the performance of AdaBoost in credit-risk applications is mixed. While boosting methods are theoretically appealing, studies such as Zhou, Lai and Yen (2009) show that standard AdaBoost does not consistently outperform traditional models in highly imbalanced credit-scoring datasets. These findings suggest that AdaBoost can be sensitive to class imbalance and noise, both of which are characteristic features of default prediction data.
+Empirical evidence on the performance of AdaBoost in credit-risk applications is mixed. While boosting methods are theoretically appealing, studies such as \citet{zhou2009credit} show that standard AdaBoost does not consistently outperform traditional models in highly imbalanced credit-scoring datasets. These findings suggest that AdaBoost can be sensitive to class imbalance and noise, both of which are characteristic features of default prediction data.
 
-Nevertheless, AdaBoost remains a relevant benchmark in credit-risk modelling for several reasons. First, it is a well-established ensemble method that improves predictive performance by sequentially focusing on hard-to-classify observations, which is a central challenge in default prediction. Second, large-scale benchmarking studies (Lessmann et al., 2015) emphasize that no single classifier dominates across datasets, making the inclusion of diverse model classes essential. Third, AdaBoost provides a useful contrast to bagging-based methods such as Random Forests, allowing the analysis to distinguish between bias-reduction mechanisms (boosting) and variance-reduction mechanisms (bagging).
+Nevertheless, AdaBoost remains a relevant benchmark in credit-risk modelling for several reasons. First, it is a well-established ensemble method that improves predictive performance by sequentially focusing on hard-to-classify observations, which is a central challenge in default prediction. Second, large-scale benchmarking studies \citep{lessmann2015benchmarking} emphasize that no single classifier dominates across datasets, making the inclusion of diverse model classes essential. Third, AdaBoost provides a useful contrast to bagging-based methods such as Random Forests, allowing the analysis to distinguish between bias-reduction mechanisms (boosting) and variance-reduction mechanisms (bagging).
 
 Consistent with the data-splitting strategy described in Section 1.1.2, AdaBoost is trained exclusively on the firm-level training set. The adaptive reweighting of observations is therefore applied only within the training data and does not introduce information leakage across firms.
 
@@ -398,10 +400,15 @@ w_i =
 \frac{N}{2N_{-}}, & \text{if } y_i = 0.
 \end{cases}
 \]
-This weighting scheme ensures that defaults and non-defaults contribute equally to the estimation objective, preventing the boosting algorithm from being dominated by the majority class in early iterations. Within the AdaBoost framework, initial observation weights enter directly into the weighted exponential loss function, implying that reweighting observations is equivalent to introducing asymmetric misclassification costs. This approach is well established in the literature on cost-sensitive and imbalanced classification (Friedman et al., 2000; Elkan, 2001; He and Garcia, 2009) and is commonly applied in credit-risk modeling where default events are rare but economically critical (Baesens et al., 2003; Lessmann et al., 2015).
+This weighting scheme ensures that defaults and non-defaults contribute equally to the estimation objective, preventing the boosting algorithm from being dominated by the majority class in early iterations. Within the AdaBoost framework, initial observation weights enter directly into the weighted exponential loss function, implying that reweighting observations is equivalent to introducing asymmetric misclassification costs. This approach is well established in the literature on cost-sensitive and imbalanced classification (Friedman et al., 2000; Elkan, 2001; He and Garcia, 2009) and is commonly applied in credit-risk modeling where default events are rare but economically critical (Baesens et al., 2003; \citet{lessmann2015benchmarking}).
 
 
 \subsection{XGBoost}
+
+<<setup_dates, echo=TRUE>>=
+# Start date for data
+start_date <- as.Date("2024-12-31")
+@
 
 \subsection{CatBoost}
 

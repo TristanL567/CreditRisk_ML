@@ -118,6 +118,8 @@
     \Large
     \textbf{Author:} \\
     Tristan \textsc{Leiter}
+        Anastasia \textsc{Pryshchepa}
+
     
     \vspace{1.5cm}
     
@@ -242,7 +244,205 @@ Selection is done by the AuC-ROC measure as per client instructions. \\
 
 \subsection{Random Forest}
 
+We use a Random Forest classifier to predict firm default events. The Random Forest
+combines a large number of classification trees, each trained on a different bootstrap
+sample of the training data. At each split in a tree, only a random subset of predictors
+is considered. This randomness reduces correlation across trees and improves predictive
+performance.Each tree produces a predicted default probability, and final predictions are obtained
+by aggregating the results across all trees.
+
+\subsubsection{Hyperparameter Specification}
+
+The Random Forest is estimated with the following hyperparameter settings:
+
+\begin{itemize}
+    \item \textbf{Number of trees ($B$):}  
+    The number of trees is set to $B = 500$. A large number of trees stabilizes the
+    ensemble predictions and reduces Monte Carlo noise. Increasing $B$ does not lead
+    to overfitting.
+
+    \item \textbf{Number of predictors per split ($m$):}  
+    At each split, the number of candidate predictors is set to
+    $m = \lfloor \sqrt{p} \rfloor$, where $p$ denotes the total number of predictors.
+    This is the standard choice for classification tasks and helps decorrelate trees.
+
+    \item \textbf{Minimum terminal node size:}  
+    The minimum node size is set to 1, allowing trees to grow fully. Individual trees
+    are therefore highly flexible (low bias), while variance is reduced through
+    aggregation across the forest.
+\end{itemize}
+
+\subsubsection{Algorithm}
+
+Let the training sample be
+\[
+\mathcal{Z} = \{(x_i, y_i)\}_{i=1}^N,
+\]
+where $x_i$ is a vector of firm-level predictors and $y_i \in \{0,1\}$ indicates default
+status.
+
+The Random Forest algorithm proceeds as follows:
+
+\begin{enumerate}
+    \item \textbf{Bootstrap sampling} \\
+    For each tree $b = 1, \dots, B$, a bootstrap sample of size $N$ is drawn with
+    replacement from the training data.
+
+    \item \textbf{Tree growing} \\
+    A classification tree is grown on each bootstrap sample. At each split:
+    \begin{itemize}
+        \item a random subset of $m$ predictors is selected,
+        \item the best split among these predictors is chosen using the Gini impurity
+        criterion,
+        \item the node is split into two child nodes.
+    \end{itemize}
+    Trees are grown without pruning until the minimum node size is reached.
+
+    \item \textbf{Prediction aggregation} \\
+    For a new observation $x$, each tree produces a predicted class probability.
+    These probabilities are averaged across trees to obtain the Random Forest
+    predicted default probability.
+\end{enumerate}
+
+\subsubsection{Model Evaluation}
+
+Model performance is evaluated on a separate hold-out test sample obtained via
+firm-level stratified sampling. For each observation in the test set, the Random Forest
+produces a predicted default probability.
+
+To obtain class labels, predicted probabilities are converted into default and
+non-default outcomes using a fixed threshold of 0.5.
+
+Because default events are rare, model performance is primarily assessed using the
+area under the receiver operating characteristic curve (AUC). The AUC measures the
+model’s ability to correctly rank defaulting firms above non-defaulting firms and is
+independent of the chosen classification threshold. In addition, confusion matrices are
+reported to summarize classification outcomes at the 0.5 threshold.
+
+\subsubsection{Variable Importance}
+
+To assess the contribution of individual predictors, variable importance measures
+computed internally by the Random Forest algorithm are employed. In particular, we rely
+primarily on permutation-based importance measures following \citet{breiman2001random}, which
+quantify how strongly predictive performance deteriorates when the information contained
+in a given predictor is destroyed.
+
+For each predictor $X_j$, its values are randomly permuted among the out-of-bag (OOB)
+observations, and the resulting decrease in predictive accuracy is recorded. Let
+$\text{Acc}_{\text{OOB}}$ denote the original out-of-bag prediction accuracy and
+$\text{Acc}_{\text{OOB}}^{(j,\text{perm})}$ the accuracy obtained after permuting $X_j$.
+The permutation importance reported in the analysis corresponds to the absolute decrease
+in accuracy,
+\[
+\text{VI}_j^{\text{abs}} =
+\text{Acc}_{\text{OOB}} - \text{Acc}_{\text{OOB}}^{(j,\text{perm})}.
+\]
+
+Larger values of $\text{VI}_j^{\text{abs}}$ indicate that permuting predictor $X_j$ leads
+to a substantial deterioration in out-of-bag predictive performance, implying a higher
+contribution of the predictor to the Random Forest model. Values close to zero suggest
+that the predictor has little influence on predictive accuracy.
+
+In addition to permutation-based importance, the Random Forest algorithm also reports an
+impurity-based importance measure, the mean decrease in Gini impurity. This measure
+aggregates the total reduction in Gini impurity attributable to each predictor across
+all splits and trees. While the mean decrease in Gini provides insight into how often a
+variable is used to create purer nodes during tree construction, it is known to be
+biased toward continuous predictors and predictors with many potential split points.
+
+\citet{breiman2001random} originally expresses permutation importance as a percentage increase in
+prediction error. The absolute formulation employed here is equivalent up to scaling and
+preserves the same ranking of predictors. Consequently, permutation-based importance is
+used as the primary criterion for ranking variables, while Gini-based importance is
+reported for completeness.
+
+
 \subsection{AdaBoost}
+
+\subsubsection{Model description}
+
+Empirical evidence on the performance of AdaBoost in credit-risk applications is mixed. While boosting methods are theoretically appealing, studies such as \citet{zhou2009credit} show that standard AdaBoost does not consistently outperform traditional models in highly imbalanced credit-scoring datasets. These findings suggest that AdaBoost can be sensitive to class imbalance and noise, both of which are characteristic features of default prediction data.
+
+Nevertheless, AdaBoost remains a relevant benchmark in credit-risk modelling for several reasons. First, it is a well-established ensemble method that improves predictive performance by sequentially focusing on hard-to-classify observations, which is a central challenge in default prediction. Second, large-scale benchmarking studies \citep{lessmann2015benchmarking} emphasize that no single classifier dominates across datasets, making the inclusion of diverse model classes essential. Third, AdaBoost provides a useful contrast to bagging-based methods such as Random Forests, allowing the analysis to distinguish between bias-reduction mechanisms (boosting) and variance-reduction mechanisms (bagging).
+
+Consistent with the data-splitting strategy described in Section 1.1.2, AdaBoost is trained exclusively on the firm-level training set. The adaptive reweighting of observations is therefore applied only within the training data and does not introduce information leakage across firms.
+
+\subsubsection{Algorithm}
+
+1.Initialization
+
+All observations receive equal weights:
+\[
+w_i^{(1)} = \frac{1}{N}, \quad i = 1, \ldots, N.
+\]
+
+2.Iterative Boosting
+
+For boosting iteration \( m = 1, \ldots, M \):
+
+- A weak classifier \( h_m(x) \) is fitted using the current observation weights.
+
+- The weighted classification error is computed as 
+\[
+\varepsilon_m = \sum_{i=1}^{N} w_i^{(m)} \mathbf{1}\{ h_m(x_i) \neq y_i \}. 
+\]
+
+- The classifier weight is given by
+
+\[
+\alpha_m = \frac{1}{2} \ln\left( \frac{1 - \varepsilon_m}{\varepsilon_m} \right).
+\]
+
+3.Weight Update
+
+Observation weights are increased for misclassified observations:
+\[
+w_i^{(m+1)} = w_i^{(m)} \exp\left( \alpha_m \mathbf{1}\{ h_m(x_i) \neq y_i \} \right),
+\]
+and normalized such that
+\[
+\sum_{i=1}^{N} w_i^{(m+1)} = 1.
+\]
+
+4.Final Prediction
+
+The AdaBoost classifier is a weighted combination of all weak learners:
+\[
+H(x) = \operatorname{sign}\left( \sum_{m=1}^{M} \alpha_m h_m(x) \right).
+\]
+
+The resulting score is mapped into a default probability, which is used for ranking firms by credit risk.
+
+\subsubsection{Logic}
+
+In the presence of strong class imblance, AdaBoost improves default prediction by sequentially increasing the importance of misclassified firms in the training set. Since default events are rare, they tend to be misclassified in early iterations and therefore receive higher weights in subsequent boosting rounds. This mechanism forces later weak learners to focus on economically fragile and borderline firms. Combined with firm-level stratified sampling, AdaBoost concentrates model capacity on difficult default cases while preserving a clean out-of-sample evaluation on unseen firms.
+
+\subsection{Comments on code}
+
+\textbf{Firm-Level Data Leakage Prevention}
+
+Given the panel structure of the data, multiple observations may exist for the same firm across time. To ensure a valid out-of-sample evaluation, the data are split at the firm level, such that all observations of a given firm appear exclusively in either the training or the test set. 
+
+A leakage check is performed prior to model estimation to verify that no firm identifier appears in both sample. Formally, letting $\mathcal{I}_{\text{train}}$ and $\mathcal{I}_{\text{test}}$ denote the sets of firm identifiers in the training and test data, respectively, the following condition is enforced:
+
+\[
+\mathcal{I}_{\mathrm{train}} \cap \mathcal{I}_{\mathrm{test}} = \emptyset.
+\]
+
+\textbf{Handling via Observation Weight}
+
+The training data exhibits a strong class imbalance, with default events being rare relative to non-default observations. To address class imbalance, we assign observation-level weights based on inverse class frequencies:e.
+
+Let $N$ denote the total number of training observations, and let $N_{+}$ and $N_{-}$ denote the number of default and non-default observations, respectively. Initial observation weights are defined as
+\[
+w_i =
+\begin{cases}
+\frac{N}{2N_{+}}, & \text{if } y_i = 1, \\
+\frac{N}{2N_{-}}, & \text{if } y_i = 0.
+\end{cases}
+\]
+This weighting scheme ensures that defaults and non-defaults contribute equally to the estimation objective, preventing the boosting algorithm from being dominated by the majority class in early iterations. Within the AdaBoost framework, initial observation weights enter directly into the weighted exponential loss function, implying that reweighting observations is equivalent to introducing asymmetric misclassification costs. This approach is well established in the literature on cost-sensitive and imbalanced classification (Friedman et al., 2000; Elkan, 2001; He and Garcia, 2009) and is commonly applied in credit-risk modeling where default events are rare but economically critical (Baesens et al., 2003; \citet{lessmann2015benchmarking}).
+
 
 \subsection{XGBoost}
 
