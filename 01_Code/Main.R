@@ -66,8 +66,16 @@ sourceFunctions(Functions_Directory)
 set.seed(123)
 
 ## Charts.
+blue <- "#004890"
+grey <- "#708090"
+orange <- "#F37021"
+red <- "#B22222"
+
+
 width <- 3750
 heigth <- 1833
+
+## Other.
 
 
 #==============================================================================#
@@ -207,8 +215,6 @@ summary(Train_Transformed$f1)
 ## To-Do: Fix overall parameters at the beginning of the code.
 ## Comparison of hyperparameter tuning methods.
 ## Visualisations and Outputs.
-
-set.seed(123)
 
 ##==============================##
 ## Data preparation.
@@ -375,8 +381,8 @@ print(paste("Final Train AUC:", round(XGBoost_rs_Train_AUC, 5)))
 ##==============================##
 
 ## Prepare the parameters.
-n_init_points <- 5
-n_iter_bayes  <- 15
+n_init_points <- 10
+n_iter_bayes  <- 20
 total_bayes_runs <- n_init_points + n_iter_bayes
 current_bayes_iter <- 0 # Initialize counter
 
@@ -392,13 +398,18 @@ tryCatch({
 current_bayes_iter <- 0 
   
 bayes_out <- BayesianOptimization(
-    FUN = XGBoost_bayesoptim,
-    bounds = bounds_bayes,
-    init_points = n_init_points,
-    n_iter = n_iter_bayes,
-    acq = "ucb", 
-    verbose = TRUE 
-  )
+  FUN = XGBoost_bayesoptim,
+  bounds = bounds_bayes,
+  init_points = n_init_points,
+  n_iter = n_iter_bayes,
+  # REFINEMENT 1: Use Expected Improvement (Frazier (2018)).
+  acq = "ei", 
+  # REFINEMENT 2: Use Matern 5/2 Kernel (Better for realistic landscapes )
+  kernel = list(type = "matern", nu = 5/2),
+  # REFINEMENT 3: Slight epsilon increase to handle CV noise/prevent over-exploitation
+  eps = 0.01, 
+  verbose = TRUE
+)
   
 ## Convert History to Tibble.
 results_bayes <- bayes_out$History %>%
@@ -484,13 +495,25 @@ XGBoost_method_performance <- data.frame(
 plot_final_auc <- ggplot(XGBoost_method_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, fill = Method)) +
   geom_col(width = 0.6, show.legend = FALSE) +
   geom_text(aes(label = round(Train_AUC, 5)), vjust = -0.5, size = 5) +
-  coord_cartesian(ylim = c(min(XGBoost_method_performance$Train_AUC) * 0.99, max(XGBoost_method_performance$Train_AUC) * 1.005)) +
-  labs(title = "Final Model Performance by Tuning Strategy",
-       subtitle = "Comparison of Training AUC on the full dataset",
-       x = "Tuning Method",
-       y = "Training AUC") +
-  theme_minimal() +
-  theme(plot.title = element_text(face = "bold"))
+  coord_cartesian(ylim = c(min(XGBoost_method_performance$Train_AUC) * 0.99, 
+                           max(XGBoost_method_performance$Train_AUC) * 1.005)) +
+  labs(
+    title = "Performance of different hyperparameter tuning methods",
+    subtitle = "Comparison of Training AUC",
+    x = "Tuning Method",
+    y = "Training AUC"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"), # Adjusted to "grey30" for safety
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", color = "black"),
+    strip.text = element_text(size = 12, face = "bold", color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
 
 print(plot_final_auc)
 
