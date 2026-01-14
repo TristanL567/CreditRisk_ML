@@ -446,6 +446,71 @@ This weighting scheme ensures that defaults and non-defaults contribute equally 
 
 \subsection{XGBoost}
 
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlcom{# Start date for data}
+\hlstd{start_date} \hlkwb{<-} \hlkwd{as.Date}\hlstd{(}\hlstr{"2024-12-31"}\hlstd{)}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+\subsubsection{Model Description}
+
+XGBoost (Extreme Gradient Boosting) is a scalable and highly efficient implementation of gradient boosted decision trees (GBDT). Unlike traditional Gradient Boosting Machines (GBM) that use first-order derivatives, XGBoost minimizes a regularized objective function using a second-order Taylor expansion, incorporating both the gradient (first derivative) and the hessian (second derivative). This allows for a more precise estimation of the loss reduction and faster convergence.
+
+\subsubsection{Algorithm}
+
+The XGBoost algorithm builds an ensemble of classification trees in an additive manner. At each iteration $t$, a new tree $f_t$ is added to the model to minimize the objective function.
+
+\paragraph{Objective Function}
+The objective function at iteration $t$ consists of a loss term and a regularization term:
+\begin{equation}
+\mathcal{L}^{(t)} = \sum_{i=1}^{n} l\left(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)\right) + \Omega(f_t)
+\end{equation}
+where $l$ is the internal optimization metric, typically **Binary Logistic Loss (LogLoss)**, which measures the difference between the predicted probability and the true label $y_i$.
+
+\paragraph{Taylor Expansion}
+To efficiently optimize this objective, XGBoost employs a second-order Taylor expansion of the loss function:
+\begin{equation}
+\mathcal{L}^{(t)} \approx \sum_{i=1}^{n} \left[ l(y_i, \hat{y}^{(t-1)}) + g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i) \right] + \Omega(f_t)
+\end{equation}
+where $g_i = \partial_{\hat{y}^{(t-1)}} l(y_i, \hat{y}^{(t-1)})$ is the gradient (first derivative) and $h_i = \partial^2_{\hat{y}^{(t-1)}} l(y_i, \hat{y}^{(t-1)})$ is the hessian (second derivative).
+
+\paragraph{Regularization}
+The regularization term $\Omega(f_t)$ controls the complexity of the tree to prevent overfitting:
+\begin{equation}
+\Omega(f) = \gamma T + \frac{1}{2} \lambda ||w||^2
+\end{equation}
+Here, $T$ is the number of leaves, and $w$ represents the leaf weights. $\gamma$ penalizes the addition of new leaves (pruning), while $\lambda$ provides L2 smoothing of the leaf weights.
+
+\subsubsection{Hyperparameter Specifications}
+
+We optimize the following hyperparameters to control the bias-variance trade-off:
+
+\begin{itemize}
+    \item \textbf{Learning Rate ($\eta$):} Controls the step size shrinkage to prevent overfitting. Lower values require more trees but improve generalization.
+    \item \textbf{Max Depth:} The maximum depth of a tree. Deeper trees capture more complex interactions but risk overfitting specific samples.
+    \item \textbf{Subsample:} The fraction of observations randomly sampled for each tree. Values $<1.0$ introduce bagging-like randomness.
+    \item \textbf{Colsample\_bytree:} The fraction of features randomly sampled for each tree. This decorrelates trees, similar to Random Forest.
+\end{itemize}
+
+\subsubsection{Tuning Strategies}
+
+To maximize the \textbf{AUC (Area Under the Curve)} on the validation set, we compare three hyperparameter optimization strategies:
+
+\begin{enumerate}
+    \item \textbf{Discrete Grid Search:} A baseline that evaluates every combination of a fixed set of values. It is computationally expensive and limited by the pre-defined grid.
+    \item \textbf{Random Search:} Samples hyperparameters from defined distributions. It is often more efficient than grid search for high-dimensional spaces as it explores a wider variety of values for continuous parameters like $\eta$.
+    \item \textbf{Bayesian Optimization (TPE):} We employ the Tree-structured Parzen Estimator (TPE). Unlike random search, TPE builds a probabilistic model of the objective function (AUC) based on past evaluations to intelligently select the next hyperparameters. \citet{wang2019xgboost} demonstrate that TPE significantly improves stability and performance in credit scoring.
+\end{enumerate}
+
+\subsubsection{Potential Improvements}
+
+A critical challenge in credit risk modeling is the severe class imbalance (defaults are rare). To address this, we propose an enhancement to the standard objective function.
+
+Following the methodology of \citet{chang2018application}, we can calculate the \textit{imbalance ratio} (the ratio of non-default to default observations) and assign it to the \texttt{scale\_pos\_weight} parameter. This modifies the gradient calculation to penalize false negatives (missed defaults) more heavily than false positives. While our primary model uses standard LogLoss, implementing this weighted loss function is expected to improve the AUC by correcting the model's bias towards the majority class.
+
 \subsection{CatBoost}
 
 \section{Neural Networks}
