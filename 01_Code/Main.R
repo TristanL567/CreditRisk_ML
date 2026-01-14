@@ -16,9 +16,10 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 ## Needs to enable checking for install & if not then autoinstall.
 
 packages <- c("dplyr", "caret", "lubridate", "purrr",
-              "Matrix", "pROC",        ## Sparse Matrices and efficient AUC computation.
-              "xgboost",               ## XGBoost library.
-              "rBayesianOptimization"  ## Bayesian Optimization.
+              "Matrix", "pROC",           ## Sparse Matrices and efficient AUC computation.
+              "xgboost",                  ## XGBoost library.
+              "rBayesianOptimization",    ## Bayesian Optimization.
+              "ggplot2", "Ckmeans.1d.dp"  ## Plotting & Charts | XG-Charts / Feature Importance.
 )
 
 for(i in 1:length(packages)){
@@ -262,14 +263,32 @@ tryCatch({
 best_ds <- results_ds[1, ]
   
 final_params_ds <- list(
-    booster = "gbtree", objective = "binary:logistic", eval_metric = "auc",
-    eta = best_ds$eta, max_depth = best_ds$max_depth, 
-    subsample = best_ds$subsample, colsample_bytree = best_ds$colsample_bytree
+    booster = "gbtree", 
+    objective = "binary:logistic", 
+    eval_metric = "auc",
+    eta = best_ds$eta, 
+    max_depth = best_ds$max_depth, 
+    subsample = best_ds$subsample, 
+    colsample_bytree = best_ds$colsample_bytree
 )
 
+## Find the best iteration.
+check_cv <- xgb.cv(
+  params = final_params_ds,
+  data = dtrain,
+  nrounds = 2000,
+  nfold = 5,
+  early_stopping_rounds = 50,
+  verbose = 0,
+  maximize = TRUE
+)
+
+optimal_rounds <- check_cv$evaluation_log[which.max(check_cv$evaluation_log$test_auc_mean)]$iter
+
+## Train the model with the optimal hyperparameters.
 model_ds <- xgb.train(params = final_params_ds, 
                       data = dtrain, 
-                      nrounds = best_ds$Best_Rounds, 
+                      nrounds = optimal_rounds, 
                       verbose = 0)
 
 }, error = function(e) print(e))
@@ -325,9 +344,22 @@ final_params_rs <- list(
   subsample = best_rs$subsample, colsample_bytree = best_rs$colsample_bytree
 )
 
+# Determine optimal rounds for the Random Search winner
+check_cv_rs <- xgb.cv(
+  params = final_params_rs,
+  data = dtrain,
+  nrounds = 2000,
+  nfold = 5,
+  early_stopping_rounds = 50,
+  verbose = 0,
+  maximize = TRUE
+)
+optimal_rounds_rs <- check_cv_rs$evaluation_log[which.max(check_cv_rs$evaluation_log$test_auc_mean)]$iter
+
+## Train the model with the optimal hyperparameters.
 model_rs <- xgb.train(params = final_params_rs, 
                       data = dtrain,
-                      nrounds = best_rs$Best_Rounds, 
+                      nrounds = optimal_rounds_rs, 
                       verbose = 0)
 
 }, error = function(e) message(e))
@@ -398,24 +430,24 @@ final_params_bayes <- list(
     colsample_bytree = best_bayes$colsample_bytree
   )
   
-## Determine optimal rounds for the winner
-check_cv <- xgb.cv(
-    params = final_params_bayes,
-    data = dtrain,
-    nrounds = 2000,
-    nfold = 5,
-    early_stopping_rounds = 50,
-    verbose = 0,
-    maximize = TRUE
-  )
+# Determine optimal rounds for the Bayesian optim.
+check_cv_bayes <- xgb.cv(
+  params = final_params_bayes,
+  data = dtrain,
+  nrounds = 2000,
+  nfold = 5,
+  early_stopping_rounds = 50,
+  verbose = 0,
+  maximize = TRUE
+)
+
+optimal_rounds_bayes <- check_cv_bayes$evaluation_log[which.max(check_cv_bayes$evaluation_log$test_auc_mean)]$iter
   
-optimal_rounds <- check_cv$best_iteration
-  
-## Final training
+## Train the model with the optimal hyperparameters.
 model_bayes <- xgb.train(
                         params = final_params_bayes, 
                         data = dtrain,
-                        nrounds = optimal_rounds, 
+                        nrounds = optimal_rounds_bayes, 
                         verbose = 0
   )
   
@@ -426,7 +458,6 @@ XGBoost_bayes_probs <- predict(model_bayes, dtrain)
 XGBoost_bayes_Train_ROC <- roc(train_y, XGBoost_bayes_probs, quiet = TRUE)
 XGBoost_bayes_Train_AUC <- auc(XGBoost_bayes_Train_ROC)
 print(paste("Final Bayesian Train AUC:", round(XGBoost_bayes_Train_AUC, 5)))
-
 
 ##==============================##
 ## Compare the hyperparameter tuning methods. Visualisations.
@@ -450,10 +481,10 @@ XGBoost_method_performance <- data.frame(
 )
 
 ## Visualisation: Method AUC comparison.
-plot_final_auc <- ggplot(final_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, fill = Method)) +
+plot_final_auc <- ggplot(XGBoost_method_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, fill = Method)) +
   geom_col(width = 0.6, show.legend = FALSE) +
   geom_text(aes(label = round(Train_AUC, 5)), vjust = -0.5, size = 5) +
-  coord_cartesian(ylim = c(min(final_performance$Train_AUC) * 0.99, max(final_performance$Train_AUC) * 1.005)) +
+  coord_cartesian(ylim = c(min(XGBoost_method_performance$Train_AUC) * 0.99, max(XGBoost_method_performance$Train_AUC) * 1.005)) +
   labs(title = "Final Model Performance by Tuning Strategy",
        subtitle = "Comparison of Training AUC on the full dataset",
        x = "Tuning Method",
@@ -463,48 +494,49 @@ plot_final_auc <- ggplot(final_performance, aes(x = reorder(Method, Train_AUC), 
 
 print(plot_final_auc)
 
-Path <- file.path(Charts_XGBoost_Directory, "01_HyperparameterTuningMethods_AUC_Training.png")
-ggsave(
-  filename = Path,
-  plot = plot_importance_gbm,
-  width = width,
-  height = heigth,
-  units = "px",
-  dpi = 300,
-  limitsize = FALSE
-)
+# Path <- file.path(Charts_XGBoost_Directory, "01_HyperparameterTuningMethods_AUC_Training.png")
+# ggsave(
+#   filename = Path,
+#   plot = plot_importance_gbm,
+#   width = width,
+#   height = heigth,
+#   units = "px",
+#   dpi = 300,
+#   limitsize = FALSE
+# )
 
-## Visualisation: Search Efficiency (Convergence).
-convergence_data <- all_search_results %>%
-  group_by(Method) %>%
-  mutate(Best_AUC_So_Far = cummax(AUC)) %>%
-  ungroup()
+## Visualisation: Learning curve / boosting iterations.
+cv_log <- check_cv_rs$evaluation_log
 
-plot_convergence <- ggplot(convergence_data, aes(x = Iteration, y = Best_AUC_So_Far, color = Method)) +
-  geom_line(linewidth = 1.2) +
-  geom_point(size = 2) +
-  labs(title = "Optimization Convergence",
-       subtitle = "Best CV AUC score found at each iteration",
-       x = "Iteration Number",
-       y = "Best CV AUC Found") +
-  theme_minimal() +
-  scale_color_brewer(palette = "Set1")
+plot_learning_curve <- ggplot(cv_log, aes(x = iter, y = test_auc_mean)) +
+  geom_ribbon(aes(ymin = test_auc_mean - test_auc_std, 
+                  ymax = test_auc_mean + test_auc_std), 
+              alpha = 0.2, fill = "#2c3e50") +
+  geom_line(color = "#2c3e50", size = 1) +
+  geom_vline(xintercept = optimal_rounds_rs, linetype = "dashed", color = "red") +
+  annotate("text", x = optimal_rounds_rs + 100, y = min(cv_log$test_auc_mean), 
+           label = paste("Optimal:", optimal_rounds_rs), color = "red", hjust = 0) +
+  labs(title = "Boosting Iterations & Model Stability",
+       subtitle = "Cross-Validation AUC +/- 1 Std Dev (Random Search)",
+       x = "Number of Boosting Iterations",
+       y = "Test AUC") +
+  theme_minimal()
 
-print(plot_convergence)
+print(plot_learning_curve)
 
-## Visualization: Search Space Exploration
-plot_space <- ggplot(all_search_results, aes(x = eta, y = max_depth, color = AUC)) +
-  geom_jitter(width = 0.005, height = 0.2, size = 3, alpha = 0.8) +
-  facet_wrap(~Method) +
-  scale_color_viridis_c(option = "magma", direction = -1) +
-  labs(title = "Hyperparameter Search Space Exploration",
-       subtitle = "Comparison of sampled Eta vs Max Depth",
-       x = "Learning Rate (eta)",
-       y = "Max Depth") +
-  theme_bw() +
-  theme(legend.position = "bottom")
+## Visualisation: Feature Importance.
 
-print(plot_space)
+importance_matrix <- xgb.importance(model = model_rs)
+print(head(importance_matrix, 10))
+
+plot_importance <- xgb.ggplot.importance(importance_matrix, top_n = 10, measure = "Gain") +
+  labs(title = "Feature Importance (Gain)", 
+       subtitle = "Relative contribution of each feature to the model") +
+  theme_minimal()
+
+print(plot_importance)
+
+
 
 ##==============================##
 ## Model performance of the best hyperparameter tuning method within the TEST set.
