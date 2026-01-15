@@ -15,11 +15,12 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 
 ## Needs to enable checking for install & if not then autoinstall.
 
-packages <- c("dplyr", "caret", "lubridate", "purrr",
-              "Matrix", "pROC",           ## Sparse Matrices and efficient AUC computation.
-              "xgboost",                  ## XGBoost library.
-              "rBayesianOptimization",    ## Bayesian Optimization.
-              "ggplot2", "Ckmeans.1d.dp"  ## Plotting & Charts | XG-Charts / Feature Importance.
+packages <- c("dplyr", "caret", "lubridate", "purrr", "tidyr",
+              "Matrix", "pROC",            ## Sparse Matrices and efficient AUC computation.
+              "xgboost",                   ## XGBoost library.
+              "rBayesianOptimization",     ## Bayesian Optimization.
+              "ggplot2", "Ckmeans.1d.dp",  ## Plotting & Charts | XG-Charts / Feature Importance.
+              "scales"                     ## ggplot2 extension for nice charts.
 )
 
 for(i in 1:length(packages)){
@@ -125,6 +126,9 @@ analyse_MVstratifiedsampling(Test, "TEST SET",
 
 ## Exclude id and refdate.
 Exclude <- c("id", "refdate") ## Drop the id and ref_date (year) for now.
+Train_with_id <- Train
+Test_with_id <- Test
+
 Train <- Train[, -which(names(Train) %in% Exclude)]
 Train_Backup <- Train
 Test <- Test[, -which(names(Test) %in% Exclude)]
@@ -216,6 +220,14 @@ summary(Train_Transformed$f1)
 ## Comparison of hyperparameter tuning methods.
 ## Visualisations and Outputs.
 
+tryCatch({
+
+##==============================##
+## General Parameters.
+##==============================##
+
+N_folds <- 5
+
 ##==============================##
 ## Data preparation.
 ##==============================##
@@ -230,6 +242,13 @@ dtrain <- xgb.DMatrix(data = train_matrix, label = train_y)
 test_y <- as.numeric(as.character(Test_Transformed$y))
 test_matrix <- sparse.model.matrix(sparse_formula, data = Test_Transformed)
 dtest <- xgb.DMatrix(data = test_matrix, label = test_y)
+
+# For stratified cv-folds.
+Strat_Data <- Train_Transformed %>%
+  mutate(id = Train_with_id$id)
+
+cv_folds_list <- MVstratifiedsampling_CV(Strat_Data, k = N_folds)
+print(paste("Folds generated:", length(cv_folds_list)))
 
 ##==============================##
 ## Discrete Grid Search for Hyperparameter Tuning.
@@ -256,7 +275,8 @@ print(paste("Total combinations to test:", nrow(grid_ds)))
 
 ## Implement the vectorized grid search function.
 tryCatch({
-results_ds <- pmap_dfr(grid_ds, XGBoost_gridsearch) %>%
+results_ds <- pmap_dfr(grid_ds, XGBoost_gridsearch,
+                       folds_custom = cv_folds_list) %>%
     arrange(desc(AUC))
   
 print("--- Top 5 Discrete Models ---")
@@ -283,7 +303,8 @@ check_cv <- xgb.cv(
   params = final_params_ds,
   data = dtrain,
   nrounds = 2000,
-  nfold = 5,
+  folds = cv_folds_list,
+  # nfold = 5,
   early_stopping_rounds = 50,
   verbose = 0,
   maximize = TRUE
@@ -332,7 +353,8 @@ print(paste("Total random combinations:", nrow(grid_rs)))
 
 ## Implement the vectorized grid search function.
 tryCatch({
-  results_rs <- pmap_dfr(grid_rs, XGBoost_gridsearch) %>%
+  results_rs <- pmap_dfr(grid_rs, XGBoost_gridsearch,
+                         folds_custom = cv_folds_list) %>%
     arrange(desc(AUC))
   
   print("--- Top 5 Random Models ---")
@@ -355,7 +377,8 @@ check_cv_rs <- xgb.cv(
   params = final_params_rs,
   data = dtrain,
   nrounds = 2000,
-  nfold = 5,
+  folds = cv_folds_list,
+  # nfold = 5,
   early_stopping_rounds = 50,
   verbose = 0,
   maximize = TRUE
@@ -446,7 +469,8 @@ check_cv_bayes <- xgb.cv(
   params = final_params_bayes,
   data = dtrain,
   nrounds = 2000,
-  nfold = 5,
+  folds = cv_folds_list,
+  # nfold = 5,
   early_stopping_rounds = 50,
   verbose = 0,
   maximize = TRUE
@@ -471,6 +495,66 @@ XGBoost_bayes_Train_AUC <- auc(XGBoost_bayes_Train_ROC)
 print(paste("Final Bayesian Train AUC:", round(XGBoost_bayes_Train_AUC, 5)))
 
 ##==============================##
+## Performance of the model with the highest training AUC in the test set.
+##==============================##
+
+## Check for the right tree size.
+cv_results_train <- xgb.cv(
+  params = final_params_bayes,
+  data = dtrain,
+  folds = cv_folds_list,
+  nrounds = 3000,
+  early_stopping_rounds = 50,
+  verbose = 0,
+  maximize = TRUE
+)
+
+## Extract the data. We compare the performance of 1-SE with the full fit.
+optimal_rounds_final <- cv_results_train$evaluation_log[which.max(cv_results_train$evaluation_log$test_auc_mean)]$iter
+eval_log <- cv_results_train$evaluation_log
+
+## Calculate 1-SE Threshold
+best_iter_index <- which.max(eval_log$test_auc_mean)
+best_auc_mean   <- eval_log$test_auc_mean[best_iter_index]
+best_auc_std    <- eval_log$test_auc_std[best_iter_index]
+threshold_auc <- best_auc_mean - best_auc_std
+
+candidates <- eval_log %>% filter(test_auc_mean >= threshold_auc)
+optimal_rounds_1se <- min(candidates$iter)
+
+message(sprintf("Absolute Best Rounds: %d (AUC: %.5f)", best_iter_index, best_auc_mean))
+message(sprintf("1-SE Rule Rounds:     %d (Threshold: %.5f)", optimal_rounds_1se, threshold_auc))
+
+## Train the 1-SE Model
+XGBoost_finalmodel_1SE <- xgb.train(
+  params = final_params_bayes,
+  data = dtrain,
+  nrounds = optimal_rounds_1se,
+  verbose = 0
+)
+
+## Train the full model.
+XGBoost_finalmodel <- xgb.train(
+  params = final_params_bayes,
+  data = dtrain,
+  nrounds = optimal_rounds_final,
+  verbose = 0
+)
+
+## Compare the AUC score of the test set and compare 1-SE with the full iteration model.
+## Full:
+XGBoost_test_probs <- predict(XGBoost_finalmodel, dtest)
+XGBoost_test_ROC <- roc(test_y, XGBoost_test_probs, quiet = TRUE)
+XGBoost_test_AUC <- auc(XGBoost_test_ROC)
+print(paste("Final Test Set AUC:", round(XGBoost_test_AUC, 5)))
+
+## 1-SE:
+XGBoost_test_probs_1SE <- predict(XGBoost_finalmodel_1SE, dtest)
+XGBoost_test_ROC_1SE   <- roc(test_y, XGBoost_test_probs_1SE, quiet = TRUE)
+XGBoost_test_AUC_1SE   <- auc(XGBoost_test_ROC_1SE)
+print(paste("Final Test AUC (1-SE Rule):", round(XGBoost_test_AUC_1SE, 5)))
+
+##==============================##
 ## Compare the hyperparameter tuning methods. Visualisations.
 ##==============================##
 
@@ -492,16 +576,24 @@ XGBoost_method_performance <- data.frame(
 )
 
 ## Visualisation: Method AUC comparison.
-plot_final_auc <- ggplot(XGBoost_method_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, fill = Method)) +
+colors <- c(
+  "Grid Search"   = blue,
+  "Random Search" = orange,  
+  "Bayesian Opt"  = red   
+)
+
+Plot_Train_AUC <- ggplot(XGBoost_method_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, 
+                                                         fill = Method)) +
   geom_col(width = 0.6, show.legend = FALSE) +
-  geom_text(aes(label = round(Train_AUC, 5)), vjust = -0.5, size = 5) +
-  coord_cartesian(ylim = c(min(XGBoost_method_performance$Train_AUC) * 0.99, 
-                           max(XGBoost_method_performance$Train_AUC) * 1.005)) +
+  geom_text(aes(label = paste0(round(Train_AUC * 100, 1), "%")), 
+            vjust = -0.5, size = 5) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  scale_fill_manual(values = colors) +
   labs(
-    title = "Performance of different hyperparameter tuning methods",
-    subtitle = "Comparison of Training AUC",
-    x = "Tuning Method",
-    y = "Training AUC"
+    title = "",
+    subtitle = "",
+    x = "Hyperparameter Tuning Method",
+    y = "AUC-Score (Training Set)"
   ) +
   theme_minimal(base_size = 13) +
   theme(
@@ -515,56 +607,222 @@ plot_final_auc <- ggplot(XGBoost_method_performance, aes(x = reorder(Method, Tra
     plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
   )
 
-print(plot_final_auc)
-
-# Path <- file.path(Charts_XGBoost_Directory, "01_HyperparameterTuningMethods_AUC_Training.png")
-# ggsave(
-#   filename = Path,
-#   plot = plot_importance_gbm,
-#   width = width,
-#   height = heigth,
-#   units = "px",
-#   dpi = 300,
-#   limitsize = FALSE
-# )
+Path <- file.path(Charts_XGBoost_Directory, "01_HyperparameterTuningMethods_AUC_Training.png")
+ggsave(
+  filename = Path,
+  plot = Plot_Train_AUC,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
 
 ## Visualisation: Learning curve / boosting iterations.
-cv_log <- check_cv_rs$evaluation_log
+cv_log <- check_cv_bayes$evaluation_log
 
-plot_learning_curve <- ggplot(cv_log, aes(x = iter, y = test_auc_mean)) +
+plot_LC_bayesOptim <- ggplot(cv_log, aes(x = iter, y = test_auc_mean)) +
   geom_ribbon(aes(ymin = test_auc_mean - test_auc_std, 
                   ymax = test_auc_mean + test_auc_std), 
               alpha = 0.2, fill = "#2c3e50") +
-  geom_line(color = "#2c3e50", size = 1) +
-  geom_vline(xintercept = optimal_rounds_rs, linetype = "dashed", color = "red") +
-  annotate("text", x = optimal_rounds_rs + 100, y = min(cv_log$test_auc_mean), 
-           label = paste("Optimal:", optimal_rounds_rs), color = "red", hjust = 0) +
-  labs(title = "Boosting Iterations & Model Stability",
-       subtitle = "Cross-Validation AUC +/- 1 Std Dev (Random Search)",
+  scale_y_continuous(labels = scales::percent, limits = c(0.75, 0.825)) +
+  geom_line(color = "#2c3e50", linewidth = 1) +
+    geom_vline(xintercept = optimal_rounds_rs, linetype = "dashed", color = red, linewidth = 0.8) +
+    annotate("text", 
+           x = optimal_rounds_rs + (max(cv_log$iter) * 0.02), # Offset slightly to the right
+           y = min(cv_log$test_auc_mean), 
+           label = paste("Optimal:", optimal_rounds_rs), 
+           color = "#e41a1c", 
+           hjust = 0, fontface = "bold") +
+    labs(title = "",
+       subtitle = "Cross-Validation AUC +/- 1 Std Dev (Bayesian Optim.)",
        x = "Number of Boosting Iterations",
-       y = "Test AUC") +
-  theme_minimal()
+       y = "AUC-Score (Training Set)") +
+    theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"),
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
 
-print(plot_learning_curve)
+Path <- file.path(Charts_XGBoost_Directory, "02_LearningCurve_BayesianOptimization_Training.png")
+ggsave(
+  filename = Path,
+  plot = plot_LC_bayesOptim,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
 
 ## Visualisation: Feature Importance.
 
-importance_matrix <- xgb.importance(model = model_rs)
-print(head(importance_matrix, 10))
+importance_matrix <- xgb.importance(model = model_bayes)
+top_features <- head(importance_matrix, 10)
 
-plot_importance <- xgb.ggplot.importance(importance_matrix, top_n = 10, measure = "Gain") +
-  labs(title = "Feature Importance (Gain)", 
-       subtitle = "Relative contribution of each feature to the model") +
-  theme_minimal()
+plot_XGBoost_FeatureImport_Train <- ggplot(top_features, 
+                        aes(x = Gain, 
+                            y = reorder(Feature, Gain))) +
+    geom_col(fill = blue, width = 0.7) + 
+    geom_text(aes(label = scales::percent(Gain, accuracy = 0.1)), 
+            hjust = -0.1, size = 4.5, fontface = "bold", color = "grey30") +
+    scale_x_continuous(labels = scales::percent, 
+                     expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title = "",
+    subtitle = "",
+    x = "Relative Contribution",
+    y = NULL # No label needed for feature names
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"),
+    
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_blank(),
+    axis.text.y = element_text(size = 11, face = "bold", color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "#d9d9d9"),
+    
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
 
-print(plot_importance)
-
-
+Path <- file.path(Charts_XGBoost_Directory, "03_FeatureImportance_BayesianOptimization_Training.png")
+ggsave(
+  filename = Path,
+  plot = plot_XGBoost_FeatureImport_Train,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
 
 ##==============================##
 ## Model performance of the best hyperparameter tuning method within the TEST set.
 ##==============================##
 
+## Visualisation: Test-set performance. Full model and 1-SE Rule.
+XGBoost_method_performance <- data.frame(
+  Method = c("Training Set", "Test Set (1-SE)", "Test Set"),
+  Test_AUC = c(XGBoost_bayes_Train_AUC, XGBoost_test_AUC_1SE, XGBoost_test_AUC)
+)
+
+colors <- c(
+  "Training Set"   = grey,
+  "Test Set (1-SE)" = blue,  
+  "Test Set"  = red   
+)
+
+Plot_Test_AUC <- ggplot(XGBoost_method_performance, aes(x = reorder(Method, Test_AUC), y = Test_AUC, 
+                                                         fill = Method)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(Test_AUC * 100, 1), "%")), 
+            vjust = -0.5, size = 5) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  scale_fill_manual(values = colors) +
+  labs(
+    title = "",
+    subtitle = "",
+    x = "",
+    y = "AUC-Score"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"), # Adjusted to "grey30" for safety
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", color = "black"),
+    strip.text = element_text(size = 12, face = "bold", color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_XGBoost_Directory, "04_AUC_Test.png")
+ggsave(
+  filename = Path,
+  plot = Plot_Test_AUC,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
+
+## Visualisation: Calibration (predicted vs observed per bracket).
+calib_data <- data.frame(
+  actual = test_y,
+  prob = XGBoost_test_probs
+) %>%
+  mutate(bin = ntile(prob, 10)) %>%
+  group_by(bin) %>%
+  summarise(
+    mean_prob = mean(prob),
+    observed_rate = mean(actual),
+    n = n()
+  )
+
+calib_plot_data <- calib_data %>%
+  select(bin, mean_prob, observed_rate) %>%
+  rename(Predicted = mean_prob, Observed = observed_rate) %>%
+  pivot_longer(cols = c("Predicted", "Observed"), 
+               names_to = "Type", 
+               values_to = "Rate") %>%
+  mutate(Type = factor(Type, levels = c("Predicted", "Observed")))
+
+plot_calib_bars <- ggplot(calib_plot_data, aes(x = factor(bin), y = Rate, fill = Type)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = scales::percent(Rate, accuracy = 0.1)), 
+            position = position_dodge(width = 0.8), 
+            vjust = -0.5, 
+            size = 3.5, 
+            fontface = "bold", 
+            color = "black") +
+  scale_fill_manual(values = c("Predicted" = blue, 
+                               "Observed"  = grey)) + 
+  scale_y_continuous(labels = scales::percent, 
+                     expand = expansion(mult = c(0, 0.15))) + 
+  labs(
+    title = "",
+    subtitle = "",
+    x = "Risk Decile (1 = Lowest Risk, 10 = Highest Risk)",
+    y = "Default Rate",
+    fill = "" 
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"),
+    legend.position = "top", 
+    legend.text = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 13, face = "bold", margin = ggplot2::margin(t = 10)),
+    axis.title.y = element_text(size = 13, face = "bold", margin = ggplot2::margin(r = 10)),
+    panel.grid.major.x = element_blank(), 
+    panel.grid.minor = element_blank(),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_XGBoost_Directory, "05_CalibrationChart_BayesianOptimization_Test.png")
+ggsave(
+  filename = Path,
+  plot = plot_calib_bars,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
+
+
+}, error = function(e) message(e))
 
 #==============================================================================#
 #==============================================================================#

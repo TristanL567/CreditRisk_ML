@@ -1,6 +1,7 @@
 XGBoost_gridsearch <- function(eta, max_depth, subsample, colsample_bytree, 
                                nrounds, early_stopping_rounds, 
-                               current_iter, total_iters) {
+                               current_iter, total_iters,
+                               folds_custom) {
   
   ## Prints the progress.
   message(sprintf("[%02d/%02d] CV: eta=%.2f | depth=%d | subsample=%.1f | cols=%.1f", 
@@ -20,8 +21,9 @@ XGBoost_gridsearch <- function(eta, max_depth, subsample, colsample_bytree,
   cv_res <- xgb.cv(
     params = params,
     data = dtrain,
-    nrounds = nrounds,                
-    nfold = 5,
+    nrounds = nrounds, 
+    folds = folds_custom,
+    # nfold = 5,                                 ## No random splitting. We implemented stratified sampling approach.
     early_stopping_rounds = early_stopping_rounds, 
     verbose = 0,
     maximize = TRUE
