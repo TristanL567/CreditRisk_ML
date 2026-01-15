@@ -1,0 +1,773 @@
+%==== KNITR ===================================================================%
+
+<<echo=FALSE, eval = !knitr::is_latex_output()>>=
+library(knitr)
+
+Path <- file.path(here::here("")) ## You need to install the package first incase you do not have it.
+Directory <- file.path(Path, "06_Documentation")
+
+## Chart Directories.
+Directory_Charts <- file.path(Path, "03_Charts")
+Directory_Charts_XGBoost <- file.path(Directory_Charts, "XGBoost")
+
+## LaTeX Directory.
+Directory_LaTeX <- file.path(Directory, "Methodology_Summary.Rnw")
+setwd(Directory)
+
+# knit2pdf(Directory_LaTeX)
+
+@
+
+%==== START ===================================================================%
+
+\documentclass{report}
+
+\usepackage[left=2cm, right=2cm, top=1cm, bottom=2cm]{geometry}
+
+% Font.
+
+
+% Main packages.
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs} 
+\usepackage{rotating} 
+\usepackage{lmodern}
+
+% Citations.
+\usepackage{natbib}
+\setcitestyle{authoryear,open={(},close={)}} %Citation-related commands
+
+%% Testing different layout.
+\usepackage{geometry}
+\usepackage{xcolor}
+
+%% Charts.
+\graphicspath{
+    {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/}
+}
+
+% Required for Table.
+
+
+%%
+
+% \title{Master Thesis - Research Proposal}
+% \author{Tristan Leiter}
+% \date{\today}
+
+%==== DOCUMENT START ==========================================================%
+
+\begin{document}
+
+\begin{titlepage}
+    \newgeometry{top=3cm, bottom=3cm, left=2.5cm, right=2.5cm}
+    \centering
+    
+    % --- University Placeholder ---
+    % \includegraphics[width=0.4\textwidth]{logo.png} \par
+    {\scshape\LARGE Vienna University of Economics and Business \par}
+    \vspace{1cm}
+    {\scshape\Large OeNB ILAB \par}
+    
+    \vspace{2.5cm}
+    
+    % --- Title Section ---
+    \hrule height 2pt
+    \vspace{0.5cm}
+    { \huge \bfseries OeNB ILAB: \\[0.3cm] Methodology Summary \par}
+    \vspace{0.5cm}
+    \hrule height 2pt
+    
+    \vspace{2cm}
+    
+    % --- Author Section ---
+    \Large
+    \textbf{Author:} \\
+    Tristan \textsc{Leiter}
+        Anastasia \textsc{Pryshchepa}
+
+    
+    \vspace{1.5cm}
+    
+    % --- Metadata ---
+    \normalsize
+    \textbf{Submission Date:} \\
+    \today
+
+    \vfill
+    
+\end{titlepage}
+\restoregeometry
+
+% \maketitle
+
+%==== ABSTRACT ================================================================%
+
+% \begin{abstract}
+% This report demonstrates the integration of R code and its output within a LaTeX document using Sweave. It covers the basic structure of a report, including a summary, chapters with subchapters, and a bibliography.
+% \end{abstract}
+
+%==== Table of content ========================================================%
+
+\tableofcontents
+\newpage
+
+%==== Chapter 1: Multi-variate stratified sampling ============================%
+
+\chapter{Data Processing}
+
+\section{Preprocessing and data splitting}
+
+\subsection{Preprocessing}
+
+Based on the instructions from the client, we filter the balance sheet data based on the following constraints to remove noisy observations. To account for floating-point inconsistencies, we add the condition that the difference must be greater than 2000 (as per client instructions).
+
+\begin{enumerate}
+    \item $f_{10} \ge 0$
+    \item $(f_2 + f_3) \le f_1$
+    \item $(f_4 + f_5) \le f_3$
+    \item $(f_6 + f_{11}) \le f_1$
+\end{enumerate}
+
+\subsection{Data splitting}
+
+We utilize a custom function, \texttt{MVstratifiedsampling}, to perform a stratified split at the firm level rather than the observation level. This ensures that all records for a specific firm ID reside in the same partition.
+
+\begin{enumerate}
+  \item \textbf{Aggregate to Firm Level} \\
+  The dataset is first grouped by unique identifier (\texttt{id}). We summarize the data to create a single profile per firm, extracting the maximum default status ($y$) and the business sector.
+
+  \item \textbf{Create Stratification Key} \\
+  We generate a combined key for each unique firm by interacting the stratification variables (e.g., \texttt{Sector} and \texttt{Target}).
+  \begin{itemize}
+    \item This creates composite levels (e.g., \texttt{"Energy.1"}, \texttt{"Retail.0"}) used to balance the distribution of the target variable across sectors.
+  \end{itemize}
+
+  \item \textbf{Partition Unique IDs} \\
+  Using the \texttt{createDataPartition} algorithm from the \textit{caret} package, we split the unique firm IDs based on the stratification key.
+  \begin{itemize}
+    \item The default split creates a training set containing 70\% of the firms and a test set containing the remaining 30\%.
+  \end{itemize}
+
+  \item \textbf{Retrieve Observation Data} \\
+  Finally, we filter the original dataset to reconstruct the Training and Test sets based on the selected lists of IDs. This preserves the original data structure without requiring column removal.
+\end{enumerate}
+
+\section{Feature engineering}
+
+\subsection{Standardization (Size Normalization)}
+Financial data often exhibits a "size effect," where absolute magnitude (e.g., total sales or debt in Euros) overshadows financial performance. To ensure comparability between large and small firms while preserving the risk signal associated with company size, we apply a two-step logic:
+
+\begin{enumerate}
+    \item \textbf{Ratio Creation:} We scale absolute financial figures (e.g., Debt, Cash, EBIT) against \textbf{Total Assets}. This converts raw figures into structural ratios (e.g., $\text{EBIT} \rightarrow \text{ROA}$), isolating efficiency from magnitude.
+    \item \textbf{Size Retention:} We explicitly retain the \textbf{Total Assets} feature. In credit risk, size itself is often a predictor of stability (e.g., larger firms having better capital access). By keeping it as a feature, we allow the model to learn these non-linear interactions between "Efficiency" (ratios) and "Scale" (assets).
+\end{enumerate}
+
+\subsection{Quantile Transformation (Probability Integral Transform)}
+After size normalization, both the financial ratios and the size feature typically remain highly skewed with heavy tails (non-Gaussian). We apply a \textbf{Quantile Transformation} (Rank-Gauss) using the Probability Integral Transform (PIT) to all continuous features.
+
+To prevent data leakage and preserve macro-economic signals (e.g., a global downturn increasing leverage ratios across the board), we utilize a \textbf{Frozen Reference Approach}:
+\begin{enumerate}
+    \item \textbf{Training Phase:} We compute the ranks and Empirical Cumulative Distribution Function (ECDF) on the training set to establish a "Through-the-Cycle" reference distribution.
+    \item \textbf{Testing Phase (Walking Forward):} We map future observations (Test set) onto this fixed training ECDF. This ensures that if the economy deteriorates (shifting the test distribution right), the transformed Z-scores reflect this increased risk relative to the training baseline, rather than normalizing it away.
+\end{enumerate}
+
+The transformation chain for any continuous variable $x$ (whether a calculated ratio or raw Total Assets) is:
+
+$$ 
+x_{final} = \Phi^{-1}\left( ECDF_{train}(x_{input}) \right) \quad \text{where} \quad x_{final} \sim N(0,1) 
+$$
+
+Where $x_{input}$ is either the calculated ratio ($\frac{x_{raw}}{\text{Assets}}$) or the raw Size variable itself.
+
+% \subsection{Extreme Values}
+
+
+
+%==== Chapter 2: Modeling Methodology =========================================%
+
+\chapter{Modeling Methodology}
+
+\section{Model Selection}
+
+Selection is done by the AuC-ROC measure as per client instructions. \\
+
+\section{Hyperparameter Tuning}
+
+\subsection{Discrete Grid Search}
+
+\subsection{Random Grid Search}
+
+\subsection{Bayesian Optimization}
+
+%==== Chapter 3: Linear Models ================================================%
+
+\chapter{Linear Models}
+
+\section{GLMs}
+
+\subsection{Logistic Regression}
+
+Logistic regression serves as our baseline linear classifier for credit default prediction. Despite its simplicity, logistic regression offers several advantages in regulatory contexts: interpretability through coefficient magnitudes, well-calibrated probability estimates, and computational efficiency.
+
+\subsubsection{Model Specification}
+
+The logistic regression model estimates the probability of default through the logistic function:
+\[
+P(y_i = 1 | x_i) = \frac{1}{1 + \exp(-\beta^T x_i)}
+\]
+where $x_i$ is the feature vector for firm $i$ and $\beta$ represents the coefficient vector estimated via maximum likelihood.
+
+\subsection{Regularized GLMs}
+
+To address multicollinearity and prevent overfitting, we implement regularized variants of logistic regression using elastic net penalties. The elastic net combines L1 (LASSO) and L2 (Ridge) regularization, enabling both feature selection and coefficient shrinkage.
+
+\subsubsection{Regularization Framework}
+
+The regularized logistic regression minimizes:
+\[
+\mathcal{L}(\beta) = -\sum_{i=1}^{n} \left[ y_i \log(p_i) + (1 - y_i) \log(1 - p_i) \right] + \lambda \left[ \alpha ||\beta||_1 + \frac{1-\alpha}{2} ||\beta||_2^2 \right]
+\]
+where $\lambda$ controls regularization strength and $\alpha$ balances L1/L2 penalties ($\alpha = 0$ yields Ridge, $\alpha = 1$ yields LASSO).
+
+\subsubsection{Implementation}
+
+The GLM models are implemented using the workflow defined in \texttt{Main.R}, which orchestrates data preprocessing, feature engineering, and model training. The implementation leverages custom functions from the \texttt{Subfunctions} directory:
+
+\begin{itemize}
+    \item \textbf{Data Preprocessing:} \texttt{DataPreprocessing.R} applies balance sheet consistency filters (Section 1.1.1)
+    \item \textbf{Feature Engineering:} \texttt{QuantileTransformation.R} implements the Probability Integral Transform (Section 2.2)
+    \item \textbf{Stratified Sampling:} \texttt{MVstratifiedsampling.R} ensures firm-level data partitioning (Section 1.1.2)
+    \item \textbf{Hyperparameter Tuning:} \texttt{GLM\_gridsearch.R} and \texttt{GLM\_bayesoptim.R} optimize $\alpha$ and $\lambda$
+\end{itemize}
+
+<<glm_setup, echo=FALSE, eval=FALSE>>=
+## NOTE: This code chunk references the existing Main.R implementation.
+## To execute GLM models, run Main.R from 01_Code directory.
+## The code below shows the key steps for documentation purposes.
+
+## Source the main analysis script (lines 1-173 for setup and data prep)
+## Then execute lines 195-394 for GLM model training and evaluation
+
+## Key hyperparameters tested:
+## - alpha: [0, 1] (Ridge to LASSO continuum)
+## - lambda: Optimized via 5-fold cross-validation
+## - Optimization methods: Grid Search, Random Search, Bayesian Optimization
+@
+
+\subsubsection{Hyperparameter Tuning Comparison}
+
+Three optimization strategies were compared to identify the optimal elastic net configuration:
+
+\paragraph{Discrete Grid Search} Tests a uniform lattice of $\alpha$ values ($\alpha \in \{0, 0.1, \ldots, 1.0\}$) with 11 total combinations. For each $\alpha$, \texttt{cv.glmnet} optimizes $\lambda$ via 5-fold stratified cross-validation.
+
+\paragraph{Random Search} Samples 20 random $\alpha$ values from $\text{Uniform}(0, 1)$, enabling finer exploration of the continuous hyperparameter space without exhaustive enumeration.
+
+\paragraph{Bayesian Optimization} Employs Gaussian Process regression with Expected Improvement acquisition (15 iterations following 5 random initializations) to efficiently navigate the $\alpha$ space by modeling the AUC surface.
+
+\subsubsection{Results}
+
+<<glm_load_results, echo=FALSE, eval=TRUE, message=FALSE, warning=FALSE>>=
+## Load GLM results from Main.R execution
+source(file.path(Directory, "Load_GLM_Results.R"), local = TRUE)
+@
+
+<<glm_results_table, echo=FALSE, eval=TRUE, results='asis'>>=
+library(xtable)
+print(xtable(glm_results_table, 
+             caption = "GLM Hyperparameter Tuning Method Comparison. Results obtained from Main.R execution (Section 04 - GLMs).",
+             label = "tab:glm_results",
+             digits = 4,
+             align = c("l", "l", "c", "c", "c", "c")),
+      include.rownames = FALSE,
+      caption.placement = "top",
+      table.placement = "H")
+@
+
+<<glm_champion_table, echo=FALSE, eval=TRUE, results='asis'>>=
+if(exists("glm_champion_summary")) {
+  print(xtable(glm_champion_summary, 
+               caption = "Champion GLM Model Summary (Bayesian Optimization)",
+               label = "tab:glm_champion",
+               digits = 4,
+               align = c("l", "l", "l")),
+        include.rownames = FALSE,
+        caption.placement = "top",
+        table.placement = "H")
+}
+@
+
+\textit{Note: To populate these tables with actual results, execute the following commands in R:}
+
+\begin{verbatim}
+setwd("CreditRisk_ML/01_Code")
+source("Run_GLM_Analysis.R")
+\end{verbatim}
+
+\textit{This will run the complete GLM workflow from Main.R and export results to the Documentation/Results directory.}
+
+\subsubsection{Feature Importance}
+
+The elastic net's L1 penalty enables automatic feature selection. Coefficients with $|\beta_j| = 0$ after regularization indicate redundant or low-signal predictors. The final model retains only features that improve out-of-sample discrimination, reducing model complexity while maintaining interpretability.
+
+<<glm_viz_note, echo=FALSE, eval=FALSE>>=
+## Visualizations generated by Main.R (lines 366-394):
+## - 01_HyperparameterTuningMethods_AUC_Training.png
+##   Comparison of Grid Search, Random Search, and Bayesian Optimization
+##
+## Charts are saved to: 03_Charts/GLM/
+@
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../03_Charts/GLM/01_HyperparameterTuningMethods_AUC_Training.png}
+    \caption{Comparison of Hyperparameter Tuning Methods for GLM. Training AUC achieved by Grid Search, Random Search, and Bayesian Optimization. Chart generated from \texttt{Main.R} execution.}
+    \label{fig:glm_tuning_comparison}
+\end{figure}
+
+\subsubsection{Model Selection}
+
+Following the methodology outlined in Section 2.1, the champion GLM model is selected based on the highest cross-validation AUC across all hyperparameter tuning methods. The 1-standard-error (1-SE) rule is also evaluated to assess the trade-off between model complexity and generalization.
+
+The final elastic net configuration balances feature selection (via L1 penalty) with coefficient stabilization (via L2 penalty), yielding a parsimonious model suitable for regulatory interpretation while maintaining competitive discriminatory power relative to tree-based ensembles.
+
+%==== Chapter 4: Decision Trees ===============================================%
+
+\chapter{Decision Trees}
+
+\section{Random Forest}
+
+We use a Random Forest classifier to predict firm default events. The Random Forest
+combines a large number of classification trees, each trained on a different bootstrap
+sample of the training data. At each split in a tree, only a random subset of predictors
+is considered. This randomness reduces correlation across trees and improves predictive
+performance.Each tree produces a predicted default probability, and final predictions are obtained
+by aggregating the results across all trees.
+
+\subsection{Hyperparameter Specification}
+
+The Random Forest is estimated with the following hyperparameter settings:
+
+\begin{itemize}
+    \item \textbf{Number of trees ($B$):}  
+    The number of trees is set to $B = 500$. A large number of trees stabilizes the
+    ensemble predictions and reduces Monte Carlo noise. Increasing $B$ does not lead
+    to overfitting.
+
+    \item \textbf{Number of predictors per split ($m$):}  
+    At each split, the number of candidate predictors is set to
+    $m = \lfloor \sqrt{p} \rfloor$, where $p$ denotes the total number of predictors.
+    This is the standard choice for classification tasks and helps decorrelate trees.
+
+    \item \textbf{Minimum terminal node size:}  
+    The minimum node size is set to 1, allowing trees to grow fully. Individual trees
+    are therefore highly flexible (low bias), while variance is reduced through
+    aggregation across the forest.
+\end{itemize}
+
+\subsection{Algorithm}
+
+Let the training sample be
+\[
+\mathcal{Z} = \{(x_i, y_i)\}_{i=1}^N,
+\]
+where $x_i$ is a vector of firm-level predictors and $y_i \in \{0,1\}$ indicates default
+status.
+
+The Random Forest algorithm proceeds as follows:
+
+\begin{enumerate}
+    \item \textbf{Bootstrap sampling} \\
+    For each tree $b = 1, \dots, B$, a bootstrap sample of size $N$ is drawn with
+    replacement from the training data.
+
+    \item \textbf{Tree growing} \\
+    A classification tree is grown on each bootstrap sample. At each split:
+    \begin{itemize}
+        \item a random subset of $m$ predictors is selected,
+        \item the best split among these predictors is chosen using the Gini impurity
+        criterion,
+        \item the node is split into two child nodes.
+    \end{itemize}
+    Trees are grown without pruning until the minimum node size is reached.
+
+    \item \textbf{Prediction aggregation} \\
+    For a new observation $x$, each tree produces a predicted class probability.
+    These probabilities are averaged across trees to obtain the Random Forest
+    predicted default probability.
+\end{enumerate}
+
+\subsection{Model Evaluation}
+
+Model performance is evaluated on a separate hold-out test sample obtained via
+firm-level stratified sampling. For each observation in the test set, the Random Forest
+produces a predicted default probability.
+
+To obtain class labels, predicted probabilities are converted into default and
+non-default outcomes using a fixed threshold of 0.5.
+
+Because default events are rare, model performance is primarily assessed using the
+area under the receiver operating characteristic curve (AUC). The AUC measures the
+model’s ability to correctly rank defaulting firms above non-defaulting firms and is
+independent of the chosen classification threshold. In addition, confusion matrices are
+reported to summarize classification outcomes at the 0.5 threshold.
+
+\subsection{Variable Importance}
+
+To assess the contribution of individual predictors, variable importance measures
+computed internally by the Random Forest algorithm are employed. In particular, we rely
+primarily on permutation-based importance measures following \citet{breiman2001random}, which
+quantify how strongly predictive performance deteriorates when the information contained
+in a given predictor is destroyed.
+
+For each predictor $X_j$, its values are randomly permuted among the out-of-bag (OOB)
+observations, and the resulting decrease in predictive accuracy is recorded. Let
+$\text{Acc}_{\text{OOB}}$ denote the original out-of-bag prediction accuracy and
+$\text{Acc}_{\text{OOB}}^{(j,\text{perm})}$ the accuracy obtained after permuting $X_j$.
+The permutation importance reported in the analysis corresponds to the absolute decrease
+in accuracy,
+\[
+\text{VI}_j^{\text{abs}} =
+\text{Acc}_{\text{OOB}} - \text{Acc}_{\text{OOB}}^{(j,\text{perm})}.
+\]
+
+Larger values of $\text{VI}_j^{\text{abs}}$ indicate that permuting predictor $X_j$ leads
+to a substantial deterioration in out-of-bag predictive performance, implying a higher
+contribution of the predictor to the Random Forest model. Values close to zero suggest
+that the predictor has little influence on predictive accuracy.
+
+In addition to permutation-based importance, the Random Forest algorithm also reports an
+impurity-based importance measure, the mean decrease in Gini impurity. This measure
+aggregates the total reduction in Gini impurity attributable to each predictor across
+all splits and trees. While the mean decrease in Gini provides insight into how often a
+variable is used to create purer nodes during tree construction, it is known to be
+biased toward continuous predictors and predictors with many potential split points.
+
+\citet{breiman2001random} originally expresses permutation importance as a percentage increase in
+prediction error. The absolute formulation employed here is equivalent up to scaling and
+preserves the same ranking of predictors. Consequently, permutation-based importance is
+used as the primary criterion for ranking variables, while Gini-based importance is
+reported for completeness.
+
+
+\section{AdaBoost}
+
+\subsection{Model description}
+
+Empirical evidence on the performance of AdaBoost in credit-risk applications is mixed. While boosting methods are theoretically appealing, studies such as \citet{zhou2009credit} show that standard AdaBoost does not consistently outperform traditional models in highly imbalanced credit-scoring datasets. These findings suggest that AdaBoost can be sensitive to class imbalance and noise, both of which are characteristic features of default prediction data.
+
+Nevertheless, AdaBoost remains a relevant benchmark in credit-risk modelling for several reasons. First, it is a well-established ensemble method that improves predictive performance by sequentially focusing on hard-to-classify observations, which is a central challenge in default prediction. Second, large-scale benchmarking studies \citep{lessmann2015benchmarking} emphasize that no single classifier dominates across datasets, making the inclusion of diverse model classes essential. Third, AdaBoost provides a useful contrast to bagging-based methods such as Random Forests, allowing the analysis to distinguish between bias-reduction mechanisms (boosting) and variance-reduction mechanisms (bagging).
+
+Consistent with the data-splitting strategy described in Section 1.1.2, AdaBoost is trained exclusively on the firm-level training set. The adaptive reweighting of observations is therefore applied only within the training data and does not introduce information leakage across firms.
+
+\subsection{Algorithm}
+
+1.Initialization
+
+All observations receive equal weights:
+\[
+w_i^{(1)} = \frac{1}{N}, \quad i = 1, \ldots, N.
+\]
+
+2.Iterative Boosting
+
+For boosting iteration \( m = 1, \ldots, M \):
+
+- A weak classifier \( h_m(x) \) is fitted using the current observation weights.
+
+- The weighted classification error is computed as 
+\[
+\varepsilon_m = \sum_{i=1}^{N} w_i^{(m)} \mathbf{1}\{ h_m(x_i) \neq y_i \}. 
+\]
+
+- The classifier weight is given by
+
+\[
+\alpha_m = \frac{1}{2} \ln\left( \frac{1 - \varepsilon_m}{\varepsilon_m} \right).
+\]
+
+3.Weight Update
+
+Observation weights are increased for misclassified observations:
+\[
+w_i^{(m+1)} = w_i^{(m)} \exp\left( \alpha_m \mathbf{1}\{ h_m(x_i) \neq y_i \} \right),
+\]
+and normalized such that
+\[
+\sum_{i=1}^{N} w_i^{(m+1)} = 1.
+\]
+
+4.Final Prediction
+
+The AdaBoost classifier is a weighted combination of all weak learners:
+\[
+H(x) = \operatorname{sign}\left( \sum_{m=1}^{M} \alpha_m h_m(x) \right).
+\]
+
+The resulting score is mapped into a default probability, which is used for ranking firms by credit risk.
+
+\subsection{Logic}
+
+In the presence of strong class imblance, AdaBoost improves default prediction by sequentially increasing the importance of misclassified firms in the training set. Since default events are rare, they tend to be misclassified in early iterations and therefore receive higher weights in subsequent boosting rounds. This mechanism forces later weak learners to focus on economically fragile and borderline firms. Combined with firm-level stratified sampling, AdaBoost concentrates model capacity on difficult default cases while preserving a clean out-of-sample evaluation on unseen firms.
+
+\subsection{Comments on code}
+
+\textbf{Firm-Level Data Leakage Prevention}
+
+Given the panel structure of the data, multiple observations may exist for the same firm across time. To ensure a valid out-of-sample evaluation, the data are split at the firm level, such that all observations of a given firm appear exclusively in either the training or the test set. 
+
+A leakage check is performed prior to model estimation to verify that no firm identifier appears in both sample. Formally, letting $\mathcal{I}_{\text{train}}$ and $\mathcal{I}_{\text{test}}$ denote the sets of firm identifiers in the training and test data, respectively, the following condition is enforced:
+
+\[
+\mathcal{I}_{\mathrm{train}} \cap \mathcal{I}_{\mathrm{test}} = \emptyset.
+\]
+
+\textbf{Handling via Observation Weight}
+
+The training data exhibits a strong class imbalance, with default events being rare relative to non-default observations. To address class imbalance, we assign observation-level weights based on inverse class frequencies:e.
+
+Let $N$ denote the total number of training observations, and let $N_{+}$ and $N_{-}$ denote the number of default and non-default observations, respectively. Initial observation weights are defined as
+\[
+w_i =
+\begin{cases}
+\frac{N}{2N_{+}}, & \text{if } y_i = 1, \\
+\frac{N}{2N_{-}}, & \text{if } y_i = 0.
+\end{cases}
+\]
+This weighting scheme ensures that defaults and non-defaults contribute equally to the estimation objective, preventing the boosting algorithm from being dominated by the majority class in early iterations. Within the AdaBoost framework, initial observation weights enter directly into the weighted exponential loss function, implying that reweighting observations is equivalent to introducing asymmetric misclassification costs. This approach is well established in the literature on cost-sensitive and imbalanced classification (Friedman et al., 2000; Elkan, 2001; He and Garcia, 2009) and is commonly applied in credit-risk modeling where default events are rare but economically critical (Baesens et al., 2003; \citet{lessmann2015benchmarking}).
+
+%==== GXBoost =================================================================%
+
+\section{XGBoost}
+
+<<setup_dates, echo=FALSE>>=
+# Start date for data context
+start_date <- as.Date("2024-12-31")
+@
+
+\subsection{Model Description}
+
+XGBoost (Extreme Gradient Boosting) is a highly efficient and scalable implementation of Gradient Boosted Decision Trees (GBDT). Unlike traditional Gradient Boosting Machines (GBM) that rely solely on first-order derivatives, XGBoost minimizes a regularized objective function using a second-order Taylor expansion. By incorporating both the gradient (first derivative) and the hessian (second derivative), the algorithm achieves a more precise estimation of the loss reduction and faster convergence rates.
+
+\subsection{Validation Strategy: Stratified Group K-Fold}
+
+To strictly prevent data leakage inherent in panel datasets, we implemented a **Stratified Group K-Fold** cross-validation scheme ($k=5$). Random splitting is insufficient for this dataset because multiple snapshots of the same counterparty could appear in both training and validation sets, leading to over-optimistic performance estimates.
+
+Our validation strategy enforces two constraints:
+\begin{enumerate}
+    \item \textbf{Group Integrity:} All snapshots belonging to a single \texttt{Firm ID} are assigned exclusively to a single fold. This forces the model to predict defaults on unseen entities, mimicking the real-world production scenario.
+    \item \textbf{Stratification:} Despite the grouping constraint, we maintain a consistent default rate (Target $y$) across all folds to ensure stable variance estimation.
+\end{enumerate}
+
+\subsection{Algorithm}
+
+The XGBoost algorithm constructs an ensemble of classification trees in an additive manner. At each iteration $t$, a new tree $f_t$ is added to the model to minimize the regularized objective.
+
+\paragraph{Objective Function}
+The objective function at iteration $t$ consists of a loss term and a regularization term:
+\begin{equation}
+\mathcal{L}^{(t)} = \sum_{i=1}^{n} l\left(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)\right) + \Omega(f_t)
+\end{equation}
+where $l$ is the internal optimization metric, specifically **Binary Logistic Loss (LogLoss)**, measuring the divergence between the predicted probability and the true label $y_i$.
+
+\paragraph{Taylor Expansion}
+XGBoost approximates the objective using a second-order Taylor expansion:
+\begin{equation}
+\mathcal{L}^{(t)} \approx \sum_{i=1}^{n} \left[ l(y_i, \hat{y}^{(t-1)}) + g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i) \right] + \Omega(f_t)
+\end{equation}
+Here, $g_i$ represents the gradient (first derivative) and $h_i$ represents the hessian (second derivative) of the loss function with respect to the prediction.
+
+\paragraph{Regularization}
+The term $\Omega(f_t)$ controls model complexity to prevent overfitting:
+\begin{equation}
+\Omega(f) = \gamma T + \frac{1}{2} \lambda ||w||^2
+\end{equation}
+where $T$ is the number of leaves and $w$ represents the leaf weights. $\gamma$ acts as a pseudo-regularization parameter penalizing the formation of new leaves (pruning), while $\lambda$ provides L2 smoothing of the weights.
+
+\subsection{Hyperparameter Specifications}
+
+We optimize four key hyperparameters to manage the bias-variance trade-off:
+
+\begin{itemize}
+    \item \textbf{Learning Rate ($\eta$):} Controls the step size shrinkage. Lower values ($\eta < 0.1$) require more boosting rounds but generally improve generalization.
+    \item \textbf{Max Depth:} The maximum depth of a tree. We explore depths between 3 and 8 to capture non-linear interactions without overfitting to noise.
+    \item \textbf{Subsample:} The fraction of observations sampled for each tree. Values $<1.0$ introduce stochasticity (bagging) to reduce variance.
+    \item \textbf{Colsample\_bytree:} The fraction of features sampled for each tree. This decorrelates the trees, similar to the mechanism in Random Forests.
+\end{itemize}
+
+\subsection{Tuning Strategies}
+
+To maximize the \textbf{AUC (Area Under the Curve)} on the stratified validation set, we compared three optimization strategies:
+
+\begin{enumerate}
+    \item \textbf{Discrete Grid Search:} A deterministic baseline evaluating a rigid lattice of 36 parameter combinations. While exhaustive for small spaces, it is computationally inefficient for fine-tuning.
+    
+    \item \textbf{Random Search:} Samples hyperparameters from continuous uniform distributions (20 iterations). This method is often more efficient than grid search in high-dimensional spaces as it explores unique values for continuous parameters like $\eta$ in every iteration.
+    
+    \item \textbf{Bayesian Optimization (Gaussian Processes):} 
+    We employed a **Gaussian Process (GP)** prior to model the objective function surface. Unlike random search, the GP builds a probabilistic model of the AUC based on past evaluations to intelligently select the next hyperparameters.
+    \begin{itemize}
+        \item \textbf{Acquisition Function:} We utilized **Expected Improvement (EI)**, which naturally balances exploration (sampling high-uncertainty regions) and exploitation (refining high-performing regions).
+        \item \textbf{Kernel:} A **Matern 5/2 kernel** was selected over the standard squared exponential kernel to better model the non-smooth landscape of tree-based hyperparameters.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Preliminary Results}
+
+This section presents the comparative performance of the tuning strategies and the final model configuration on both the training and hold-out test sets.
+
+\subsubsection{Comparison of Tuning Efficiency}
+
+We evaluated three hyperparameter optimization strategies. As illustrated in Figure \ref{fig:tuning_comparison}, **Bayesian Optimization** demonstrated superior efficiency, achieving the highest Cross-Validation AUC of \textbf{87.7\%}, outperforming Random Search (87.2\%) and the Grid Search baseline (86.1\%). This confirms the value of using the Expected Improvement (EI) acquisition function to intelligently navigate the hyperparameter space.
+
+\begin{figure}[h]
+    \centering
+    % ADJUST PATH HERE
+    \includegraphics[width=0.85\textwidth]{01_HyperparameterTuningMethods_AUC_Training.png}
+    \caption{Comparison of Best Training AUC found by each search strategy. Bayesian Optimization identified the optimal configuration.}
+    \label{fig:tuning_comparison}
+\end{figure}
+
+\subsubsection{Final Tuning Selection}
+
+Table \ref{tab:model_comparison} summarizes the top-performing model configuration. Based on these results, the **Bayesian Optimization** model was selected as the champion for final testing.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccccc}
+\hline
+\textbf{Method} & \textbf{Eta} & \textbf{Max Depth} & \textbf{Subsample} & \textbf{Colsample} & \textbf{Train AUC} \\ \hline
+Grid Search & 0.05 & 5 & 0.9 & 0.7 & 86.1\% \\ 
+Random Search & 0.034 & 6 & 0.82 & 0.65 & 87.2\% \\ 
+\textbf{Bayesian Opt} & \textbf{0.022} & \textbf{4} & \textbf{0.59} & \textbf{0.83} & \textbf{87.7\%} \\ \hline
+\end{tabular}
+\caption{Comparison of Best Hyperparameters and Final Training AUC by Method. The Bayesian model provides the best discrimination.}
+\label{tab:model_comparison}
+\end{table}
+
+\subsubsection{Training Stability \& Feature Importance}
+
+The stability of the champion model is visualized in Figure \ref{fig:learning_curve}. The narrow standard deviation ribbon indicates robust performance across the stratified folds. The learning curve plateaus appropriately, suggesting the model has converged without significant overfitting.
+
+Figure \ref{fig:feat_imp} highlights the top drivers of default risk. Feature \textbf{f8} is the dominant predictor (23.7\% gain), followed by \textbf{f6} and \textbf{f5}, indicating that the model relies on a diverse set of financial indicators rather than a single factor.
+
+\begin{figure}[ht]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        % ADJUST PATH HERE
+        \includegraphics[width=\textwidth]{02_LearningCurve_BayesianOptimization_Training.png}
+        \caption{Boosting Iteration Learning Curve (Bayesian Opt). The red line marks the optimal stopping point.}
+        \label{fig:learning_curve}
+    \end{minipage}\hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        % ADJUST PATH HERE
+        \includegraphics[width=\textwidth]{03_FeatureImportance_BayesianOptimization_Training.png}
+        \caption{Top 10 Features by Gain. Feature f8 is the strongest driver of default risk.}
+        \label{fig:feat_imp}
+    \end{minipage}
+\end{figure}
+
+\subsubsection{Test Set Performance \& Calibration}
+
+To assess generalization, we evaluated the champion model on the hold-out Test Set. We also compared the "Standard Best" model against a "1-Standard Error (1-SE)" rule model.
+
+As shown in Figure \ref{fig:test_auc}, the **Standard Bayesian Model** achieved a Test AUC of \textbf{81.9\%}, significantly outperforming the 1-SE model (80.0\%). The drop from Training AUC (87.7\%) to Test AUC (81.9\%) is within acceptable limits for this portfolio type, confirming the model generalizes well to unseen data.
+
+Finally, Figure \ref{fig:calibration} demonstrates the model's calibration. The \textbf{Observed Default Rate} (Grey) closely tracks the \textbf{Predicted Probability} (Blue) across all risk deciles. The strict monotonicity from Decile 1 to 10 confirms the model effectively ranks borrowers from low to high risk.
+
+\begin{figure}[ht]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        % ADJUST PATH HERE
+        \includegraphics[width=\textwidth]{04_AUC_Test.png}
+        \caption{Final Test Set AUC. The Standard Bayesian model outperforms the 1-SE heuristic.}
+        \label{fig:test_auc}
+    \end{minipage}\hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        % ADJUST PATH HERE
+        \includegraphics[width=\textwidth]{05_CalibrationChart_BayesianOptimization_Test.png}
+        \caption{Calibration Chart (Test Set). Observed rates closely align with predictions, showing strong ranking ability.}
+        \label{fig:calibration}
+    \end{minipage}
+\end{figure}
+
+% \subsection{Future Improvements}
+% 
+% A known challenge in this portfolio is the class imbalance. Following \citet{chang2018application}, future iterations could incorporate the \texttt{scale\_pos\_weight} parameter. By setting this equal to the imbalance ratio ($\frac{\text{Negatives}}{\text{Positives}}$), the gradient calculation would penalize false negatives more heavily, potentially improving the recall on defaulted obligors.
+
+%==== GXBoost =================================================================%
+
+\section{CatBoost}
+
+%==== Chapter 5: Decision Trees ===============================================%
+
+\chapter{Neural Networks}
+
+\section{Neural Networks}
+
+%==== Chapter 6: Data =========================================================%
+
+\chapter{Model Assessment}
+
+\section{Final Model}
+
+
+\section{Model Evaluation}
+
+
+
+
+
+
+%==== Chapter 3: Task Distribution ============================================%
+
+\chapter{Task Distribution}
+
+The following matrix outlines the distribution of project responsibilities among the four team members. Primary ownership is denoted by an \textbf{X}.
+
+\begin{table}[!h]
+\centering
+\caption{Team Task Distribution Matrix}
+\label{tab:task_matrix}
+\begin{tabular}{p{6cm} c c c c c}
+\toprule
+\textbf{Task} & \textbf{Implemented} &\textbf{Tristan} & \textbf{Nastia} & \textbf{Leonid} & \textbf{Martin} \\
+\midrule
+Data Preprocessing                   & Yes & \textbf{X} & \textbf{X} &            &            \\
+Feature Engineering (Standardization \& PIT)     
+                                     & Yes & \textbf{X} &            &            &            \\
+Stratified Sampling within Train Set & No  &            &            &            & \textbf{X} \\
+GLMs and regularized GLMs            & No  &            &            &            &            \\
+Random Forest and Boosting           & No  & \textbf{X} & \textbf{X} &            &            \\
+Neural Networks                      & No  &            &            &            &            \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%==== Chapter 4: Progress Bar =================================================%
+
+
+
+
+%==== Chapter 7: References ===================================================%
+
+\bibliographystyle{plainnat} 
+\bibliography{references}
+
+%==== Appendix ================================================================%
+
+% \appendix 
+% 
+% \chapter{Overview}
+
+%==== END =====================================================================%
+
+\end{document}

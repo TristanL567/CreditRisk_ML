@@ -1,0 +1,279 @@
+%==== KNITR ===================================================================%
+
+
+
+%==== START ===================================================================%
+
+\documentclass{report}\usepackage[]{graphicx}\usepackage[]{xcolor}
+% maxwidth is the original width if it is less than linewidth
+% otherwise use linewidth (to make sure the graphics do not exceed the margin)
+\makeatletter
+\def\maxwidth{ %
+  \ifdim\Gin@nat@width>\linewidth
+    \linewidth
+  \else
+    \Gin@nat@width
+  \fi
+}
+\makeatother
+
+\definecolor{fgcolor}{rgb}{0.345, 0.345, 0.345}
+\newcommand{\hlnum}[1]{\textcolor[rgb]{0.686,0.059,0.569}{#1}}%
+\newcommand{\hlstr}[1]{\textcolor[rgb]{0.192,0.494,0.8}{#1}}%
+\newcommand{\hlcom}[1]{\textcolor[rgb]{0.678,0.584,0.686}{\textit{#1}}}%
+\newcommand{\hlopt}[1]{\textcolor[rgb]{0,0,0}{#1}}%
+\newcommand{\hlstd}[1]{\textcolor[rgb]{0.345,0.345,0.345}{#1}}%
+\newcommand{\hlkwa}[1]{\textcolor[rgb]{0.161,0.373,0.58}{\textbf{#1}}}%
+\newcommand{\hlkwb}[1]{\textcolor[rgb]{0.69,0.353,0.396}{#1}}%
+\newcommand{\hlkwc}[1]{\textcolor[rgb]{0.333,0.667,0.333}{#1}}%
+\newcommand{\hlkwd}[1]{\textcolor[rgb]{0.737,0.353,0.396}{\textbf{#1}}}%
+\let\hlipl\hlkwb
+
+\usepackage{framed}
+\makeatletter
+\newenvironment{kframe}{%
+ \def\at@end@of@kframe{}%
+ \ifinner\ifhmode%
+  \def\at@end@of@kframe{\end{minipage}}%
+  \begin{minipage}{\columnwidth}%
+ \fi\fi%
+ \def\FrameCommand##1{\hskip\@totalleftmargin \hskip-\fboxsep
+ \colorbox{shadecolor}{##1}\hskip-\fboxsep
+     % There is no \\@totalrightmargin, so:
+     \hskip-\linewidth \hskip-\@totalleftmargin \hskip\columnwidth}%
+ \MakeFramed {\advance\hsize-\width
+   \@totalleftmargin\z@ \linewidth\hsize
+   \@setminipage}}%
+ {\par\unskip\endMakeFramed%
+ \at@end@of@kframe}
+\makeatother
+
+\definecolor{shadecolor}{rgb}{.97, .97, .97}
+\definecolor{messagecolor}{rgb}{0, 0, 0}
+\definecolor{warningcolor}{rgb}{1, 0, 1}
+\definecolor{errorcolor}{rgb}{1, 0, 0}
+\newenvironment{knitrout}{}{} % an empty environment to be redefined in TeX
+
+\usepackage{alltt}
+
+\usepackage[left=2cm, right=2cm, top=1cm, bottom=2cm]{geometry}
+
+% Font.
+
+
+% Main packages.
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs} 
+\usepackage{rotating} 
+\usepackage{lmodern}
+
+% Citations.
+\usepackage{natbib}
+\setcitestyle{authoryear,open={(},close={)}} %Citation-related commands
+
+%% Testing different layout.
+\usepackage{geometry}
+\usepackage{xcolor}
+
+% Required for Table.
+
+
+%%
+
+% \title{Master Thesis - Research Proposal}
+% \author{Tristan Leiter}
+% \date{\today}
+
+%==== DOCUMENT START ==========================================================%
+
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\begin{document}
+
+\begin{titlepage}
+    \newgeometry{top=3cm, bottom=3cm, left=2.5cm, right=2.5cm}
+    \centering
+    
+    % --- University Placeholder ---
+    % \includegraphics[width=0.4\textwidth]{logo.png} \par
+    {\scshape\LARGE Vienna University of Economics and Business \par}
+    \vspace{1cm}
+    {\scshape\Large OeNB ILAB \par}
+    
+    \vspace{2.5cm}
+    
+    % --- Title Section ---
+    \hrule height 2pt
+    \vspace{0.5cm}
+    { \huge \bfseries OeNB ILAB: \\[0.3cm] Data-Splitting \par}
+    \vspace{0.5cm}
+    \hrule height 2pt
+    
+    \vspace{2cm}
+    
+    % --- Author Section ---
+    \Large
+    \textbf{Author:} \\
+    Tristan \textsc{Leiter}
+    
+    \vspace{1.5cm}
+    
+    % --- Metadata ---
+    \normalsize
+    \textbf{Submission Date:} \\
+    \today
+
+    \vfill
+    
+\end{titlepage}
+\restoregeometry
+
+% \maketitle
+
+%==== ABSTRACT ================================================================%
+
+% \begin{abstract}
+% This report demonstrates the integration of R code and its output within a LaTeX document using Sweave. It covers the basic structure of a report, including a summary, chapters with subchapters, and a bibliography.
+% \end{abstract}
+
+%==== Table of content ========================================================%
+
+% \tableofcontents
+% \newpage
+
+%==== Chapter 1: Multi-variate stratified sampling ============================%
+
+\chapter{Stratified Sampling}
+
+\section{Issues with univariate stratified sampling}
+
+\subsection{Heterogeneity in Sector Default Rates}
+\begin{itemize}
+    \item \textbf{Issue:} Default risk is not uniform across the economy; it is structurally different between industries. Univariate sampling ignores these differences, treating a "Retail" default the same as an "Energy" default during the split.
+    \item \textbf{Literature Insight:} Corporate diversification strategies lead to "divergent profitability, capital allocation, and risk profiles across business units" \citep{Wei2025}. Consequently, financial institutions must prioritize "cross-sectoral risk monitoring" \citep{Wei2025}. Furthermore, empirical evidence shows that rating heterogeneity is driven by market-specific factors (such as transition vs. non-transition economies), implying that risk models must account for these sub-market characteristics to be accurate \citep{Hornik2010}.
+    \item \textbf{Advantage of Multi-Variate:} It forces the Training set to learn the specific risk drivers of \textit{every} sector, rather than allowing the model to be dominated by the majority sector.
+\end{itemize}
+
+\subsection{Out-of-Sample (OOS) "Blind Spots"}
+\begin{itemize}
+    \item \textbf{Issue:} In datasets with extreme class imbalance (e.g., 1\% defaults), univariate sampling can randomly assign \textit{all} defaults from a small sector (e.g., Energy) to the Training set. This leaves \textbf{zero defaults} in the Test set for that sector.
+    \item \textbf{Literature Insight:} Standard sampling practices often recommend small samples that fail to capture the granularity of rare classes \citep{Crone2012}. However, multi-way stratification allows for "increased precision of estimates of each of the variables" simultaneously \citep{Winkler2001}. By controlling the allocation, it ensures that the sample is distributed across cells defined by multiple criteria (Sector and Target), preventing empty cells in the validation set.
+    \item \textbf{Advantage of Multi-Variate:} It guarantees that the Test set contains at least one default for every sector, making it possible to calculate performance metrics (Recall, AUC) for every industry segment individually.
+\end{itemize}
+
+\subsection{Out-of-Time (OOT) Stability \& Population Drift}
+\begin{itemize}
+    \item \textbf{Issue:} Credit risk models are subject to "population drift" where the relationship between features and default changes over time (e.g., an oil price shock specifically affects the Energy sector in Year 3).
+    \item \textbf{Literature Insight:} Applicant populations and distributions evolve over time due to changes in the economic environment \citep{Crone2012}. If a model is trained on a univariate sample that accidentally over-represents a specific sector during a benign economic period, it will fail to generalize when that sector's specific risk profile shifts in the future (OOT).
+    \item \textbf{Advantage of Multi-Variate:} By ensuring that the sector distribution in the Training/Test split strictly mirrors the population structure (or is balanced via weights), the model is less likely to learn spurious correlations driven by a single sector's temporary performance, resulting in more robust OOT predictions.
+\end{itemize}
+
+\section{Multivariate stratified sampling}
+
+\begin{enumerate}
+  \item \textbf{Create a Stratification Key} \\
+  Create a new temporary column in the dataset that combines the two variables of interest: \texttt{Sector} and \texttt{Target} (Default Status).
+  \begin{itemize}
+    \item \textit{Example:} If a row has $\text{Sector} = \text{"Energy"}$ and $\text{Target} = 1$, the key becomes \texttt{"Energy\_1"}.
+    \item \textit{Example:} If a row has $\text{Sector} = \text{"Retail"}$ and $\text{Target} = 0$, the key becomes \texttt{"Retail\_0"}.
+  \end{itemize}
+
+  \item \textbf{Filter "Singleton" Groups} \\
+  Check the counts of each unique key. If any group has only 1 observation (e.g., only one "Energy" company that defaulted), it cannot be split between Train and Test. One must either:
+  \begin{itemize}
+    \item Exclude these rows from the split (and force them into Training later); or
+    \item Accept that the stratifier will fail for these specific rows.
+  \end{itemize}
+
+  \item \textbf{Perform the Stratified Split} \\
+  Run a standard stratified sampling algorithm, but set the \textit{stratification target} to be the new Key column (instead of just the \texttt{Target}). This forces the algorithm to pick:
+  \begin{itemize}
+    \item 80\% of \texttt{"Energy\_0"} and 20\% of \texttt{"Energy\_0"}
+    \item 80\% of \texttt{"Energy\_1"} and 20\% of \texttt{"Energy\_1"}
+    \item ...and so on for every sector.
+  \end{itemize}
+
+  \item \textbf{Clean Up} \\
+  Remove the temporary key column from both the Training and Test sets to return the data to its original structure.
+\end{enumerate}
+
+
+
+%==== Chapter 2: Problem Description ==========================================%
+
+\chapter{Other sampling techniques}
+
+\section{SMOTE + ENN}
+
+\subsection{The Procedure}
+To address the challenges of credit risk prediction in extremely imbalanced datasets, \citet{Zhao2024} propose a novel framework called \textbf{SH-SENN} (Strategic Hybrid SMOTE with Double Edited Nearest Neighbors). This method departs from traditional sampling by treating the sampling strategy as a hyperparameter rather than a fixed preprocessing step. The procedure consists of the following steps:
+
+\begin{enumerate}
+    \item \textbf{Determine Strategy Ratio ($\alpha$)} \\
+    The framework defines a strategy ratio $\alpha = N_{nmin}/N_{maj}$, representing the proportion of minority class samples to majority class samples after oversampling. This ratio typically ranges from 0.1 to 0.9 and is treated as a hyperparameter subject to cross-validation \citep{Zhao2024}.
+
+    \item \textbf{Strategic SMOTE Oversampling} \\
+    Minority class samples are oversampled using SMOTE to reach the target proportion defined by $\alpha$ (e.g., 10\% to 90\% of the majority class size).
+
+    \item \textbf{First ENN (Undersampling)} \\
+    A search for neighboring samples is conducted using the Edited Nearest Neighbors (ENN) rule, and misclassified samples are removed to clean the dataset.
+
+    \item \textbf{Second ENN (Double Cleaning)} \\
+    Crucially, the framework applies ENN a \textit{second time}. The dataset is re-evaluated, treating the resampled data as new data. The ENN algorithm is adjusted to identify and remove boundary noise and overlapping samples that may have been introduced or left behind by the initial SMOTE+ENN process \citep{Zhao2024}.
+
+    \item \textbf{Validation and Selection} \\
+    The effectiveness of different strategy ratios (e.g., SH-SENN 0.5 vs. SH-SENN 0.9) is evaluated on a validation set to select the optimal strategy before application to the test set.
+\end{enumerate}
+
+\subsection{Solving Prior Issues}
+The SH-SENN framework specifically addresses limitations found in traditional resampling techniques when applied to extreme imbalance (e.g., 1\% default rates):
+
+\begin{itemize}
+    \item \textbf{Noise Reduction in Extreme Imbalance:} Standard SMOTE can blindly generate synthetic samples in noisy areas, obscuring the decision boundary. SH-SENN's primary advantage is the "Double ENN" mechanism, which further reduces the introduction of new noise and interference items that standard SENN might create. This effectively clarifies the decision boundary \citep{Zhao2024}.
+    
+    \item \textbf{Adaptability to Dataset Characteristics:} Existing methods often apply a "one-size-fits-all" approach to balancing. SH-SENN is designed as an extensible framework where the sampling intensity ($\alpha$) is adjusted based on the dataset's specific Imbalance Ratio (IR). For instance, extreme imbalance might require a strategy ratio of 0.5, while normal imbalance might benefit from 0.9 \citep{Zhao2024}.
+    
+    \item \textbf{Enhancement of Ensemble Classifiers:} While modern classifiers like CatBoost handle categorical features well, they still struggle with extreme class imbalance on their own. SH-SENN significantly enhances the predictive capabilities of these ensemble classifiers compared to individual classifiers, providing robust improvements in metrics like AUC and G-mean \citep{Zhao2024}.
+\end{itemize}
+
+
+%==== Chapter 3: Data =========================================================%
+
+
+
+
+
+
+
+
+%==== Chapter 4: Expected Results =============================================%
+
+% \chapter{Expected Results}
+% We expect to validate the findings regarding distress risk discussed by \citet{Campbell2005}.
+
+
+%==== Chapter 5: Methodology ==================================================%
+
+
+
+%==== Chapter 6: Research Background ==========================================%
+
+
+
+%==== Chapter 7: References ===================================================%
+
+\bibliographystyle{plainnat} 
+\bibliography{references}
+
+%==== Appendix ================================================================%
+
+% \appendix 
+% 
+% \chapter{Overview}
+
+%==== END =====================================================================%
+
+\end{document}
