@@ -17,6 +17,7 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 
 packages <- c("dplyr", "caret", "lubridate", "purrr", "tidyr",
               "Matrix", "pROC",            ## Sparse Matrices and efficient AUC computation.
+              "glmnet",                    ## GLM library.
               "xgboost",                   ## XGBoost library.
               "rBayesianOptimization",     ## Bayesian Optimization.
               "ggplot2", "Ckmeans.1d.dp",  ## Plotting & Charts | XG-Charts / Feature Importance.
@@ -55,8 +56,8 @@ Data_Directory <- file.path(Data_Path, "data.rda")
 Charts_Directory <- file.path(Path, "03_Charts")
 
 ## Charts Directories.
+Charts_GLM_Directory <- file.path(Charts_Directory, "GLM")
 Charts_XGBoost_Directory <- file.path(Charts_Directory, "XGBoost")
-
 
 Functions_Directory <- file.path(Path, "01_Code/Subfunctions")
 
@@ -76,8 +77,8 @@ red <- "#B22222"
 width <- 3750
 heigth <- 1833
 
-## Other.
-
+## General Parameters for modeling.
+N_folds <- 5
 
 #==============================================================================#
 #==== 02 - Data ===============================================================#
@@ -193,16 +194,242 @@ summary(Train_Transformed$f1)
 ## Train_Transformed
 ## Test_Transformed
 
+#==== 03C - Stratified Folds (for CV) =========================================#
+
+Strat_Data <- Train_Transformed %>%
+  mutate(id = Train_with_id$id)
+
+cv_folds_list <- MVstratifiedsampling_CV(Strat_Data, k = N_folds)
+print(paste("Folds generated:", length(cv_folds_list)))
+
 #==============================================================================#
 #==== 04 - GLMs ===============================================================#
 #==============================================================================#
 
 #==== 04A - GLMs ==============================================================#
 
+tryCatch({
+  
+##==============================##
+## General Parameters.
+##==============================##
+  
+##==============================##
+## Data preparation.
+##==============================##
+sparse_formula <- as.formula("y ~ . - 1")
+  
+# Training Data
+train_y <- as.numeric(as.character(Train_Transformed$y))
+train_matrix <- sparse.model.matrix(sparse_formula, data = Train_Transformed)
+
+# Test Data
+test_y <- as.numeric(as.character(Test_Transformed$y))
+test_matrix <- sparse.model.matrix(sparse_formula, data = Test_Transformed)
+
+## Setup the stratified cv data.
+foldid_vector <- rep(NA, length(train_y))
+for (k in seq_along(cv_folds_list)) {
+  foldid_vector[cv_folds_list[[k]]] <- k
+}
+
+##==============================##
+## Discrete grid search (hyperparameter tuning of alpha and lambda).
+##==============================##
+
+## Prepare the grid.
+grid_ds_glm <- tibble(
+  alpha = seq(0, 1, by = 0.1) # 0 = Ridge, 1 = Lasso
+) %>%
+  mutate(
+    current_iter = 1:n(),
+    total_iters = n()
+  )
+## Implement the vectorized grid search function.
+results_ds_glm <- pmap_dfr(grid_ds_glm, GLM_gridsearch) %>%
+  arrange(desc(CV_AUC))
+
+print("--- Top 5 Discrete GLM Models ---")
+print(head(results_ds_glm, 5))
+
+##==============================##
+## Random grid search (hyperparameter tuning of alpha and lambda).
+##==============================##
+
+n_iter_rs <- 20
+
+## Prepare the grid.
+grid_rs_glm <- tibble(
+  alpha = runif(n_iter_rs, min = 0, max = 1)
+) %>%
+  mutate(
+    current_iter = 1:n(),
+    total_iters = n()
+  )
+
+print(paste("Total random combinations:", nrow(grid_rs_glm)))
+
+## Implement the vectorized grid search function.
+results_rs_glm <- pmap_dfr(grid_rs_glm, run_glm_alpha) %>%
+  arrange(desc(CV_AUC))
+
+print("--- Top 5 Random GLM Models ---")
+print(head(results_rs_glm, 5))
+
+##==============================##
+## Bayesian Optimization (hyperparameter tuning of alpha and lambda).
+##==============================##
+
+## Prepare the grid.
+bounds_glm <- list(
+  alpha = c(0, 1)
+)
+
+# 3. Run Optimization
+n_init_glm <- 5
+n_iter_glm <- 15
+
+print("Starting Bayesian Optimization for GLM...")
+
+## Implement the vectorized grid search function.
+bayes_out_glm <- BayesianOptimization(
+  FUN = GLM_bayes_optim,
+  bounds = bounds_glm,
+  init_points = n_init_glm,
+  n_iter = n_iter_glm,
+  acq = "ei",   
+  eps = 0.0,    
+  verbose = TRUE
+)
+
+## Compute the train AUC.
+results_bayes_glm <- bayes_out_glm$History %>%
+  rename(alpha = alpha) %>%
+  mutate(
+    current_iter = 1:n(),
+    total_iters = n()
+  ) %>%
+  pmap_dfr(function(alpha, current_iter, total_iters, ...) {
+    GLM_gridsearch(alpha, current_iter, total_iters, verbose = FALSE)
+  }) %>%
+  arrange(desc(CV_AUC))
+
+print("--- Top 5 Bayesian GLM Models ---")
+print(head(results_bayes_glm, 5))
+
+##==============================##
+## Performance of the model with the highest training AUC in the test set.
+##==============================##
+
+## Data summary and consolidation.
+best_ds <- results_ds_glm[1, ] %>% mutate(Method = "Grid Search")
+best_rs <- results_rs_glm[1, ] %>% mutate(Method = "Random Search")
+best_bayes <- results_bayes_glm[1, ] %>% mutate(Method = "Bayesian Opt")
+
+glm_method_performance <- bind_rows(best_ds, best_rs, best_bayes) %>%
+  select(Method, alpha, CV_AUC, Train_AUC) %>%
+  arrange(desc(CV_AUC))
+
+print("--- GLM Method Comparison ---")
+print(glm_method_performance)
+
+# We pick the row with the highest CV_AUC across all methods
+champion_row <- glm_method_performance[1, ]
+best_alpha <- champion_row$alpha
+
+message(paste("Winning Strategy:", champion_row$Method))
+message(paste("Optimal Alpha:", round(best_alpha, 4)))
+
+## Refit the Final Model on Full Training Data
+final_cv_glm <- cv.glmnet(
+  x = train_matrix, 
+  y = train_y,
+  family = "binomial",       
+  type.measure = "auc",     
+  alpha = best_alpha,
+  foldid = foldid_vector,   
+  standardize = TRUE        
+)
+
+## Compute Test AUC: Champion (lambda.min)
+probs_champion <- predict(final_cv_glm, 
+                          newx = test_matrix, 
+                          s = "lambda.min", 
+                          type = "response")
+
+roc_champion <- roc(test_y, as.vector(probs_champion), quiet = TRUE)
+auc_champion <- auc(roc_champion)
+
+## Compute Test AUC: 1-SE Rule (lambda.1se)
+probs_1se <- predict(final_cv_glm, 
+                     newx = test_matrix, 
+                     s = "lambda.1se", 
+                     type = "response")
+
+roc_1se <- roc(test_y, as.vector(probs_1se), quiet = TRUE)
+auc_1se <- auc(roc_1se)
+
+message("------------------------------------------------")
+message(sprintf("Final GLM Test AUC (Champion/Min):  %.5f", auc_champion))
+message(sprintf("Final GLM Test AUC (1-SE Rule):     %.5f", auc_1se))
+message("------------------------------------------------")
+
+n_vars_champion <- sum(coef(final_cv_glm, s = "lambda.min") != 0)
+n_vars_1se      <- sum(coef(final_cv_glm, s = "lambda.1se") != 0)
+
+message(sprintf("Variables Selected (Champion):      %d", n_vars_champion))
+message(sprintf("Variables Selected (1-SE Rule):     %d", n_vars_1se))
+
+##==============================##
+## Compare the hyperparameter tuning methods. Visualisations.
+##==============================##
+
+## Visualisation: Method AUC comparison.
+colors <- c(
+  "Grid Search"   = blue,
+  "Random Search" = orange,  
+  "Bayesian Opt"  = red   
+)
+
+Plot_Train_AUC <- ggplot(XGBoost_method_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, 
+                                                         fill = Method)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(Train_AUC * 100, 1), "%")), 
+            vjust = -0.5, size = 5) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  scale_fill_manual(values = colors) +
+  labs(
+    title = "",
+    subtitle = "",
+    x = "Hyperparameter Tuning Method",
+    y = "AUC-Score (Training Set)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"), # Adjusted to "grey30" for safety
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", color = "black"),
+    strip.text = element_text(size = 12, face = "bold", color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_GLM_Directory, "01_HyperparameterTuningMethods_AUC_Training.png")
+ggsave(
+  filename = Path,
+  plot = Plot_Train_AUC,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
 
 
-#==== 04B - Regularized GLMs ==================================================#
 
+}, error = function(e) message(e))
 
 #==============================================================================#
 #==== 05 - Decision Trees =====================================================#
@@ -226,8 +453,6 @@ tryCatch({
 ## General Parameters.
 ##==============================##
 
-N_folds <- 5
-
 ##==============================##
 ## Data preparation.
 ##==============================##
@@ -242,13 +467,6 @@ dtrain <- xgb.DMatrix(data = train_matrix, label = train_y)
 test_y <- as.numeric(as.character(Test_Transformed$y))
 test_matrix <- sparse.model.matrix(sparse_formula, data = Test_Transformed)
 dtest <- xgb.DMatrix(data = test_matrix, label = test_y)
-
-# For stratified cv-folds.
-Strat_Data <- Train_Transformed %>%
-  mutate(id = Train_with_id$id)
-
-cv_folds_list <- MVstratifiedsampling_CV(Strat_Data, k = N_folds)
-print(paste("Folds generated:", length(cv_folds_list)))
 
 ##==============================##
 ## Discrete Grid Search for Hyperparameter Tuning.
