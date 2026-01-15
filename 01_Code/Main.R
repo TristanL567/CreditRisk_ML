@@ -65,7 +65,7 @@ Functions_Directory <- file.path(Path, "01_Code/Subfunctions")
 sourceFunctions(Functions_Directory)
 
 ## Data Sampling.
-set.seed(123)
+set.seed(123)              ## Check seed.
 
 ## Charts.
 blue <- "#004890"
@@ -391,7 +391,7 @@ colors <- c(
   "Bayesian Opt"  = red   
 )
 
-Plot_Train_AUC <- ggplot(XGBoost_method_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, 
+Plot_Train_AUC <- ggplot(glm_method_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, 
                                                          fill = Method)) +
   geom_col(width = 0.6, show.legend = FALSE) +
   geom_text(aes(label = paste0(round(Train_AUC * 100, 1), "%")), 
@@ -426,6 +426,8 @@ ggsave(
   dpi = 300,
   limitsize = FALSE
 )
+
+## Visualisation: Method AUC comparison.
 
 
 

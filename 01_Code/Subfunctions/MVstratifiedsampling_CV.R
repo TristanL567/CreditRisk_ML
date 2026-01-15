@@ -3,7 +3,7 @@ MVstratifiedsampling_CV <- function(data, k = 5, strat_vars = c("sector", "y")) 
   firm_profile <- data %>%
     group_by(id) %>%
     summarise(
-      y_strat = max(y),         #
+      y_strat = max(y),         
       sector = first(sector),   
       .groups = 'drop'
     ) %>%
