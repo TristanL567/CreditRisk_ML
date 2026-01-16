@@ -1,4 +1,4 @@
-DataPreprocessing <- function(data,Tolerance = 2000,
+DataPreprocessing <- function(data,Tolerance = 2,
                               ...){
   
   Data_preprocess <- Data %>%
@@ -6,7 +6,7 @@ DataPreprocessing <- function(data,Tolerance = 2000,
       f10 >= -Tolerance,
       (f2 + f3) <= (f1 + Tolerance),
       (f4 + f5) <= (f3 + Tolerance),
-      (f6 + f11) <= (f11 + Tolerance)
+      (f6 + f11) <= (f1 + Tolerance)
     )
   return(Data_preprocess)
 }
