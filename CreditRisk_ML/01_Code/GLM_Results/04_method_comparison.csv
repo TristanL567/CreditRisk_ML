@@ -1,0 +1,4 @@
+Method,alpha,CV_AUC,Train_AUC,Test_AUC_Champion,Test_AUC_1SE,Features_Champion,Features_1SE
+Bayesian Opt,0.9976,0.802,0.804,0.79227,0.79152,21,14
+Grid Search,1.0,0.802,0.804,0.79227,0.79152,19,14
+Random Search,0.9513,0.802,0.804,0.79227,0.79152,20,14

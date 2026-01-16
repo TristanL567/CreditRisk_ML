@@ -1,0 +1,168 @@
+%==== GLM Methodology - Martin's Section ======================================%
+
+\documentclass{article}
+
+\usepackage[left=2cm, right=2cm, top=2cm, bottom=2cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{natbib}
+
+\title{GLM Models for Credit Risk Prediction\\Elastic Net Regularization}
+\author{Martin}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Linear Models - GLMs}
+
+\subsection{Logistic Regression}
+
+Logistic regression serves as our baseline linear classifier for credit default prediction. Despite its simplicity, logistic regression offers several advantages in regulatory contexts: interpretability through coefficient magnitudes, well-calibrated probability estimates, and computational efficiency.
+
+\subsubsection{Model Specification}
+
+The logistic regression model estimates the probability of default through the logistic function:
+\[
+P(y_i = 1 | x_i) = \frac{1}{1 + \exp(-\beta^T x_i)}
+\]
+where $x_i$ is the feature vector for firm $i$ and $\beta$ represents the coefficient vector estimated via maximum likelihood.
+
+\subsection{Regularized GLMs}
+
+To address multicollinearity and prevent overfitting, we implement regularized variants of logistic regression using elastic net penalties. The elastic net combines L1 (LASSO) and L2 (Ridge) regularization, enabling both feature selection and coefficient shrinkage.
+
+\subsubsection{Regularization Framework}
+
+The regularized logistic regression minimizes:
+\[
+\mathcal{L}(\beta) = -\sum_{i=1}^{n} \left[ y_i \log(p_i) + (1 - y_i) \log(1 - p_i) \right] + \lambda \left[ \alpha ||\beta||_1 + \frac{1-\alpha}{2} ||\beta||_2^2 \right]
+\]
+where $\lambda$ controls regularization strength and $\alpha$ balances L1/L2 penalties ($\alpha = 0$ yields Ridge, $\alpha = 1$ yields LASSO).
+
+\subsubsection{Implementation}
+
+The GLM models are implemented using the workflow defined in \texttt{Main.R}, which orchestrates data preprocessing, feature engineering, and model training. The implementation leverages custom functions from the \texttt{Subfunctions} directory:
+
+\begin{itemize}
+    \item \textbf{Data Preprocessing:} \texttt{DataPreprocessing.R} applies balance sheet consistency filters
+    \item \textbf{Feature Engineering:} \texttt{QuantileTransformation.R} implements the Probability Integral Transform
+    \item \textbf{Stratified Sampling:} \texttt{MVstratifiedsampling.R} ensures firm-level data partitioning
+    \item \textbf{Hyperparameter Tuning:} \texttt{GLM\_gridsearch.R} and \texttt{GLM\_bayesoptim.R} optimize $\alpha$ and $\lambda$
+\end{itemize}
+
+<<glm_setup, echo=FALSE, eval=FALSE>>=
+## NOTE: This code chunk references the existing Main.R implementation.
+## To execute GLM models, run Main.R from 01_Code directory.
+## The code below shows the key steps for documentation purposes.
+
+## Key hyperparameters tested:
+## - alpha: [0, 1] (Ridge to LASSO continuum)
+## - lambda: Optimized via 5-fold cross-validation
+## - Optimization methods: Grid Search, Random Search, Bayesian Optimization
+@
+
+\subsection{Hyperparameter Tuning Comparison}
+
+Three optimization strategies were compared to identify the optimal elastic net configuration:
+
+\paragraph{Discrete Grid Search} Tests a uniform lattice of $\alpha$ values ($\alpha \in \{0, 0.1, \ldots, 1.0\}$) with 11 total combinations. For each $\alpha$, \texttt{cv.glmnet} optimizes $\lambda$ via 5-fold stratified cross-validation.
+
+\paragraph{Random Search} Samples 20 random $\alpha$ values from $\text{Uniform}(0, 1)$, enabling finer exploration of the continuous hyperparameter space without exhaustive enumeration.
+
+\paragraph{Bayesian Optimization} Employs Gaussian Process regression with Expected Improvement acquisition (15 iterations following 5 random initializations) to efficiently navigate the $\alpha$ space by modeling the AUC surface.
+
+\subsection{Results}
+
+<<glm_results_placeholder, echo=FALSE, eval=FALSE>>=
+## Results will be populated after running Main.R
+## Execute from CreditRisk_ML directory:
+##   setwd("/home/martin-mal/Documents/oenb_standalone/CreditRisk_ML")
+##   source("01_Code/Main.R")
+##
+## This will generate:
+## - GLM performance tables
+## - Visualization charts in 03_Charts/GLM/
+## - Model objects with AUC scores
+@
+
+\textit{Note: To populate results, run the following in R:}
+
+\begin{verbatim}
+setwd("/home/martin-mal/Documents/oenb_standalone/CreditRisk_ML")
+source("01_Code/Main.R")
+\end{verbatim}
+
+\textit{Results will be saved to \texttt{03_Charts/GLM/} directory.}
+
+\subsection{Feature Importance}
+
+The elastic net's L1 penalty enables automatic feature selection. Coefficients with $|\beta_j| = 0$ after regularization indicate redundant or low-signal predictors. The final model retains only features that improve out-of-sample discrimination, reducing model complexity while maintaining interpretability.
+
+<<glm_viz_note, echo=FALSE, eval=FALSE>>=
+## Visualizations generated by Main.R (Section 04 - GLMs):
+## - 01_HyperparameterTuningMethods_AUC_Training.png
+##   Comparison of Grid Search, Random Search, and Bayesian Optimization
+##
+## Charts are saved to: 03_Charts/GLM/
+@
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../../03_Charts/GLM/01_HyperparameterTuningMethods_AUC_Training.png}
+    \caption{Comparison of Hyperparameter Tuning Methods for GLM. Training AUC achieved by Grid Search, Random Search, and Bayesian Optimization. Chart generated from \texttt{Main.R} execution.}
+    \label{fig:glm_tuning_comparison}
+\end{figure}
+
+\subsection{Model Selection}
+
+The champion GLM model is selected based on the highest cross-validation AUC across all hyperparameter tuning methods. The 1-standard-error (1-SE) rule is also evaluated to assess the trade-off between model complexity and generalization.
+
+The final elastic net configuration balances feature selection (via L1 penalty) with coefficient stabilization (via L2 penalty), yielding a parsimonious model suitable for regulatory interpretation while maintaining competitive discriminatory power relative to tree-based ensembles.
+
+\subsection{Implementation Details}
+
+\subsubsection{Parallel Processing}
+
+To accelerate hyperparameter search, the implementation supports parallel processing using the \texttt{future} and \texttt{furrr} packages. When available, the grid search and random search run multiple $\alpha$ values simultaneously across CPU cores.
+
+\subsubsection{Cross-Validation Strategy}
+
+\begin{itemize}
+    \item \textbf{Folds:} 5-fold stratified cross-validation
+    \item \textbf{Stratification:} Maintains default rate balance across folds
+    \item \textbf{Firm-Level Split:} All observations from the same firm stay in the same fold
+\end{itemize}
+
+\subsubsection{Performance Metrics}
+
+\begin{itemize}
+    \item \textbf{Primary Metric:} AUC-ROC (Area Under the Receiver Operating Characteristic Curve)
+    \item \textbf{Cross-Validation AUC:} Mean AUC across 5 folds
+    \item \textbf{Training AUC:} Performance on full training set
+    \item \textbf{Test AUC:} Performance on hold-out test set
+\end{itemize}
+
+\subsubsection{Lambda Selection Rules}
+
+\begin{itemize}
+    \item \textbf{lambda.min:} Lambda that gives minimum CV error (Champion model)
+    \item \textbf{lambda.1se:} Largest lambda within 1 standard error of minimum (Parsimonious model)
+\end{itemize}
+
+\section{Next Steps}
+
+\begin{enumerate}
+    \item Execute Main.R to generate results
+    \item Analyze feature importance and coefficient magnitudes
+    \item Compare GLM performance against tree-based models
+    \item Document final model selection rationale
+\end{enumerate}
+
+\end{document}
