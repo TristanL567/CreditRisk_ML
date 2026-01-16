@@ -98,26 +98,6 @@ Data <- d
 
 Data_filtered <- DataPreprocessing(DataPreprocessing, Tolerance = 2)
 
-## Check the filter.
-tol <- 2   
-
-valid_rows <- with(Data,
-                   f10 >= -tol &                # Rule 1: f10 >= 0 (with tolerance)
-                     (f2 + f3) <= (f1 + tol) &    # Rule 2: f2 + f3 <= f1
-                     (f4 + f5) <= (f3 + tol) &    # Rule 3: f4 + f5 <= f3
-                     (f6 + f11) <= (f1 + tol)     # Rule 4: f6 + f11 <= f1
-)
-
-# 1. To keep only the GOOD data (Data Cleaning):
-CleanData <- Data[valid_rows, ]
-
-# 2. To isolate the BAD data for inspection (Audit):
-ErrorData <- Data[!valid_rows, ]
-
-nrow(Data)
-nrow(CleanData)
-nrow(Data_filtered)
-
 ## Drop all ratios for now.
 Exclude <- c(paste("r", seq(1:18), sep = "")) ## Drop all ratios for now.
 Data <- Data[, -which(names(Data) %in% Exclude)]
