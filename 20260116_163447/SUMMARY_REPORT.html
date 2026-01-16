@@ -1,0 +1,400 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pipeline Run Summary - 20260116_163447</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 40px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-left: 4px solid #3498db;
+            padding-left: 10px;
+        }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .metric-card.success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+        .metric-card.warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .metric-card.info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .metric-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .chart-container {
+            margin: 30px 0;
+            text-align: center;
+        }
+        .chart-container img {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .info-box {
+            background-color: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .warning-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .success-box {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .timestamp {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Credit Default Prediction - Pipeline Run Summary</h1>
+        
+        <div class="info-box">
+            <strong>Pipeline:</strong> 1c - All Sectors - OOT - Neural Networks<br>
+            <strong>Run ID:</strong> 20260116_163447<br>
+            <strong>Generated:</strong> 2026-01-16 17:08:58
+        </div>
+        
+        <h2>🎯 Key Performance Metrics</h2>
+        <div class="metric-grid">
+            <div class="metric-card success">
+                <div class="metric-label">ROC-AUC Score</div>
+                <div class="metric-value">0.8143</div>
+            </div>
+            <div class="metric-card info">
+                <div class="metric-label">Recall (TPR)</div>
+                <div class="metric-value">77.4%</div>
+            </div>
+            <div class="metric-card success">
+                <div class="metric-label">False Negative Rate</div>
+                <div class="metric-value">22.6%</div>
+            </div>
+            <div class="metric-card info">
+                <div class="metric-label">Precision</div>
+                <div class="metric-value">2.75%</div>
+            </div>
+        </div>
+        
+        <h2>🔍 Threshold Tuning Results</h2>
+        <div class="success-box">
+            <strong>Optimal Threshold:</strong> <code>0.008751</code><br>
+            <strong>Selection Method:</strong> MCC<br>
+            <strong>FNR Constraint:</strong> ≤ 28%
+        </div>
+        
+        <table>
+            <tr>
+                <th>Metric</th>
+                <th>Value</th>
+                <th>Count</th>
+            </tr>
+            <tr>
+                <td>True Positives (TP)</td>
+                <td>77.44% recall</td>
+                <td>460 defaults caught</td>
+            </tr>
+            <tr>
+                <td>False Negatives (FN)</td>
+                <td>22.56% missed</td>
+                <td>134 defaults missed</td>
+            </tr>
+            <tr>
+                <td>True Negatives (TN)</td>
+                <td>70.51% specificity</td>
+                <td>38,940 correct non-defaults</td>
+            </tr>
+            <tr>
+                <td>False Positives (FP)</td>
+                <td>29.49% false alarm rate</td>
+                <td>16,286 false alarms</td>
+            </tr>
+            <tr style="background-color: #f0f8ff; font-weight: bold;">
+                <td>Matthews Correlation Coef</td>
+                <td>0.1074</td>
+                <td>Overall quality score</td>
+            </tr>
+        </table>
+        
+        <h2>🏆 Model Performance</h2>
+        <div class="info-box">
+            <strong>Best Model:</strong> WeightedEnsemble_L3<br>
+            <strong>Validation Score:</strong> 0.7954<br>
+            <strong>Training Time:</strong> 317.5 seconds<br>
+            <strong>Total Models Trained:</strong> 12
+        </div>
+        
+        <div class="chart-container">
+            <h3>Model Performance Comparison</h3>
+            <img src="model_performance_comparison.png" alt="Model Performance">
+        </div>
+        
+        <div class="chart-container">
+            <h3>Training Time Analysis</h3>
+            <img src="training_times.png" alt="Training Times">
+        </div>
+        
+        <h2>📈 Model Evaluation Curves</h2>
+        
+        <div class="chart-container">
+            <h3>ROC Curve</h3>
+            <img src="roc_curve.png" alt="ROC Curve">
+        </div>
+        
+        <div class="chart-container">
+            <h3>Precision-Recall Curve</h3>
+            <img src="precision_recall_curve.png" alt="PR Curve">
+        </div>
+        
+        <div class="chart-container">
+            <h3>Confusion Matrix</h3>
+            <img src="confusion_matrix.png" alt="Confusion Matrix">
+        </div>
+        
+        <div class="chart-container">
+            <h3>Threshold Analysis</h3>
+            <img src="threshold_analysis.png" alt="Threshold Analysis">
+        </div>
+        
+        <h2>� Learning Curves</h2>
+        <div class="info-box">
+            Learning curves help diagnose model behavior:<br>
+            • <strong>Overfitting:</strong> Training score high, validation score low (gap increases)<br>
+            • <strong>Underfitting:</strong> Both scores low and converged<br>
+            • <strong>Good fit:</strong> Both scores high and converged (small gap)
+        </div>
+        
+        
+        <div class="chart-container">
+            <h3>Learning Curve (Performance vs Training Set Size)</h3>
+            <img src="learning_curve.png" alt="Learning Curve">
+            <p style="color: #666; font-size: 12px;">Shows how performance changes as more training data is used. 
+            If both curves are still rising, more data might help.</p>
+        </div>
+        
+        
+        
+        <div class="chart-container">
+            <h3>Iteration Curve (Performance vs Training Iterations)</h3>
+            <img src="iteration_curve.png" alt="Iteration Curve">
+            <p style="color: #666; font-size: 12px;">Shows performance vs number of boosting rounds/trees. 
+            This is the "epochs" equivalent for tree-based models.</p>
+        </div>
+        
+        
+        
+        
+        <h2>�📋 Model Leaderboard</h2>
+        <table>
+            <tr>
+                <th>Rank</th>
+                <th>Model</th>
+                <th>Score (Val)</th>
+                <th>Fit Time (s)</th>
+                <th>Pred Time (s)</th>
+            </tr>
+            
+            <tr>
+                <td>1</td>
+                <td>WeightedEnsemble_L3</td>
+                <td>0.7954</td>
+                <td>317.5</td>
+                <td>2.456</td>
+            </tr>
+            
+            <tr>
+                <td>2</td>
+                <td>WeightedEnsemble_L2</td>
+                <td>0.7951</td>
+                <td>165.9</td>
+                <td>1.226</td>
+            </tr>
+            
+            <tr>
+                <td>3</td>
+                <td>NeuralNetFastAI_BAG_L1</td>
+                <td>0.7923</td>
+                <td>91.5</td>
+                <td>1.008</td>
+            </tr>
+            
+            <tr>
+                <td>4</td>
+                <td>NeuralNetFastAI_BAG_L2</td>
+                <td>0.7905</td>
+                <td>255.0</td>
+                <td>2.183</td>
+            </tr>
+            
+            <tr>
+                <td>5</td>
+                <td>NeuralNetTorch_BAG_L1</td>
+                <td>0.7882</td>
+                <td>73.4</td>
+                <td>0.198</td>
+            </tr>
+            
+            <tr>
+                <td>6</td>
+                <td>NeuralNetTorch_BAG_L2</td>
+                <td>0.7833</td>
+                <td>225.4</td>
+                <td>1.460</td>
+            </tr>
+            
+            <tr>
+                <td>7</td>
+                <td>WeightedEnsemble_L3_FULL</td>
+                <td>nan</td>
+                <td>122.8</td>
+                <td>nan</td>
+            </tr>
+            
+            <tr>
+                <td>8</td>
+                <td>WeightedEnsemble_L2_FULL</td>
+                <td>nan</td>
+                <td>67.1</td>
+                <td>nan</td>
+            </tr>
+            
+            <tr>
+                <td>9</td>
+                <td>NeuralNetTorch_BAG_L2_FULL</td>
+                <td>nan</td>
+                <td>79.4</td>
+                <td>nan</td>
+            </tr>
+            
+            <tr>
+                <td>10</td>
+                <td>NeuralNetTorch_BAG_L1_FULL</td>
+                <td>nan</td>
+                <td>21.8</td>
+                <td>nan</td>
+            </tr>
+            
+        </table>
+        
+        <h2>⚙️ Training Configuration</h2>
+        <table>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td>Training Years</td>
+                <td>[2018, 2019, 2020, 2021]</td>
+            </tr>
+            <tr>
+                <td>Test Years</td>
+                <td>[2022]</td>
+            </tr>
+            <tr>
+                <td>Model Type</td>
+                <td>NN</td>
+            </tr>
+            <tr>
+                <td>Normalization</td>
+                <td>log</td>
+            </tr>
+            <tr>
+                <td>Company Exclusion</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>Train Samples</td>
+                <td>188,521</td>
+            </tr>
+            <tr>
+                <td>Test Samples</td>
+                <td>55,820</td>
+            </tr>
+            <tr>
+                <td>Features</td>
+                <td>11</td>
+            </tr>
+        </table>
+        
+        <div class="timestamp">
+            Report generated on 2026-01-16 at 17:08:58<br>
+            Pipeline run path: <code>models/pipeline_runs/pipeline_1c/20260116_163447</code>
+        </div>
+    </div>
+</body>
+</html>

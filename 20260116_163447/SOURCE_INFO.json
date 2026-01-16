@@ -1,0 +1,37 @@
+{
+  "source_script": "/home/martin-mal/Documents/oenb_standalone/python_pipelines/00_combined_pipeline.py",
+  "source_script_name": "00_combined_pipeline.py",
+  "pipeline_type": "oot_pipeline_1c",
+  "pipeline_name": "All Sectors - OOT - Neural Networks",
+  "description": "All sectors pooled, temporal split, neural networks only",
+  "methodology": {
+    "split_method": "temporal_out_of_time",
+    "train_years": [
+      2018,
+      2019,
+      2020,
+      2021
+    ],
+    "test_years": [
+      2022
+    ],
+    "model_type": "nn",
+    "sector_grouping": "all",
+    "company_exclusion": false,
+    "normalization": "log"
+  },
+  "execution": {
+    "timestamp": "2026-01-16T16:50:40.848229",
+    "working_directory": "/home/martin-mal/Documents/oenb_standalone",
+    "training_mode": "medium"
+  },
+  "hardware": {
+    "gpu_count": 1
+  },
+  "results_location": "/home/martin-mal/Documents/oenb_standalone/python_pipelines/models/pipeline_runs/pipeline_1c/20260116_163447",
+  "related_files": {
+    "threshold_tuning": "threshold_tuning.json",
+    "autogluon_metadata": "metadata.json",
+    "model_artifacts": "models/"
+  }
+}
