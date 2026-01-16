@@ -1,0 +1,18 @@
+{
+  "optimal_threshold": 0.0086144495755434,
+  "selection_method": "mcc",
+  "max_fnr_constraint": 0.28,
+  "max_fpr_constraint": null,
+  "metrics_at_optimal": {
+    "recall": 0.7711038961038961,
+    "precision": 0.021599745350370608,
+    "fnr": 0.2288961038961039,
+    "fpr": 0.29600891493664616,
+    "mcc": 0.09463836102919336,
+    "tp": 475,
+    "tn": 51171,
+    "fp": 21516,
+    "fn": 141
+  },
+  "roc_auc": 0.8019556342717636
+}

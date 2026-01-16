@@ -1,0 +1,26 @@
+{
+  "pipeline_type": "adapted_oos",
+  "model_type": "nn",
+  "random_state": 123,
+  "train_size": 0.7,
+  "n_folds": 5,
+  "split_method": "out_of_sample_stratified",
+  "stratification_vars": [
+    "sector",
+    "y"
+  ],
+  "gpu_count": 1,
+  "cpu_count": 24,
+  "training_params": {
+    "time_limit_seconds": 1800,
+    "presets": "high_quality",
+    "hpo_trials": 10,
+    "bag_folds": 5,
+    "bag_sets": 1
+  },
+  "normalization": "log",
+  "train_samples": 171038,
+  "test_samples": 73303,
+  "train_default_rate": 0.008419181702311767,
+  "test_default_rate": 0.008403475983247616
+}

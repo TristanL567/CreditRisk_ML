@@ -1,0 +1,36 @@
+{
+  "source_script": "/home/martin-mal/Documents/oenb_standalone/python_pipelines/00_combined_pipeline_adapted-to-mainR.py",
+  "source_script_name": "00_combined_pipeline_adapted-to-mainR.py",
+  "pipeline_type": "adapted_oos",
+  "description": "Out-of-Sample stratified split matching Main.R methodology",
+  "methodology": {
+    "split_method": "stratified_random",
+    "stratification_vars": [
+      "sector",
+      "y"
+    ],
+    "train_test_ratio": "70/30",
+    "cv_method": "stratified_k_fold",
+    "cv_folds": 5,
+    "random_seed": 123,
+    "matches_r_script": "CreditRisk_ML/01_Code/Main.R"
+  },
+  "execution": {
+    "timestamp": "2026-01-16T20:08:43.362465",
+    "working_directory": "/home/martin-mal/Documents/oenb_standalone",
+    "python_version": "3.11.13 (main, Sep  2 2025, 14:20:25) [Clang 20.1.4 ]",
+    "model_type": "nn",
+    "training_mode": "medium"
+  },
+  "hardware": {
+    "gpu_count": 1,
+    "cpu_count": 24
+  },
+  "results_location": "/home/martin-mal/Documents/oenb_standalone/python_pipelines/models/pipeline_runs/nn_20260116_2",
+  "related_files": {
+    "run_config": "run_config.json",
+    "threshold_tuning": "threshold_tuning.json",
+    "autogluon_metadata": "metadata.json",
+    "model_artifacts": "models/"
+  }
+}
