@@ -10,7 +10,7 @@ GLM_bayesoptim <- function(alpha) {
     family = "binomial",       
     type.measure = "auc",     
     alpha = alpha,
-    foldid = foldid_vector,   
+    foldid = Data_Train_CV_Vector,   
     standardize = TRUE        
   )
   

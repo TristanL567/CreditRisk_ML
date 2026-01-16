@@ -126,7 +126,7 @@ setwd(Directory)
 
 \subsection{Preprocessing}
 
-Based on the instructions from the client, we filter the balance sheet data based on the following constraints to remove noisy observations. To account for floating-point inconsistencies, we add the condition that the difference must be greater than 2000 (as per client instructions).
+Based on the instructions from the client, we filter the balance sheet data based on the following constraints to remove noisy observations. To account for floating-point inconsistencies, we add the condition that the difference must be greater than 2 (as per client instructions).
 
 \begin{enumerate}
     \item $f_{10} \ge 0$

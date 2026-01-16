@@ -1,4 +1,5 @@
-GLM_gridsearch <- function(alpha, current_iter, total_iters, verbose = TRUE) {
+GLM_gridsearch <- function(alpha, current_iter, total_iters, 
+                           verbose = TRUE) {
   
   if(verbose) {
     message(sprintf("[%02d/%02d] GLM Elastic Net: alpha=%.4f", 
@@ -11,7 +12,7 @@ GLM_gridsearch <- function(alpha, current_iter, total_iters, verbose = TRUE) {
     family = "binomial",       
     type.measure = "auc",     
     alpha = alpha,
-    foldid = foldid_vector,   
+    foldid = Data_Train_CV_Vector,   
     standardize = TRUE        
   )
   

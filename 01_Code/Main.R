@@ -22,7 +22,12 @@ packages <- c("dplyr", "caret", "lubridate", "purrr", "tidyr",
               "rBayesianOptimization",     ## Bayesian Optimization.
               "ggplot2", "Ckmeans.1d.dp",  ## Plotting & Charts | XG-Charts / Feature Importance.
               "scales",                    ## ggplot2 extension for nice charts.
-              "ggrepel"                    ## Non-overlapping ggplot2 text labels.
+              "ggrepel",                   ## Non-overlapping ggplot2 text labels.
+              "ranger",                    ## Random Forest library.
+              "mlr3", "mlr3learners", "mlr3tuning",
+              "mlr3mbo", "mlr3measures", "data.table",
+              "paradox", "future", 
+              "future.apply", "parallel"
 )
 
 for(i in 1:length(packages)){
@@ -58,13 +63,16 @@ Charts_Directory <- file.path(Path, "03_Charts")
 
 ## Charts Directories.
 Charts_GLM_Directory <- file.path(Charts_Directory, "GLM")
+Charts_RF_Directory <- file.path(Charts_Directory, "RF")
 Charts_XGBoost_Directory <- file.path(Charts_Directory, "XGBoost")
 Charts_TestSet_Directory <- file.path(Charts_Directory, "TestSet")
 
 Functions_Directory <- file.path(Path, "01_Code/Subfunctions")
+Functions_RF_Directory <- file.path(Path, "01_Code/RF_Subfunctions")
 
 ## Load all code files in the functions directory.
 sourceFunctions(Functions_Directory)
+sourceFunctions(Functions_RF_Directory)
 
 ## Data Sampling.
 set.seed(123)              ## Check seed.
@@ -107,6 +115,7 @@ Features <- Data[, -which(names(Data) %in% Exclude)]
 
 #==== 02C - Data Sampling =====================================================#
 
+set.seed(123)
 Data_Sampled <- MVstratifiedsampling(Data,
                                      strat_vars = c("sector", "y"),
                                      Train_size = 0.7)
@@ -141,7 +150,7 @@ Test_Backup <- Test
 #==== 03 - Feature Engineering ================================================#
 #==============================================================================#
 
-DivideByTotalAssets <- TRUE
+DivideByTotalAssets <- FALSE
 
 #==== 03A - Standardization ===================================================#
 
@@ -199,10 +208,17 @@ summary(Train_Transformed$f1)
 #==== 03C - Stratified Folds (for CV) =========================================#
 
 Strat_Data <- Train_Transformed %>%
-  mutate(id = Train_with_id$id)
+  mutate(
+    id = Train_with_id$id,
+    sector = Train_with_id$sector 
+  )
 
-cv_folds_list <- MVstratifiedsampling_CV(Strat_Data, k = N_folds)
-print(paste("Folds generated:", length(cv_folds_list)))
+Data_Train_CV_stratified_sampling <- MVstratifiedsampling_CV(Strat_Data, num_folds = N_folds)
+Data_Train_CV_List <- Data_Train_CV_stratified_sampling[["fold_list"]]
+Data_Train_CV_Vector <- Data_Train_CV_stratified_sampling[["fold_vector"]]
+
+print(paste("Folds generated:", length(Data_Train_CV_List)))
+length(Data_Train_CV_Vector)
 
 #==============================================================================#
 #==== 04 - GLMs ===============================================================#
@@ -228,12 +244,6 @@ train_matrix <- sparse.model.matrix(sparse_formula, data = Train_Transformed)
 # Test Data
 test_y <- as.numeric(as.character(Test_Transformed$y))
 test_matrix <- sparse.model.matrix(sparse_formula, data = Test_Transformed)
-
-## Setup the stratified cv data.
-foldid_vector <- rep(NA, length(train_y))
-for (k in seq_along(cv_folds_list)) {
-  foldid_vector[cv_folds_list[[k]]] <- k
-}
 
 ##==============================##
 ## Discrete grid search (hyperparameter tuning of alpha and lambda).
@@ -352,7 +362,7 @@ final_cv_glm <- cv.glmnet(
   family = "binomial",       
   type.measure = "auc",     
   alpha = best_alpha,
-  foldid = foldid_vector,   
+  foldid = Data_Train_CV_Vector,   
   standardize = TRUE        
 )
 
@@ -565,6 +575,192 @@ ggsave(
 
 #==== 05A - Random Forest =====================================================#
 
+tryCatch({
+  
+##==============================##
+## General Parameters.
+##==============================##
+  
+temp_name <- "mtry_rounds_NOPIT"
+  
+HPO_CONFIG <- list(
+    learner_name = "ranger",  # Changed from xgboost to ranger
+    n_evals = 500L,
+    stagnation_iters = 50L,
+    stagnation_threshold = 0.001,
+    n_folds = 5L,
+    train_prop = 0.7,
+    checkpoint_file = paste0("hpo_checkpoint_ranger_", temp_name, ".rds") ######naming
+)
+
+## Other.
+n_cores <- max(1, parallel::detectCores() - 1)
+cat("Setting up parallelization with", n_cores, "cores\n")
+
+set.seed(123)
+plan(multisession, workers = n_cores)
+cat("Parallel backend:", class(plan())[1], "\n")
+cat("Number of workers:", nbrOfWorkers(), "\n")
+  
+##==============================##
+## Data preparation.
+##==============================##  
+  
+Train_Transformed_RF <- as.data.table(Train_Transformed)
+Test_Transformed_RF <- as.data.table(Test_Transformed)
+Test_Transformed_RF[, y := factor(y)]
+Train_Transformed_RF[, y := factor(y)]
+size_map <- c("Tiny" = 0, "Small" = 1)
+Train_Transformed_RF[, size := size_map[size]]
+Test_Transformed_RF[, size := size_map[size]]
+  
+# Convert to factor with SAME levels for both
+all_levels <- union(Train_Transformed_RF$sector, Test_Transformed_RF$sector)
+  
+Train_Transformed_RF[, sector := factor(sector, levels = all_levels)]
+Test_Transformed_RF[, sector := factor(sector, levels = all_levels)]
+  
+# Now model.matrix will create identical columns
+sector_dummies_train <- model.matrix(~sector - 1, Train_Transformed_RF)
+sector_dummies_test <- model.matrix(~sector - 1, Test_Transformed_RF)
+Train_Transformed_RF <- cbind(Train_Transformed_RF[, -"sector"], sector_dummies_train)
+Test_Transformed_RF <- cbind(Test_Transformed_RF[, -"sector"], sector_dummies_test)
+  
+task_train <- TaskClassif$new(
+    id = "hpo_train",
+    backend = Train_Transformed_RF,
+    target = "y",
+    positive = levels(Train_Transformed_RF$y)[2]
+  )  
+
+## Create the custom CV-Folds.
+custom_cv <- create_custom_cv(task_train, Data_Train_CV_Vector)
+
+##==============================##
+## Optimization.
+##==============================##  
+  
+non_feature_cols <- c("y")
+feature_names <- setdiff(colnames(Train_Transformed_RF), non_feature_cols)
+n_features <- length(feature_names)
+
+#optimization
+hpo_results <- run_hpo(task_train, custom_cv, n_features, HPO_CONFIG)
+
+#eval on test
+task_test <- TaskClassif$new(
+  id = "hpo_test",
+  backend = Test_Transformed_RF,
+  target = "y",
+  positive = levels(Test_Transformed_RF$y)[2]
+)
+
+cat("\n", strrep("=", 70), "\n")
+cat("FINAL EVALUATION ON TEST SET\n")
+cat(strrep("=", 70), "\n")
+
+eval_results <- train_and_eval(hpo_results$best_params, task_train, task_test)
+
+cat("\nTest Metrics:\n")
+cat("  AUC:", round(eval_results$auc, 4), "\n")
+cat("  Accuracy:", round(eval_results$acc, 4), "\n")
+cat("  Brier Score:", round(eval_results$brier, 4), "\n")
+  
+##==============================##
+## Visualisation.
+##==============================##    
+  
+summary_table <- data.table(
+  Metric = c("Total Evaluations", "Warmup Points", "BO Evaluations",
+             "Optimization Time (s)", "Best CV AUC", "Test AUC", "Test Accuracy"),
+  Value = c(hpo_results$n_evals,
+            min(hpo_results$n_initial_design, hpo_results$n_evals),
+            max(0, hpo_results$n_evals - hpo_results$n_initial_design),
+            round(hpo_results$time, 2),
+            round(hpo_results$best_cv_auc, 4),
+            round(eval_results$auc, 4),
+            round(eval_results$acc, 4))
+)
+
+cat("\n")
+print(summary_table)
+
+cat("\nBest hyperparameters:\n")
+print(hpo_results$best_params)
+
+# ============================================================================
+# PLOT
+# ============================================================================
+
+p1 <- plot_optimization_history(hpo_results)
+print(p1)
+Path <- file.path(Charts_RF_Directory, paste0("01_RF_mbo_optimization_history_", temp_name, ".png"))
+ggsave(
+  filename = Path,
+  plot = p1,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
+
+# ggsave(paste0("mbo_optimization_history_", temp_name, ".png"), p1, width = 10, height = 6, dpi = 150) ####naming
+
+# ============================================================================
+# CLEANUP
+# ============================================================================
+
+plan(sequential)
+cat("\nParallel backend reset to sequential.\n")
+
+#==============================================================================#
+#==== 06 - Save Final Model ===================================================#
+#==============================================================================#
+
+# Define output directory and filename
+# Model_Directory <- file.path(Path, "04_Models")
+# if (!dir.exists(Model_Directory)) {
+#   dir.create(Model_Directory, recursive = TRUE)
+# }
+# 
+# # Create a comprehensive model object to save
+# final_model_object <- list(
+# # The trained learner (contains the model)
+#   learner = eval_results$learner,
+#   
+# # Best hyperparameters from HPO
+#   best_params = hpo_results$best_params,
+#   
+# # Performance metrics
+#   metrics = list(
+#     cv_auc = hpo_results$best_cv_auc,
+#     test_auc = eval_results$auc,
+#     test_accuracy = eval_results$acc,
+#     test_brier = eval_results$brier
+#   ),
+#   
+# # Metadata
+#   metadata = list(
+#     model_type = "ranger",
+#     n_features = n_features,
+#     feature_names = feature_names,
+#     training_date = Sys.time(),
+#     n_hpo_evals = hpo_results$n_evals,
+#     hpo_time_seconds = hpo_results$time
+#   )
+# )
+# 
+# # Save the model object
+# model_filename <- file.path(Model_Directory, 
+#                             paste0("ranger_", temp_name, ####naming
+#                                    format(Sys.Date(), "%Y%m%d"), 
+#                                    ".rds"))
+# 
+# saveRDS(final_model_object, model_filename)
+# cat("\nFinal model saved to:", model_filename, "\n")
+
+}, error = function(e) message(e))
 
 #==== 05B - AdaBoost ==========================================================#
 
@@ -622,7 +818,7 @@ print(paste("Total combinations to test:", nrow(grid_ds)))
 ## Implement the vectorized grid search function.
 tryCatch({
 results_ds <- pmap_dfr(grid_ds, XGBoost_gridsearch,
-                       folds_custom = cv_folds_list) %>%
+                       folds_custom = Data_Train_CV_List) %>%
     arrange(desc(AUC))
   
 print("--- Top 5 Discrete Models ---")
@@ -649,7 +845,7 @@ check_cv <- xgb.cv(
   params = final_params_ds,
   data = dtrain,
   nrounds = 2000,
-  folds = cv_folds_list,
+  folds = Data_Train_CV_List,
   # nfold = 5,
   early_stopping_rounds = 50,
   verbose = 0,
@@ -700,7 +896,7 @@ print(paste("Total random combinations:", nrow(grid_rs)))
 ## Implement the vectorized grid search function.
 tryCatch({
   results_rs <- pmap_dfr(grid_rs, XGBoost_gridsearch,
-                         folds_custom = cv_folds_list) %>%
+                         folds_custom = Data_Train_CV_List) %>%
     arrange(desc(AUC))
   
   print("--- Top 5 Random Models ---")
@@ -723,7 +919,7 @@ check_cv_rs <- xgb.cv(
   params = final_params_rs,
   data = dtrain,
   nrounds = 2000,
-  folds = cv_folds_list,
+  folds = Data_Train_CV_List,
   # nfold = 5,
   early_stopping_rounds = 50,
   verbose = 0,
@@ -815,7 +1011,7 @@ check_cv_bayes <- xgb.cv(
   params = final_params_bayes,
   data = dtrain,
   nrounds = 2000,
-  folds = cv_folds_list,
+  folds = Data_Train_CV_List,
   # nfold = 5,
   early_stopping_rounds = 50,
   verbose = 0,
@@ -848,7 +1044,7 @@ print(paste("Final Bayesian Train AUC:", round(XGBoost_bayes_Train_AUC, 5)))
 cv_results_train <- xgb.cv(
   params = final_params_bayes,
   data = dtrain,
-  folds = cv_folds_list,
+  folds = Data_Train_CV_List,
   nrounds = 3000,
   early_stopping_rounds = 50,
   verbose = 0,
