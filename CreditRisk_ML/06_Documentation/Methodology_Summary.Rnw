@@ -36,6 +36,7 @@ setwd(Directory)
 \usepackage{booktabs} 
 \usepackage{rotating} 
 \usepackage{lmodern}
+\usepackage{float}
 
 % Citations.
 \usepackage{natbib}

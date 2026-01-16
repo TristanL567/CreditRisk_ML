@@ -15,17 +15,21 @@ Path <- file.path(here::here("")) ## You need to install the package first incas
 
 ## Needs to enable checking for install & if not then autoinstall.
 
-packages <- c("dplyr", "caret", "lubridate", "purrr", "tidyr",
-              "Matrix", "pROC",            ## Sparse Matrices and efficient AUC computation.
-              "glmnet",                    ## GLM library.
-              "xgboost",                   ## XGBoost library.
-              "rBayesianOptimization",     ## Bayesian Optimization.
-              "ggplot2", "Ckmeans.1d.dp",  ## Plotting & Charts | XG-Charts / Feature Importance.
-              "scales"                     ## ggplot2 extension for nice charts.
-)
+## Core packages needed for GLM
+core_packages <- c("dplyr", "caret", "lubridate", "purrr", "tidyr",
+                   "Matrix", "pROC",            ## Sparse Matrices and efficient AUC computation.
+                   "glmnet")                    ## GLM library.
 
-for(i in 1:length(packages)){
-  package_name <- packages[i]
+## Additional packages for tree-based models (optional for GLM only)
+optional_packages <- c("xgboost",                   ## XGBoost library.
+                       "rBayesianOptimization",     ## Bayesian Optimization.
+                       "ggplot2", "Ckmeans.1d.dp",  ## Plotting & Charts | XG-Charts / Feature Importance.
+                       "scales",                    ## ggplot2 extension for nice charts.
+                       "future", "furrr")           ## Parallel processing.
+
+## Install and load core packages
+for(i in 1:length(core_packages)){
+  package_name <- core_packages[i]
   if (!requireNamespace(package_name, quietly = TRUE)) {
     install.packages(package_name, character.only = TRUE)
     cat(paste("Package '", package_name, "' was not installed. It has now been installed and loaded.\n", sep = ""))
@@ -33,6 +37,22 @@ for(i in 1:length(packages)){
     cat(paste("Package '", package_name, "' is already installed and has been loaded.\n", sep = ""))
   }
   library(package_name, character.only = TRUE)
+}
+
+## Try to install optional packages (suppress errors for incompatible versions)
+for(i in 1:length(optional_packages)){
+  package_name <- optional_packages[i]
+  tryCatch({
+    if (!requireNamespace(package_name, quietly = TRUE)) {
+      install.packages(package_name, character.only = TRUE)
+      cat(paste("Package '", package_name, "' was not installed. It has now been installed and loaded.\n", sep = ""))
+    } else {
+      cat(paste("Package '", package_name, "' is already installed and has been loaded.\n", sep = ""))
+    }
+    library(package_name, character.only = TRUE)
+  }, error = function(e) {
+    cat(paste("Warning: Could not install/load '", package_name, "' (may require newer R version)\n", sep = ""))
+  })
 }
 
 #==== 1B - Functions ==========================================================#
@@ -51,7 +71,7 @@ sourceFunctions <- function (functionDirectory)  {
 #==== 1C - Parameters =========================================================#
 
 ## Directories.
-Data_Path <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/Data/WS2025" ## Needs to be set manually.
+Data_Path <- file.path(dirname(Path), "data")  ## One level up from CreditRisk_ML
 Data_Directory <- file.path(Data_Path, "data.rda")
 Charts_Directory <- file.path(Path, "03_Charts")
 
@@ -208,6 +228,18 @@ print(paste("Folds generated:", length(cv_folds_list)))
 
 #==== 04A - GLMs ==============================================================#
 
+## Setup parallel processing if available
+if(requireNamespace("future", quietly = TRUE) && requireNamespace("furrr", quietly = TRUE)) {
+  library(future)
+  library(furrr)
+  plan(multisession, workers = parallel::detectCores() - 1)  ## Leave 1 core free
+  cat(paste("Parallel processing enabled with", future::nbrOfWorkers(), "workers\n"))
+  use_parallel <- TRUE
+} else {
+  cat("Parallel processing packages not available. Running sequentially.\n")
+  use_parallel <- FALSE
+}
+
 tryCatch({
   
 ##==============================##
@@ -246,8 +278,13 @@ grid_ds_glm <- tibble(
     total_iters = n()
   )
 ## Implement the vectorized grid search function.
-results_ds_glm <- pmap_dfr(grid_ds_glm, GLM_gridsearch) %>%
-  arrange(desc(CV_AUC))
+if(use_parallel) {
+  results_ds_glm <- future_pmap_dfr(grid_ds_glm, GLM_gridsearch, .options = furrr_options(seed = 123)) %>%
+    arrange(desc(CV_AUC))
+} else {
+  results_ds_glm <- pmap_dfr(grid_ds_glm, GLM_gridsearch) %>%
+    arrange(desc(CV_AUC))
+}
 
 print("--- Top 5 Discrete GLM Models ---")
 print(head(results_ds_glm, 5))
@@ -256,7 +293,7 @@ print(head(results_ds_glm, 5))
 ## Random grid search (hyperparameter tuning of alpha and lambda).
 ##==============================##
 
-n_iter_rs <- 20
+n_iter_rs <- 10  ## Reduced from 20 for faster execution
 
 ## Prepare the grid.
 grid_rs_glm <- tibble(
@@ -270,8 +307,13 @@ grid_rs_glm <- tibble(
 print(paste("Total random combinations:", nrow(grid_rs_glm)))
 
 ## Implement the vectorized grid search function.
-results_rs_glm <- pmap_dfr(grid_rs_glm, run_glm_alpha) %>%
-  arrange(desc(CV_AUC))
+if(use_parallel) {
+  results_rs_glm <- future_pmap_dfr(grid_rs_glm, GLM_gridsearch, .options = furrr_options(seed = 123)) %>%
+    arrange(desc(CV_AUC))
+} else {
+  results_rs_glm <- pmap_dfr(grid_rs_glm, GLM_gridsearch) %>%
+    arrange(desc(CV_AUC))
+}
 
 print("--- Top 5 Random GLM Models ---")
 print(head(results_rs_glm, 5))
@@ -286,14 +328,18 @@ bounds_glm <- list(
 )
 
 # 3. Run Optimization
-n_init_glm <- 5
-n_iter_glm <- 15
+n_init_glm <- 2   ## Reduced from 5 for faster execution (random exploration)
+n_iter_glm <- 5   ## Reduced from 15 for faster execution (smart search)
 
-print("Starting Bayesian Optimization for GLM...")
+cat("\n=== Starting Bayesian Optimization ===")
+cat("\nInitial random points:", n_init_glm)
+cat("\nSmart iterations:", n_iter_glm)
+cat("\nTotal evaluations:", n_init_glm + n_iter_glm, "\n\n")
+cat("Progress: Each dot = 1 evaluation\n")
 
 ## Implement the vectorized grid search function.
 bayes_out_glm <- BayesianOptimization(
-  FUN = GLM_bayes_optim,
+  FUN = GLM_bayesoptim,
   bounds = bounds_glm,
   init_points = n_init_glm,
   n_iter = n_iter_glm,
@@ -301,6 +347,8 @@ bayes_out_glm <- BayesianOptimization(
   eps = 0.0,    
   verbose = TRUE
 )
+
+cat("\n[Bayesian Optimization finished, processing results...]\n")
 
 ## Compute the train AUC.
 results_bayes_glm <- bayes_out_glm$History %>%
@@ -316,6 +364,10 @@ results_bayes_glm <- bayes_out_glm$History %>%
 
 print("--- Top 5 Bayesian GLM Models ---")
 print(head(results_bayes_glm, 5))
+
+cat("\n=== BAYESIAN OPTIMIZATION COMPLETE ===")
+cat("\nBest alpha found:", results_bayes_glm$alpha[1])
+cat("\nBest CV AUC:", round(results_bayes_glm$CV_AUC[1], 4), "\n\n")
 
 ##==============================##
 ## Performance of the model with the highest training AUC in the test set.
@@ -427,6 +479,117 @@ ggsave(
   limitsize = FALSE
 )
 
+cat("\n\n========================================")
+cat("\n=== GLM ANALYSIS COMPLETE ===")
+cat("\n========================================")
+cat("\n\nChampion Method:", champion_row$Method)
+cat("\nOptimal Alpha:", round(best_alpha, 4))
+cat("\nTest AUC (Champion):", round(auc_champion, 4))
+cat("\nTest AUC (1-SE):", round(auc_1se, 4))
+cat("\nFeatures Selected (Champion):", n_vars_champion)
+cat("\nFeatures Selected (1-SE):", n_vars_1se)
+cat("\n\nChart saved to:", Path)
+
+##==============================##
+## Export Results with Interpretation
+##==============================##
+
+Results_Dir <- file.path(Path, "01_Code", "GLM_Results")
+dir.create(Results_Dir, showWarnings = FALSE, recursive = TRUE)
+
+## Save all method results
+write.csv(results_ds_glm, file.path(Results_Dir, "01_grid_search_results.csv"), row.names = FALSE)
+write.csv(results_rs_glm, file.path(Results_Dir, "02_random_search_results.csv"), row.names = FALSE)
+write.csv(results_bayes_glm, file.path(Results_Dir, "03_bayesian_optim_results.csv"), row.names = FALSE)
+write.csv(glm_method_performance, file.path(Results_Dir, "04_method_comparison.csv"), row.names = FALSE)
+
+## Save model objects
+saveRDS(final_cv_glm, file.path(Results_Dir, "final_glm_model.rds"))
+
+## Create interpretation summary
+summary_text <- paste0(
+  "GLM ELASTIC NET RESULTS SUMMARY\n",
+  "================================\n\n",
+  "Analysis Date: ", Sys.time(), "\n\n",
+  
+  "1. HYPERPARAMETER TUNING COMPARISON\n",
+  "-----------------------------------\n",
+  "Grid Search (11 alphas):     CV AUC = ", round(best_ds$CV_AUC, 4), ", alpha = ", round(best_ds$alpha, 4), "\n",
+  "Random Search (10 alphas):   CV AUC = ", round(best_rs$CV_AUC, 4), ", alpha = ", round(best_rs$alpha, 4), "\n",
+  "Bayesian Optim (7 alphas):   CV AUC = ", round(best_bayes$CV_AUC, 4), ", alpha = ", round(best_bayes$alpha, 4), "\n\n",
+  
+  "WINNER: ", champion_row$Method, "\n\n",
+  
+  "2. CHAMPION MODEL CONFIGURATION\n",
+  "-------------------------------\n",
+  "Optimal Alpha: ", round(best_alpha, 4), "\n",
+  "  - Interpretation: ",
+  if(best_alpha < 0.3) "Ridge-heavy (L2 penalty dominant) - keeps all features, shrinks coefficients"
+  else if(best_alpha > 0.7) "LASSO-heavy (L1 penalty dominant) - aggressive feature selection"
+  else "Balanced Elastic Net - mix of feature selection and coefficient shrinkage",
+  "\n\n",
+  "Optimal Lambda (min): ", round(final_cv_glm$lambda.min, 6), "\n",
+  "Optimal Lambda (1se): ", round(final_cv_glm$lambda.1se, 6), "\n\n",
+  
+  "3. MODEL PERFORMANCE\n",
+  "-------------------\n",
+  "Cross-Validation AUC: ", round(champion_row$CV_AUC, 4), " (5-fold stratified)\n",
+  "Training AUC:          ", round(champion_row$Train_AUC, 4), "\n",
+  "Test AUC (Champion):   ", round(auc_champion, 4), "\n",
+  "Test AUC (1-SE Rule):  ", round(auc_1se, 4), "\n\n",
+  
+  "Performance Gap: ", round((champion_row$Train_AUC - auc_champion) * 100, 2), "% drop from train to test\n",
+  "  - Interpretation: ",
+  if((champion_row$Train_AUC - auc_champion) < 0.03) "Excellent generalization - minimal overfitting"
+  else if((champion_row$Train_AUC - auc_champion) < 0.06) "Good generalization - acceptable overfitting"
+  else "Significant overfitting - consider simpler model (1-SE rule)",
+  "\n\n",
+  
+  "4. FEATURE SELECTION\n",
+  "-------------------\n",
+  "Features in Champion Model (lambda.min): ", n_vars_champion, " out of ", ncol(train_matrix), "\n",
+  "Features in Parsimonious Model (lambda.1se): ", n_vars_1se, " out of ", ncol(train_matrix), "\n",
+  "Features Eliminated: ", ncol(train_matrix) - n_vars_champion, "\n\n",
+  
+  "5. INTERPRETATION\n",
+  "-----------------\n",
+  "AUC Score Meaning:\n",
+  "  - 0.50 = Random guessing (coin flip)\n",
+  "  - 0.70-0.80 = Acceptable discrimination\n",
+  "  - 0.80-0.90 = Excellent discrimination\n",
+  "  - >0.90 = Outstanding discrimination\n\n",
+  
+  "Your Test AUC of ", round(auc_champion, 2), " means: ",
+  if(auc_champion < 0.7) "Poor model - needs improvement"
+  else if(auc_champion < 0.8) "Acceptable model - decent predictive power"
+  else if(auc_champion < 0.9) "Excellent model - strong predictive power"
+  else "Outstanding model - very strong predictive power",
+  "\n\n",
+  
+  "6. FILES GENERATED\n",
+  "-----------------\n",
+  "01_grid_search_results.csv - All grid search alpha values tested\n",
+  "02_random_search_results.csv - All random search alpha values tested\n",
+  "03_bayesian_optim_results.csv - Bayesian optimization path\n",
+  "04_method_comparison.csv - Summary comparison of three methods\n",
+  "final_glm_model.rds - Trained model object (can be loaded with readRDS)\n",
+  "\n",
+  "Chart: ", Path, "\n\n",
+  
+  "7. NEXT STEPS\n",
+  "-------------\n",
+  "1. Review feature coefficients: coef(final_cv_glm, s='lambda.min')\n",
+  "2. Check which features were eliminated (coefficient = 0)\n",
+  "3. Compare against tree-based models (XGBoost, Random Forest)\n",
+  "4. Consider calibration analysis if using for probability estimates\n"
+)
+
+writeLines(summary_text, file.path(Results_Dir, "00_RESULTS_SUMMARY.txt"))
+
+cat("\n\nResults exported to:", Results_Dir)
+cat("\nSee 00_RESULTS_SUMMARY.txt for interpretation")
+cat("\n========================================\n\n")
+
 
 
 }, error = function(e) message(e))
@@ -446,6 +609,10 @@ ggsave(
 ## To-Do: Fix overall parameters at the beginning of the code.
 ## Comparison of hyperparameter tuning methods.
 ## Visualisations and Outputs.
+
+## Only run XGBoost if package is available
+if(requireNamespace("xgboost", quietly = TRUE)) {
+  cat("\n=== Running XGBoost Analysis ===\n")
 
 tryCatch({
 
@@ -1041,6 +1208,10 @@ ggsave(
 
 
 }, error = function(e) message(e))
+
+} else {
+  cat("\n=== Skipping XGBoost (package not available for R < 4.3) ===\n")
+}
 
 #==============================================================================#
 #==============================================================================#
