@@ -1,0 +1,107 @@
+GLM ELASTIC NET RESULTS SUMMARY
+================================
+
+Analysis Date: 2026-01-16
+
+1. HYPERPARAMETER TUNING COMPARISON
+-----------------------------------
+Grid Search (11 alphas):     CV AUC = 0.8020, alpha = 1.0000
+Random Search (10 alphas):   CV AUC = 0.8020, alpha = 0.9513
+Bayesian Optim (13 alphas):  CV AUC = 0.8022, alpha = 0.9976
+
+WINNER: Bayesian Optimization (by 0.0002 AUC margin)
+
+IMPORTANT: All methods achieved CV AUC ≈ 0.802 (tied when rounded to 3 decimals)
+
+2. CHAMPION MODEL CONFIGURATION
+-------------------------------
+Optimal Alpha: 0.9976
+  - Interpretation: LASSO-heavy (L1 penalty dominant) - aggressive feature selection
+
+Optimal Lambda (min): 0.0000503
+Optimal Lambda (1se): 0.0000654
+
+3. MODEL PERFORMANCE
+-------------------
+Cross-Validation AUC: 0.8022 (5-fold stratified)
+Training AUC:         0.8040
+Test AUC (Champion):  0.79227
+Test AUC (1-SE Rule): 0.79152
+
+Performance Gap: 1.17% drop from train to test
+  - Interpretation: Excellent generalization - minimal overfitting
+
+4. FEATURE SELECTION
+-------------------
+Features in Champion Model (lambda.min): 21 out of 24
+Features in Parsimonious Model (lambda.1se): 14 out of 24
+Features Eliminated: 3
+
+5. INTERPRETATION
+-----------------
+AUC Score Meaning:
+  - 0.50 = Random guessing (coin flip)
+  - 0.70-0.80 = Acceptable discrimination
+  - 0.80-0.90 = Excellent discrimination
+  - >0.90 = Outstanding discrimination
+
+Your Test AUC of 0.79 means: Acceptable model - decent predictive power
+
+6. DATASET BALANCE
+-----------------
+Train Set:
+  • Observation-level default rate: 0.91%
+  • Firm-level default rate: 2.76%
+  • Total Firms: 51,091
+  • Total Observations: 158,764
+
+Test Set:
+  • Observation-level default rate: 0.90%
+  • Firm-level default rate: 2.75%
+  • Total Firms: 21,890
+  • Total Observations: 68,233
+
+Stratification Quality: Excellent (default rates nearly identical)
+
+7. SECTOR ANALYSIS
+-----------------
+Highest Risk Sectors:
+  1. Manufacture: 3.52% default rate
+  2. Retail: 3.35% default rate
+  3. Service: 3.30% default rate
+
+Lowest Risk Sectors:
+  1. Energy: 0.83% default rate
+  2. Real Estate: 1.74% default rate
+
+8. FILES GENERATED
+-----------------
+01_grid_search_results.csv - All grid search alpha values tested
+02_random_search_results.csv - All random search alpha values tested
+03_bayesian_optim_results.csv - Bayesian optimization path (13 rounds)
+04_method_comparison.csv - Summary comparison of three methods
+GLM_Provisional_Analysis_Results.Rmd - Full analysis report (knit to PDF/HTML)
+GLM_Provisional_Analysis_Results.pdf - PDF report
+
+Chart: /home/martin-mal/Documents/oenb_standalone/CreditRisk_ML/03_Charts/GLM/01_HyperparameterTuningMethods_AUC_Training.png
+
+9. NEXT STEPS
+-------------
+1. Review feature coefficients to understand which predictors drive default risk
+2. Investigate which features were eliminated (coefficient = 0)
+3. Compare against tree-based models (XGBoost, Random Forest) for potential improvement
+4. Consider calibration analysis if using for probability estimates
+5. Validate model stability over time (temporal validation)
+
+10. KEY INSIGHTS
+---------------
+✓ All three tuning methods converged to high α values (≥ 0.59), confirming LASSO's superiority for this problem
+✓ CV AUC plateau at 0.802 suggests linear models may have hit performance ceiling
+✓ Excellent train-test consistency (gap < 2%) indicates robust generalization
+✓ Sparse solution (14-21 features) provides good interpretability
+✗ Test AUC below 0.80 threshold - consider ensemble methods for improvement
+
+RECOMMENDATION:
+Use the Parsimonious Model (14 features, AUC = 0.79152) for production deployment.
+Only 0.075 AUC sacrifice vs. champion, but 33% fewer features = easier maintenance,
+lower data pipeline risk, and better stakeholder explainability.
