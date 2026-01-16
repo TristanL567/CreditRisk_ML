@@ -431,7 +431,7 @@ Plot_Train_AUC <- ggplot(glm_method_performance, aes(x = reorder(Method, Train_A
     plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
   )
 
-Path <- file.path(Charts_GLM_Directory, "01_HyperparameterTuningMethods_AUC_Training.png")
+Path <- file.path(Charts_GLM_Directory, "01_GLM_HyperparameterTuningMethods_AUC_Training.png")
 ggsave(
   filename = Path,
   plot = Plot_Train_AUC,
@@ -544,7 +544,7 @@ plot_calib_bars <- ggplot(calib_plot_data, aes(x = factor(bin), y = Rate, fill =
     plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
   )
 
-Path <- file.path(Charts_GLM_Directory, "05_CalibrationChart_BayesianOptimization_Test.png")
+Path <- file.path(Charts_GLM_Directory, "05_GLM_CalibrationChart_BayesianOptimization_Test.png")
 ggsave(
   filename = Path,
   plot = plot_calib_bars,

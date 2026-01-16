@@ -217,6 +217,24 @@ Selection is done by the AuC-ROC measure as per client instructions. \\
 
 \subsection{Regularized GLMs}
 
+\begin{figure}[ht]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        % ADJUST PATH HERE
+        \includegraphics[width=\textwidth]{01_GLM_HyperparameterTuningMethods_AUC_Training.png}
+        \caption{Training Set AU for regularized GLMs.}
+        \label{fig:GLM_train_AUC}
+    \end{minipage}\hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        % ADJUST PATH HERE
+        \includegraphics[width=\textwidth]{05_GLM_CalibrationChart_BayesianOptimization_Test.png}
+        \caption{Calibration Chart GLM(Test Set). Observed rates closely align with predictions, showing strong ranking ability.}
+        \label{fig:calibration}
+    \end{minipage}
+\end{figure}
+
 %==== Chapter 4: Decision Trees ===============================================%
 
 \chapter{Decision Trees}
@@ -585,9 +603,9 @@ Finally, Figure \ref{fig:calibration} demonstrates the model's calibration. The 
 % 
 % A known challenge in this portfolio is the class imbalance. Following \citet{chang2018application}, future iterations could incorporate the \texttt{scale\_pos\_weight} parameter. By setting this equal to the imbalance ratio ($\frac{\text{Negatives}}{\text{Positives}}$), the gradient calculation would penalize false negatives more heavily, potentially improving the recall on defaulted obligors.
 
-%==== GXBoost =================================================================%
+%==== CatBoost ===============================================================%
 
-\section{CatBoost}
+% \section{CatBoost}
 
 %==== Chapter 5: Decision Trees ===============================================%
 

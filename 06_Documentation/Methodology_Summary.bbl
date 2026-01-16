@@ -1,0 +1,23 @@
+\begin{thebibliography}{3}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Breiman(2001)]{breiman2001random}
+Leo Breiman.
+\newblock Random forests.
+\newblock \emph{Machine learning}, 45\penalty0 (1):\penalty0 5--32, 2001.
+
+\bibitem[Lessmann et~al.(2015)Lessmann, Baesens, Seow, and Thomas]{lessmann2015benchmarking}
+Stefan Lessmann, Bart Baesens, Hsin-Vonn Seow, and Lyn~C Thomas.
+\newblock Benchmarking state-of-the-art classification algorithms for credit scoring: An update of research.
+\newblock \emph{European Journal of Operational Research}, 247\penalty0 (1):\penalty0 124--136, 2015.
+
+\bibitem[Zhou et~al.(2009)Zhou, Lai, and Yen]{zhou2009credit}
+Ligang Zhou, Kin~Keung Lai, and Jerome Yen.
+\newblock Credit scoring models with auc maximization based on weighted svm.
+\newblock \emph{International Journal of Information Technology \& Decision Making}, 8\penalty0 (04):\penalty0 677--696, 2009.
+
+\end{thebibliography}

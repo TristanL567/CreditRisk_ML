@@ -1,0 +1,48 @@
+\contentsline {chapter}{\numberline {1}Data Processing}{2}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Preprocessing and data splitting}{2}{section.1.1}%
+\contentsline {subsection}{\numberline {1.1.1}Preprocessing}{2}{subsection.1.1.1}%
+\contentsline {subsection}{\numberline {1.1.2}Data splitting}{2}{subsection.1.1.2}%
+\contentsline {section}{\numberline {1.2}Feature engineering}{3}{section.1.2}%
+\contentsline {subsection}{\numberline {1.2.1}Standardization (Size Normalization)}{3}{subsection.1.2.1}%
+\contentsline {subsection}{\numberline {1.2.2}Quantile Transformation (Probability Integral Transform)}{3}{subsection.1.2.2}%
+\contentsline {chapter}{\numberline {2}Modeling Methodology}{4}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Hyperparameter Tuning}{4}{section.2.1}%
+\contentsline {subsection}{\numberline {2.1.1}Discrete Grid Search}{4}{subsection.2.1.1}%
+\contentsline {subsection}{\numberline {2.1.2}Random Grid Search}{4}{subsection.2.1.2}%
+\contentsline {subsection}{\numberline {2.1.3}Bayesian Optimization}{4}{subsection.2.1.3}%
+\contentsline {section}{\numberline {2.2}Model Selection}{4}{section.2.2}%
+\contentsline {chapter}{\numberline {3}Linear Models}{5}{chapter.3}%
+\contentsline {section}{\numberline {3.1}GLMs}{5}{section.3.1}%
+\contentsline {subsection}{\numberline {3.1.1}Logistic Regression}{5}{subsection.3.1.1}%
+\contentsline {subsection}{\numberline {3.1.2}Regularized GLMs}{5}{subsection.3.1.2}%
+\contentsline {chapter}{\numberline {4}Decision Trees}{6}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Random Forest}{6}{section.4.1}%
+\contentsline {subsection}{\numberline {4.1.1}Hyperparameter Specification}{6}{subsection.4.1.1}%
+\contentsline {subsection}{\numberline {4.1.2}Algorithm}{6}{subsection.4.1.2}%
+\contentsline {subsection}{\numberline {4.1.3}Model Evaluation}{7}{subsection.4.1.3}%
+\contentsline {subsection}{\numberline {4.1.4}Variable Importance}{7}{subsection.4.1.4}%
+\contentsline {section}{\numberline {4.2}AdaBoost}{7}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Model description}{7}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}Algorithm}{7}{subsection.4.2.2}%
+\contentsline {subsection}{\numberline {4.2.3}Logic}{8}{subsection.4.2.3}%
+\contentsline {subsection}{\numberline {4.2.4}Comments on code}{8}{subsection.4.2.4}%
+\contentsline {section}{\numberline {4.3}XGBoost}{9}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Model Description}{9}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}Validation Strategy: Stratified Group K-Fold}{9}{subsection.4.3.2}%
+\contentsline {subsection}{\numberline {4.3.3}Algorithm}{9}{subsection.4.3.3}%
+\contentsline {paragraph}{Objective Function}{9}{section*.2}%
+\contentsline {paragraph}{Taylor Expansion}{9}{section*.3}%
+\contentsline {paragraph}{Regularization}{10}{section*.4}%
+\contentsline {subsection}{\numberline {4.3.4}Hyperparameter Specifications}{10}{subsection.4.3.4}%
+\contentsline {subsection}{\numberline {4.3.5}Tuning Strategies}{10}{subsection.4.3.5}%
+\contentsline {subsection}{\numberline {4.3.6}Preliminary Results}{10}{subsection.4.3.6}%
+\contentsline {subsubsection}{Comparison of Tuning Efficiency}{10}{section*.5}%
+\contentsline {subsubsection}{Final Tuning Selection}{10}{section*.6}%
+\contentsline {subsubsection}{Training Stability \& Feature Importance}{11}{section*.7}%
+\contentsline {subsubsection}{Test Set Performance \& Calibration}{11}{section*.8}%
+\contentsline {chapter}{\numberline {5}Neural Networks}{13}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Neural Networks}{13}{section.5.1}%
+\contentsline {chapter}{\numberline {6}Model Assessment}{14}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Model Selection}{14}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Final Model}{14}{section.6.2}%
+\contentsline {chapter}{\numberline {7}Task Distribution}{15}{chapter.7}%
