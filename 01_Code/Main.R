@@ -27,7 +27,9 @@ packages <- c("dplyr", "caret", "lubridate", "purrr", "tidyr",
               "mlr3", "mlr3learners", "mlr3tuning",
               "mlr3mbo", "mlr3measures", "data.table",
               "paradox", "future", 
-              "future.apply", "parallel"
+              "future.apply", "parallel",
+              "adabag",
+              "purrr", "tibble"      
 )
 
 for(i in 1:length(packages)){
@@ -763,6 +765,234 @@ cat("\nParallel backend reset to sequential.\n")
 }, error = function(e) message(e))
 
 #==== 05B - AdaBoost ==========================================================#
+tryCatch({
+  
+  ##==============================##
+  ## Data preparation.
+  ##==============================##
+  
+  # Numeric targets for pROC AUC 
+  train_y <- as.numeric(as.character(Train_Transformed$y))
+  test_y  <- as.numeric(as.character(Test_Transformed$y))
+  
+  # Data frames for adabag
+  Train_AB <- Train_Transformed
+  Test_AB  <- Test_Transformed
+  
+  Train_AB$y <- as.factor(Train_AB$y)
+  Test_AB$y  <- as.factor(Test_AB$y)
+  
+  # Important: use same globals as your CV function expects:
+  # target <- "y"
+  # positive_class <- "1"
+  
+  ##==============================##
+  ## Compute FULL-TRAIN weights
+  ##==============================##
+  # same logic as AdaBoost_cv_auc() :contentReference[oaicite:1]{index=1}
+  tab_full <- table(Train_AB[[target]])
+  if (length(tab_full) < 2 || !positive_class %in% names(tab_full)) {
+    stop("Weights cannot be computed: training data does not contain both classes or positive_class not found.")
+  }
+  neg_class <- setdiff(names(tab_full), positive_class)[1]
+  
+  w_pos <- as.numeric(sum(tab_full) / (2 * tab_full[positive_class]))
+  w_neg <- as.numeric(sum(tab_full) / (2 * tab_full[neg_class]))
+  
+  w_full <- ifelse(Train_AB[[target]] == positive_class, w_pos, w_neg)
+  w_full <- pmin(w_full, 50)
+  
+  ##==============================##
+  ## Discrete Grid Search for Hyperparameter Tuning.
+  ##==============================##
+  
+  grid_ds <- expand.grid(
+    mfinal    = c(50, 100, 200),
+    maxdepth  = c(1, 2, 3),
+    minsplit  = c(10, 20, 50),
+    minbucket = 5
+  ) %>%
+    dplyr::mutate(
+      nrounds = NA_integer_,
+      early_stopping_rounds = NA_integer_,
+      current_iter = 1:dplyr::n(),
+      total_iters  = dplyr::n()
+    )
+  
+  message(paste("Total combinations to test:", nrow(grid_ds)))
+  
+  results_ds <- purrr::pmap_dfr(
+    grid_ds,
+    ADABoost_gridsearch,
+    folds_custom = cv_folds_list
+  ) %>%
+    dplyr::arrange(dplyr::desc(AUC)) %>%
+    dplyr::mutate(Method = "Grid Search", Iteration = dplyr::row_number())
+  
+  message("--- Top 5 Discrete Models (AdaBoost) ---")
+  print(head(results_ds, 5))
+  
+  ##==============================##
+  ## Random Search for Hyperparameter Tuning.
+  ##==============================##
+  n_iter <- 20
+  
+  grid_rs <- data.frame(
+    mfinal    = sample(seq(25, 300, by = 25), n_iter, replace = TRUE),
+    maxdepth  = sample(1:4, n_iter, replace = TRUE),
+    minsplit  = sample(c(5, 10, 20, 50, 100), n_iter, replace = TRUE),
+    minbucket = sample(c(2, 5, 10, 20, 50), n_iter, replace = TRUE)
+  ) %>%
+    dplyr::mutate(
+      nrounds = NA_integer_,
+      early_stopping_rounds = NA_integer_,
+      current_iter = 1:dplyr::n(),
+      total_iters  = dplyr::n()
+    )
+  
+  message(paste("Total random combinations:", nrow(grid_rs)))
+  
+  results_rs <- purrr::pmap_dfr(
+    grid_rs,
+    ADABoost_gridsearch,
+    folds_custom = cv_folds_list
+  ) %>%
+    dplyr::arrange(dplyr::desc(AUC)) %>%
+    dplyr::mutate(Method = "Random Search", Iteration = dplyr::row_number())
+  
+  message("--- Top 5 Random Models (AdaBoost) ---")
+  print(head(results_rs, 5))
+  
+  ##==============================##
+  ## Bayesian Optimization for Hyperparameter Tuning.
+  ##==============================##
+  n_init_points <- 10
+  n_iter_bayes  <- 20
+  total_bayes_runs <- n_init_points + n_iter_bayes
+  current_bayes_iter <- 0
+  
+  bounds_bayes <- list(
+    mfinal    = c(25L, 300L),
+    maxdepth  = c(1L, 4L),
+    minsplit  = c(5L, 100L),
+    minbucket = c(2L, 50L)
+  )
+  
+  message("Starting Bayesian Optimization (AdaBoost)...")
+  
+  bayes_out <- rBayesianOptimization::BayesianOptimization(
+    FUN = ADABoost_bayesoptim,
+    bounds = bounds_bayes,
+    init_points = n_init_points,
+    n_iter = n_iter_bayes,
+    acq = "ei",
+    eps = 0.01,
+    verbose = TRUE
+  )
+  
+  results_bayes <- bayes_out$History %>%
+    dplyr::rename(AUC = Value) %>%
+    dplyr::mutate(
+      mfinal    = as.integer(round(mfinal)),
+      maxdepth  = as.integer(round(maxdepth)),
+      minsplit  = as.integer(round(minsplit)),
+      minbucket = as.integer(round(minbucket)),
+      nrounds = NA_integer_,
+      early_stopping_rounds = NA_integer_,
+      Method = "Bayesian Opt",
+      Iteration = dplyr::row_number()
+    ) %>%
+    dplyr::arrange(dplyr::desc(AUC)) %>%
+    tibble::as_tibble()
+  
+  message("--- Top 5 Bayesian Models (AdaBoost) ---")
+  print(head(results_bayes, 5))
+  
+  ##==============================##
+  ## Compare tuning methods 
+  ##==============================##
+  common_cols <- c("Method","Iteration","mfinal","maxdepth","minsplit","minbucket","AUC")
+  
+  all_search_results <- dplyr::bind_rows(
+    results_ds %>% dplyr::select(dplyr::all_of(common_cols)),
+    results_rs %>% dplyr::select(dplyr::all_of(common_cols)),
+    results_bayes %>% dplyr::select(dplyr::all_of(common_cols))
+  ) %>%
+    dplyr::arrange(dplyr::desc(AUC))
+  
+  message("--- Best overall (across all tuning methods) ---")
+  print(head(all_search_results, 1))
+  
+  ##==============================##
+  ## Train ONE final model with the best CV AUC parameters
+  ##==============================##
+  best_overall <- all_search_results[1, ]
+  
+  final_params <- list(
+    mfinal    = as.integer(best_overall$mfinal),
+    maxdepth  = as.integer(best_overall$maxdepth),
+    minsplit  = as.integer(best_overall$minsplit),
+    minbucket = as.integer(best_overall$minbucket)
+  )
+  
+  message("--- Final chosen method & params (AdaBoost) ---")
+  print(best_overall)
+  print(final_params)
+  
+  ctrl_final <- rpart::rpart.control(
+    maxdepth  = final_params$maxdepth,
+    minsplit  = final_params$minsplit,
+    minbucket = final_params$minbucket,
+    cp = 0
+  )
+  
+  model_final <- adabag::boosting(
+    y ~ .,
+    data = Train_AB,
+    mfinal = final_params$mfinal,
+    control = ctrl_final,
+    weights = w_full   # <-- aligned with CV spec in ADABoost_auc
+  )
+  
+  ##==============================##
+  ## Train AUC
+  ##==============================##
+  pred_train <- predict(model_final, newdata = Train_AB)
+  prob_train <- pred_train$prob[, positive_class]  # no hardcoding "1"
+  roc_train  <- pROC::roc(train_y, prob_train, quiet = TRUE)
+  auc_train  <- pROC::auc(roc_train)
+  
+  message(paste("Final Train AUC (AdaBoost):", round(as.numeric(auc_train), 5)))
+  
+  ##==============================##
+  ## Test AUC 
+  ##==============================##
+  pred_test <- predict(model_final, newdata = Test_AB)
+  prob_test <- pred_test$prob[, positive_class]
+  roc_test  <- pROC::roc(test_y, prob_test, quiet = TRUE)
+  auc_test  <- pROC::auc(roc_test)
+  
+  message(paste("Final Test AUC (AdaBoost):", round(as.numeric(auc_test), 5)))
+  
+  ##==============================##
+  ## Method summary table 
+  ##==============================##
+  # For AdaBoost, "best per method" is based on CV AUC
+  best_by_method <- all_search_results %>%
+    dplyr::group_by(Method) %>%
+    dplyr::slice_max(order_by = AUC, n = 1, with_ties = FALSE) %>%
+    dplyr::ungroup()
+  
+  AdaBoost_method_performance <- best_by_method %>%
+    dplyr::transmute(Method, CV_AUC = AUC)
+  
+  message("--- AdaBoost best CV AUC by tuning method ---")
+  print(AdaBoost_method_performance)
+  
+}, error = function(e) {
+  message("AdaBoost aligned block failed with error:")
+  message(e)
+})
 
 
 #==== 05C - XGBoost ===========================================================#
