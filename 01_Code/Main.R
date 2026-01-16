@@ -21,7 +21,8 @@ packages <- c("dplyr", "caret", "lubridate", "purrr", "tidyr",
               "xgboost",                   ## XGBoost library.
               "rBayesianOptimization",     ## Bayesian Optimization.
               "ggplot2", "Ckmeans.1d.dp",  ## Plotting & Charts | XG-Charts / Feature Importance.
-              "scales"                     ## ggplot2 extension for nice charts.
+              "scales",                    ## ggplot2 extension for nice charts.
+              "ggrepel"                    ## Non-overlapping ggplot2 text labels.
 )
 
 for(i in 1:length(packages)){
@@ -58,6 +59,7 @@ Charts_Directory <- file.path(Path, "03_Charts")
 ## Charts Directories.
 Charts_GLM_Directory <- file.path(Charts_Directory, "GLM")
 Charts_XGBoost_Directory <- file.path(Charts_Directory, "XGBoost")
+Charts_TestSet_Directory <- file.path(Charts_Directory, "TestSet")
 
 Functions_Directory <- file.path(Path, "01_Code/Subfunctions")
 
@@ -270,7 +272,7 @@ grid_rs_glm <- tibble(
 print(paste("Total random combinations:", nrow(grid_rs_glm)))
 
 ## Implement the vectorized grid search function.
-results_rs_glm <- pmap_dfr(grid_rs_glm, run_glm_alpha) %>%
+results_rs_glm <- pmap_dfr(grid_rs_glm, GLM_gridsearch) %>%
   arrange(desc(CV_AUC))
 
 print("--- Top 5 Random GLM Models ---")
@@ -288,12 +290,13 @@ bounds_glm <- list(
 # 3. Run Optimization
 n_init_glm <- 5
 n_iter_glm <- 15
+current_bayes_iter <- 0
 
 print("Starting Bayesian Optimization for GLM...")
 
 ## Implement the vectorized grid search function.
 bayes_out_glm <- BayesianOptimization(
-  FUN = GLM_bayes_optim,
+  FUN = GLM_bayesoptim,
   bounds = bounds_glm,
   init_points = n_init_glm,
   n_iter = n_iter_glm,
@@ -301,6 +304,8 @@ bayes_out_glm <- BayesianOptimization(
   eps = 0.0,    
   verbose = TRUE
 )
+
+current_bayes_iter <- 0
 
 ## Compute the train AUC.
 results_bayes_glm <- bayes_out_glm$History %>%
@@ -365,6 +370,7 @@ probs_1se <- predict(final_cv_glm,
                      newx = test_matrix, 
                      s = "lambda.1se", 
                      type = "response")
+colnames(probs_1se) <- "prob"
 
 roc_1se <- roc(test_y, as.vector(probs_1se), quiet = TRUE)
 auc_1se <- auc(roc_1se)
@@ -380,6 +386,15 @@ n_vars_1se      <- sum(coef(final_cv_glm, s = "lambda.1se") != 0)
 message(sprintf("Variables Selected (Champion):      %d", n_vars_champion))
 message(sprintf("Variables Selected (1-SE Rule):     %d", n_vars_1se))
 
+## Regularized GLM performance in the Test-set.
+
+glm_performance_test <- tibble(
+  Method = c("Regularized GLM", "Regularized GLM (1-SE)"),
+  Test_AUC = c(auc_champion, auc_1se)
+)
+print("--- GLM Test-set AUC ---")
+print(glm_performance_test)
+
 ##==============================##
 ## Compare the hyperparameter tuning methods. Visualisations.
 ##==============================##
@@ -387,8 +402,8 @@ message(sprintf("Variables Selected (1-SE Rule):     %d", n_vars_1se))
 ## Visualisation: Method AUC comparison.
 colors <- c(
   "Grid Search"   = blue,
-  "Random Search" = orange,  
-  "Bayesian Opt"  = red   
+  "Random Search" = orange,
+  "Bayesian Opt" = red
 )
 
 Plot_Train_AUC <- ggplot(glm_method_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, 
@@ -427,7 +442,118 @@ ggsave(
   limitsize = FALSE
 )
 
-## Visualisation: Method AUC comparison.
+## Visualisation: Penalization strength or Bayesian Optimization.
+
+##==============================##
+## Visualisations of the test-set performance.
+##==============================##
+
+## Visualisation: AUC in the test set.
+
+colors <- c(
+  "Regularized GLM"   = blue,
+  "Regularized GLM (1-SE)" = red
+)
+
+Plot_Test_AUC <- ggplot(glm_performance_test, aes(x = reorder(Method, Test_AUC), y = Test_AUC, 
+                                                     fill = Method)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(Test_AUC * 100, 1), "%")), 
+            vjust = -0.5, size = 5) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  scale_fill_manual(values = colors) +
+  labs(
+    title = "",
+    subtitle = "",
+    x = "",
+    y = "AUC-Score (Test Set)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"), # Adjusted to "grey30" for safety
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", color = "black"),
+    strip.text = element_text(size = 12, face = "bold", color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_GLM_Directory, "04_GLM_AUC_Test.png")
+ggsave(
+  filename = Path,
+  plot = Plot_Test_AUC,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
+
+## Visualisation: Calibration (predicted vs observed per bracket).
+calib_data <- data.frame(
+  actual = test_y,
+  prob = probs_1se
+) %>%
+  mutate(bin = ntile(prob, 10)) %>%
+  group_by(bin) %>%
+  summarise(
+    mean_prob = mean(prob),
+    observed_rate = mean(actual),
+    n = n()
+  )
+
+calib_plot_data <- calib_data %>%
+  select(bin, mean_prob, observed_rate) %>%
+  rename(Predicted = mean_prob, Observed = observed_rate) %>%
+  pivot_longer(cols = c("Predicted", "Observed"), 
+               names_to = "Type", 
+               values_to = "Rate") %>%
+  mutate(Type = factor(Type, levels = c("Predicted", "Observed")))
+
+plot_calib_bars <- ggplot(calib_plot_data, aes(x = factor(bin), y = Rate, fill = Type)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = scales::percent(Rate, accuracy = 0.1)), 
+            position = position_dodge(width = 0.8), 
+            vjust = -0.5, 
+            size = 3.5, 
+            fontface = "bold", 
+            color = "black") +
+  scale_fill_manual(values = c("Predicted" = blue, 
+                               "Observed"  = grey)) + 
+  scale_y_continuous(labels = scales::percent, 
+                     expand = expansion(mult = c(0, 0.15))) + 
+  labs(
+    title = "",
+    subtitle = "",
+    x = "Risk Decile (1 = Lowest Risk, 10 = Highest Risk)",
+    y = "Default Rate",
+    fill = "" 
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"),
+    legend.position = "top", 
+    legend.text = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 13, face = "bold", margin = ggplot2::margin(t = 10)),
+    axis.title.y = element_text(size = 13, face = "bold", margin = ggplot2::margin(r = 10)),
+    panel.grid.major.x = element_blank(), 
+    panel.grid.minor = element_blank(),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_GLM_Directory, "05_CalibrationChart_BayesianOptimization_Test.png")
+ggsave(
+  filename = Path,
+  plot = plot_calib_bars,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
 
 
 
@@ -1044,6 +1170,90 @@ ggsave(
 
 }, error = function(e) message(e))
 
+#==============================================================================#
+#==== 06 - Neural Networks ====================================================#
+#==============================================================================#
+
+
+#==============================================================================#
+#==== 07 - Model selection ====================================================#
+#==============================================================================#
+
+## Model performance in the test set.
+
+tryCatch({
+
+##==============================##
+## Data.
+##==============================##
+
+glm_performance_test          ## Regularized GLM - Test AUC.
+XGBoost_method_performance    ## XGBoost - Test AUC.
+
+final_test_AUC <- tibble(
+  Model = c("XGBoost (Bayesian)", "Regularized GLM (1-SE)"),
+  Test_AUC = c(XGBoost_test_AUC, auc_1se)
+  )
+
+##==============================##
+## Visualisations.
+##==============================##
+
+## Visualisation: Test AUC.
+
+comparison_colors <- c(
+  "XGBoost (Bayesian)"     =  blue, 
+  "Regularized GLM (1-SE)" =  orange
+)
+
+Plot_Overall_Test_AUC <- ggplot(final_test_AUC, 
+                                aes(x = reorder(Model, Test_AUC), 
+                                    y = Test_AUC, 
+                                    fill = Model)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(Test_AUC * 100, 2), "%")), 
+            hjust = -0.1, size = 5, fontface = "bold") +
+  scale_fill_manual(values = comparison_colors) +
+  scale_y_continuous(labels = scales::percent, 
+                     limits = c(0, 1), 
+                     expand = expansion(mult = c(0, 0.15))) + 
+  coord_flip() + 
+  labs(
+    title = "",
+    subtitle = "",
+    x = NULL,
+    y = "AUC-Score (Test Set)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"),
+    axis.text.y = element_text(size = 12, face = "bold", color = "black"),
+    axis.title.x = element_text(size = 13, face = "bold", 
+                                margin = ggplot2::margin(t = 10)),
+    
+    panel.grid.major.y = element_blank(), 
+    panel.grid.major.x = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+print(Plot_Overall_Test_AUC)
+
+Path <- file.path(Charts_TestSet_Directory, "04_AUC_Test_Overall.png")
+ggsave(
+  filename = Path,
+  plot = Plot_Overall_Test_AUC,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
+
+## Visualisation: 
+
+}, error = function(e) message(e))
+  
 #==============================================================================#
 #==============================================================================#
 #==============================================================================#

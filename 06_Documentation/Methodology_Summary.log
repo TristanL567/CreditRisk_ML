@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.1.30)  15 JAN 2026 13:48
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.1.30)  16 JAN 2026 09:02
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -330,34 +330,38 @@ Package: natbib 2010/09/13 8.31b (PWD, AO)
 LaTeX Info: Redefining \cite on input line 694.
 \c@NAT@ctr=\count303
 )
-LaTeX Font Info:    Trying to load font information for T1+lmr on input line 99.
+LaTeX Font Info:    Trying to load font information for T1+lmr on input line 101.
 (c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/t1lmr.fd
 File: t1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 ) (c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2024-05-08 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count304
 \l__pdf_internal_box=\box55
-) (./Methodology_Summary.aux)
+) (./Methodology_Summary.aux
+
+LaTeX Warning: Label `fig:test_auc' multiply defined.
+
+)
 \openout1 = `Methodology_Summary.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 99.
-LaTeX Font Info:    ... okay on input line 99.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 99.
-LaTeX Font Info:    ... okay on input line 99.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 99.
-LaTeX Font Info:    ... okay on input line 99.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 99.
-LaTeX Font Info:    ... okay on input line 99.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 99.
-LaTeX Font Info:    ... okay on input line 99.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 99.
-LaTeX Font Info:    ... okay on input line 99.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 99.
-LaTeX Font Info:    ... okay on input line 99.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 99.
-LaTeX Font Info:    ... okay on input line 99.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 99.
-LaTeX Font Info:    ... okay on input line 99.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 101.
+LaTeX Font Info:    ... okay on input line 101.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 101.
+LaTeX Font Info:    ... okay on input line 101.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 101.
+LaTeX Font Info:    ... okay on input line 101.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 101.
+LaTeX Font Info:    ... okay on input line 101.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 101.
+LaTeX Font Info:    ... okay on input line 101.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 101.
+LaTeX Font Info:    ... okay on input line 101.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 101.
+LaTeX Font Info:    ... okay on input line 101.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 101.
+LaTeX Font Info:    ... okay on input line 101.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 101.
+LaTeX Font Info:    ... okay on input line 101.
 (c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
 Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 485.
@@ -398,7 +402,7 @@ File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 * \@reversemarginfalse
 * (1in=72.27pt=25.4mm, 1cm=28.453pt)
 
-Package hyperref Info: Link coloring OFF on input line 99.
+Package hyperref Info: Link coloring OFF on input line 101.
 (./Methodology_Summary.out) (./Methodology_Summary.out)
 \@outlinefile=\write3
 \openout3 = `Methodology_Summary.out'.
@@ -473,17 +477,17 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 pdfTeX warning (ext4): destination with the same identifier (name{page.1}) has been already used, duplicate ignored
 <to be read again> 
                    \relax 
-l.152 \newpage
+l.154 \newpage
                [1
 
 
 ]
 Chapter 1.
-LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 173.
+LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 175.
 (c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 182.
+LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 184.
 (c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -495,7 +499,7 @@ File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 [3]
 Chapter 2.
 
-Underfull \hbox (badness 10000) in paragraph at lines 232--233
+Underfull \hbox (badness 10000) in paragraph at lines 234--235
 
  []
 
@@ -525,7 +529,7 @@ Chapter 4.
 <C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png, id=313, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png>
-Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png  used on input line 541.
+Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png  used on input line 543.
 (pdftex.def)             Requested size: 425.41444pt x 207.94879pt.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
@@ -539,17 +543,17 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 <C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/02_LearningCurve_BayesianOptimization_Training.png, id=331, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/02_LearningCurve_BayesianOptimization_Training.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/02_LearningCurve_BayesianOptimization_Training.png>
-Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/02_LearningCurve_BayesianOptimization_Training.png  used on input line 574.
+Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/02_LearningCurve_BayesianOptimization_Training.png  used on input line 576.
 (pdftex.def)             Requested size: 240.23016pt x 117.41968pt.
 
-Underfull \hbox (badness 5231) in paragraph at lines 575--575
+Underfull \hbox (badness 5231) in paragraph at lines 577--577
 []\T1/lmr/m/n/10 Figure 4.2: []Boosting It-er-a-tion Learn-ing Curve
  []
 
 <C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/03_FeatureImportance_BayesianOptimization_Training.png, id=332, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/03_FeatureImportance_BayesianOptimization_Training.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/03_FeatureImportance_BayesianOptimization_Training.png>
-Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/03_FeatureImportance_BayesianOptimization_Training.png  used on input line 581.
+Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/03_FeatureImportance_BayesianOptimization_Training.png  used on input line 583.
 (pdftex.def)             Requested size: 240.23016pt x 117.41968pt.
 
 
@@ -557,12 +561,12 @@ Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk
 <C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/04_AUC_Test.png, id=347, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/04_AUC_Test.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/04_AUC_Test.png>
-Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/04_AUC_Test.png  used on input line 600.
+Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/04_AUC_Test.png  used on input line 602.
 (pdftex.def)             Requested size: 240.23016pt x 117.41968pt.
 <C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/05_CalibrationChart_BayesianOptimization_Test.png, id=348, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/05_CalibrationChart_BayesianOptimization_Test.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/05_CalibrationChart_BayesianOptimization_Test.png>
-Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/05_CalibrationChart_BayesianOptimization_Test.png  used on input line 607.
+Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/05_CalibrationChart_BayesianOptimization_Test.png  used on input line 609.
 (pdftex.def)             Requested size: 240.23016pt x 117.41968pt.
 
 
@@ -574,11 +578,16 @@ Chapter 5.
 
 ]
 Chapter 6.
+<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/04_AUC_Test_Overall.png, id=362, 903.375pt x 441.5697pt>
+File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/04_AUC_Test_Overall.png Graphic file (type png)
+<use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/04_AUC_Test_Overall.png>
+Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/04_AUC_Test_Overall.png  used on input line 638.
+(pdftex.def)             Requested size: 425.41444pt x 207.94879pt.
 
 
 [14
 
-]
+ <c:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/04_AUC_Test_Overall.png>]
 Chapter 7.
 (./Methodology_Summary.bbl
 
@@ -593,22 +602,25 @@ Chapter 7.
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2024-12-25>
  ***********
+
+LaTeX Warning: There were multiply-defined labels.
+
 Package rerunfilecheck Info: File `Methodology_Summary.out' has not changed.
-(rerunfilecheck)             Checksum: 7D0D3ABE6D36874AF0655A85BC10B4DC;6262.
+(rerunfilecheck)             Checksum: 081A138BB8D2EE3DEDF60C1CD06826A2;6257.
  ) 
 Here is how much of TeX's memory you used:
- 11141 strings out of 475177
- 178981 string characters out of 5763703
- 585053 words of memory out of 5000000
- 33860 multiletter control sequences out of 15000+600000
+ 11151 strings out of 475177
+ 179797 string characters out of 5763703
+ 585257 words of memory out of 5000000
+ 33869 multiletter control sequences out of 15000+600000
  628741 words of font info for 68 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  75i,10n,79p,802b,575s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx12.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmcsc10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmex10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi5.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi7.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr12.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr5.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr7.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmri10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy5.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy7.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtt10.pfb>
-Output written on Methodology_Summary.pdf (17 pages, 839295 bytes).
+Output written on Methodology_Summary.pdf (17 pages, 924229 bytes).
 PDF statistics:
- 481 PDF objects out of 1000 (max. 8388607)
- 411 compressed objects within 5 object streams
- 101 named destinations out of 1000 (max. 500000)
- 362 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 484 PDF objects out of 1000 (max. 8388607)
+ 412 compressed objects within 5 object streams
+ 102 named destinations out of 1000 (max. 500000)
+ 367 words of extra memory for PDF output out of 10000 (max. 10000000)
 

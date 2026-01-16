@@ -82,6 +82,8 @@
 %% Charts.
 \graphicspath{
     {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/}
+    {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/}
+    {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/}
 }
 
 % Required for Table.
@@ -628,17 +630,24 @@ Finally, Figure \ref{fig:calibration} demonstrates the model's calibration. The 
 
 \chapter{Model Assessment}
 
+\section{Model Selection}
+
+\begin{figure}[h]
+    \centering
+    % ADJUST PATH HERE
+    \includegraphics[width=0.85\textwidth]{04_AUC_Test_Overall.png}
+    \caption{Comparison of the Test-AUC of the models with the highest training AUC in each category.}
+    \label{fig:test_auc}
+\end{figure}
+
 \section{Final Model}
 
 
-\section{Model Evaluation}
 
 
 
 
-
-
-%==== Chapter 3: Task Distribution ============================================%
+%==== Chapter 7: Task Distribution ============================================%
 
 \chapter{Task Distribution}
 

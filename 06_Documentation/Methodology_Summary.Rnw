@@ -48,6 +48,8 @@ setwd(Directory)
 %% Charts.
 \graphicspath{
     {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/}
+    {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/}
+    {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/}
 }
 
 % Required for Table.
@@ -192,10 +194,6 @@ Where $x_{input}$ is either the calculated ratio ($\frac{x_{raw}}{\text{Assets}}
 
 \chapter{Modeling Methodology}
 
-\section{Model Selection}
-
-Selection is done by the AuC-ROC measure as per client instructions. \\
-
 \section{Hyperparameter Tuning}
 
 \subsection{Discrete Grid Search}
@@ -203,6 +201,11 @@ Selection is done by the AuC-ROC measure as per client instructions. \\
 \subsection{Random Grid Search}
 
 \subsection{Bayesian Optimization}
+
+\section{Model Selection}
+
+Selection is done by the AuC-ROC measure as per client instructions. \\
+
 
 %==== Chapter 3: Linear Models ================================================%
 
@@ -592,21 +595,28 @@ Finally, Figure \ref{fig:calibration} demonstrates the model's calibration. The 
 
 \section{Neural Networks}
 
-%==== Chapter 6: Data =========================================================%
+%==== Chapter 6: Model Assessment =============================================%
 
 \chapter{Model Assessment}
+
+\section{Model Selection}
+
+\begin{figure}[h]
+    \centering
+    % ADJUST PATH HERE
+    \includegraphics[width=0.85\textwidth]{04_AUC_Test_Overall.png}
+    \caption{Comparison of the Test-AUC of the models with the highest training AUC in each category.}
+    \label{fig:test_auc}
+\end{figure}
 
 \section{Final Model}
 
 
-\section{Model Evaluation}
 
 
 
 
-
-
-%==== Chapter 3: Task Distribution ============================================%
+%==== Chapter 7: Task Distribution ============================================%
 
 \chapter{Task Distribution}
 
