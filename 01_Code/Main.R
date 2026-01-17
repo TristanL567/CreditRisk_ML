@@ -840,8 +840,9 @@ cat("\nParallel backend reset to sequential.\n")
 
 }, error = function(e) message(e))
 
-<<<<<<< Updated upstream
+
 #==== 05B - AdaBoost ==========================================================#
+
 tryCatch({
   
   ##==============================##
@@ -1071,15 +1072,7 @@ tryCatch({
   message(e)
 })
 
-
 #==== 05C - XGBoost ===========================================================#
-
-## To-Do: Fix overall parameters at the beginning of the code.
-## Comparison of hyperparameter tuning methods.
-## Visualisations and Outputs.
-=======
-#==== 05B - XGBoost ===========================================================#
->>>>>>> Stashed changes
 
 tryCatch({
 
