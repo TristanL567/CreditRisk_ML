@@ -1,0 +1,2 @@
+"Model","Tuning_Method","Train_AUC","Test_AUC_Best","Test_AUC_Conservative","N_Features","Hyperparameters"
+"Random Forest (Ranger)","MBO (mlr3)",0.7905579,0.809570273369537,0.809570273369537,21,"mtry=3; min.node.size=48; sample.fraction=0.8679309; splitrule=extratrees; num.trees=393; replace=FALSE"
