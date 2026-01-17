@@ -842,32 +842,59 @@ cat("\nParallel backend reset to sequential.\n")
 
 
 #==== 05B - AdaBoost ==========================================================#
-
 tryCatch({
   
-  ##==============================##
+
+  if (!exists("target")) target <- "y"
+  if (!exists("positive_class")) positive_class <- "1"
+  if (!exists("N_folds")) N_folds <- 5
+  
+
+  if (!exists("cv_folds_list")) {
+    if (exists("Data_Train_CV_List")) {
+      cv_folds_list <- Data_Train_CV_List
+    } else if (exists("Data_Train_CV_stratified_sampling") &&
+               is.list(Data_Train_CV_stratified_sampling) &&
+               "fold_list" %in% names(Data_Train_CV_stratified_sampling)) {
+      cv_folds_list <- Data_Train_CV_stratified_sampling[["fold_list"]]
+    } else {
+      stop("cv_folds_list not found. Run Step 03C (stratified folds) before AdaBoost.")
+    }
+  }
+  
+
+  if (!is.list(cv_folds_list) || length(cv_folds_list) < 2) {
+    stop("cv_folds_list must be a non-empty list of fold indices.")
+  }
+  
+
   ## Data preparation.
-  ##==============================##
+
+  if (!exists("Train_Transformed") || !exists("Test_Transformed")) {
+    stop("Train_Transformed / Test_Transformed not found. Run your preprocessing first.")
+  }
   
-  # Numeric targets for pROC AUC 
-  train_y <- as.numeric(as.character(Train_Transformed$y))
-  test_y  <- as.numeric(as.character(Test_Transformed$y))
-  
-  # Data frames for adabag
   Train_AB <- Train_Transformed
   Test_AB  <- Test_Transformed
   
-  Train_AB$y <- as.factor(Train_AB$y)
-  Test_AB$y  <- as.factor(Test_AB$y)
+  # ensure target exists
+  if (!target %in% names(Train_AB) || !target %in% names(Test_AB)) {
+    stop(paste0("Target column '", target, "' not found in Train/Test."))
+  }
   
-  # Important: use same globals as your CV function expects:
-  # target <- "y"
-  # positive_class <- "1"
+  # enforce factor target + consistent levels
+  Train_AB[[target]] <- as.factor(Train_AB[[target]])
+  Test_AB[[target]]  <- factor(Test_AB[[target]], levels = levels(Train_AB[[target]]))
+  
+  # check positive class exists
+  if (!positive_class %in% levels(Train_AB[[target]])) {
+    stop(paste0("positive_class='", positive_class, "' not in levels(Train_AB[[target]]). Levels are: ",
+                paste(levels(Train_AB[[target]]), collapse = ", ")))
+  }
   
   ##==============================##
-  ## Compute FULL-TRAIN weights
+  ## Compute FULL-TRAIN weights (same logic as AdaBoost_cv_auc)
   ##==============================##
-  # same logic as AdaBoost_cv_auc() :contentReference[oaicite:1]{index=1}
   tab_full <- table(Train_AB[[target]])
   if (length(tab_full) < 2 || !positive_class %in% names(tab_full)) {
     stop("Weights cannot be computed: training data does not contain both classes or positive_class not found.")
@@ -883,7 +910,6 @@ tryCatch({
   ##==============================##
   ## Discrete Grid Search for Hyperparameter Tuning.
   ##==============================##
-  
   grid_ds <- expand.grid(
     mfinal    = c(50, 100, 200),
     maxdepth  = c(1, 2, 3),
@@ -987,7 +1013,7 @@ tryCatch({
   print(head(results_bayes, 5))
   
   ##==============================##
-  ## Compare tuning methods 
+  ## Compare tuning methods
   ##==============================##
   common_cols <- c("Method","Iteration","mfinal","maxdepth","minsplit","minbucket","AUC")
   
@@ -1026,36 +1052,60 @@ tryCatch({
   
   model_final <- adabag::boosting(
     y ~ .,
-    data = Train_AB,
-    mfinal = final_params$mfinal,
+    data    = Train_AB,
+    mfinal  = final_params$mfinal,
+    boos    = TRUE,
     control = ctrl_final,
-    weights = w_full   # <-- aligned with CV spec in ADABoost_auc
+    weights = w_full
   )
   
   ##==============================##
-  ## Train AUC
+  ## Helper to safely extract positive-class probs
+  ##==============================##
+  get_pos_prob <- function(pred_obj, pos_class) {
+    if (!is.list(pred_obj) || is.null(pred_obj$prob)) return(NULL)
+    prob_mat <- pred_obj$prob
+    if (pos_class %in% colnames(prob_mat)) return(prob_mat[, pos_class])
+    # fallback: try matching by level order
+    return(prob_mat[, which(colnames(prob_mat) == pos_class)[1]])
+  }
+  
+  ##==============================##
+  ## Train AUC (factor-based, consistent with CV)
   ##==============================##
   pred_train <- predict(model_final, newdata = Train_AB)
-  prob_train <- pred_train$prob[, positive_class]  # no hardcoding "1"
-  roc_train  <- pROC::roc(train_y, prob_train, quiet = TRUE)
-  auc_train  <- pROC::auc(roc_train)
+  prob_train <- get_pos_prob(pred_train, positive_class)
+  if (is.null(prob_train)) stop("Could not extract train probabilities from adabag::predict().")
   
-  message(paste("Final Train AUC (AdaBoost):", round(as.numeric(auc_train), 5)))
+  roc_train <- pROC::roc(
+    response  = Train_AB[[target]],
+    predictor = prob_train,
+    levels    = levels(Train_AB[[target]]),
+    direction = "<",
+    quiet     = TRUE
+  )
+  auc_train <- as.numeric(pROC::auc(roc_train))
+  message(paste("Final Train AUC (AdaBoost):", round(auc_train, 5)))
   
   ##==============================##
-  ## Test AUC 
+  ## Test AUC (factor-based)
   ##==============================##
   pred_test <- predict(model_final, newdata = Test_AB)
-  prob_test <- pred_test$prob[, positive_class]
-  roc_test  <- pROC::roc(test_y, prob_test, quiet = TRUE)
-  auc_test  <- pROC::auc(roc_test)
+  prob_test <- get_pos_prob(pred_test, positive_class)
+  if (is.null(prob_test)) stop("Could not extract test probabilities from adabag::predict().")
   
-  message(paste("Final Test AUC (AdaBoost):", round(as.numeric(auc_test), 5)))
+  roc_test <- pROC::roc(
+    response  = Test_AB[[target]],
+    predictor = prob_test,
+    levels    = levels(Train_AB[[target]]),
+    direction = "<",
+    quiet     = TRUE
+  )
+  auc_test <- as.numeric(pROC::auc(roc_test))
+  message(paste("Final Test AUC (AdaBoost):", round(auc_test, 5)))
+
+  ## Method summary table
   
-  ##==============================##
-  ## Method summary table 
-  ##==============================##
-  # For AdaBoost, "best per method" is based on CV AUC
   best_by_method <- all_search_results %>%
     dplyr::group_by(Method) %>%
     dplyr::slice_max(order_by = AUC, n = 1, with_ties = FALSE) %>%
@@ -1068,8 +1118,8 @@ tryCatch({
   print(AdaBoost_method_performance)
   
 }, error = function(e) {
-  message("AdaBoost aligned block failed with error:")
-  message(e)
+  message("AdaBoost block failed with error:")
+  message(e$message)
 })
 
 #==== 05C - XGBoost ===========================================================#
