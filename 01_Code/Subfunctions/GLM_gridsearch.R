@@ -24,7 +24,7 @@ GLM_gridsearch <- function(alpha, current_iter, total_iters,
                          type = "response")
   
   train_roc <- roc(train_y, as.vector(train_probs), quiet = TRUE)
-  train_auc_val <- auc(train_roc)
+  train_auc_val <- pROC::auc(train_roc)
   
   tibble(
     alpha = alpha,

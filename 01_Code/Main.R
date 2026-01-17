@@ -2,6 +2,16 @@
 #==== 00 - Description ========================================================#
 #==============================================================================#
 
+## To-Do: 
+##     Outputs for each model:
+##     Train-AUC for all hyperparameter-tuning methods.
+##     Final model: Test-AUC (and 1-SE rule). Hyperparameters used. Time for the code.
+##     No. of iterations. Charts.
+
+##     Model selection:
+##     Comparison of each model by Test-AUC. Time-complexity of each model.
+##     
+
 #==============================================================================#
 #==== 1 - Working Directory & Libraries =======================================#
 #==============================================================================#
@@ -61,6 +71,7 @@ sourceFunctions <- function (functionDirectory)  {
 ## Directories.
 Data_Path <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/Data/WS2025" ## Needs to be set manually.
 Data_Directory <- file.path(Data_Path, "data.rda")
+Data_Directory_write <- file.path(Path, "02_Data")
 Charts_Directory <- file.path(Path, "03_Charts")
 
 ## Charts Directories.
@@ -209,6 +220,35 @@ summary(Train_Transformed$f1)
 
 #==== 03C - Stratified Folds (for CV) =========================================#
 
+## Ensure categorical variables are set up as factors.
+cat_cols <- names(Train_Transformed)[sapply(Train_Transformed, is.character)]
+cat_cols <- setdiff(cat_cols, "y")
+
+print(paste("Categorical columns found:", paste(cat_cols, collapse = ", ")))
+
+for (col in cat_cols) {
+  
+  Train_Transformed[[col]] <- as.factor(Train_Transformed[[col]])
+  
+  train_levels <- levels(Train_Transformed[[col]])
+  Test_Transformed[[col]] <- factor(Test_Transformed[[col]], 
+                                    levels = train_levels)
+  
+  na_count <- sum(is.na(Test_Transformed[[col]]))
+  if(na_count > 0){
+    warning(paste("Variable", col, "in Test set has", na_count, 
+                  "new levels not seen in Train. They are now NAs."))
+  }
+}
+
+Train_Transformed$y <- as.factor(Train_Transformed$y)
+Test_Transformed$y  <- factor(Test_Transformed$y, levels = levels(Train_Transformed$y))
+
+str(Train_Transformed[, cat_cols, drop=FALSE])
+
+
+
+## Add the firm id and sector back.
 Strat_Data <- Train_Transformed %>%
   mutate(
     id = Train_with_id$id,
@@ -226,10 +266,12 @@ length(Data_Train_CV_Vector)
 #==== 04 - GLMs ===============================================================#
 #==============================================================================#
 
-#==== 04A - GLMs ==============================================================#
+#==== 04A - Regularized GLMs ==================================================#
 
 tryCatch({
   
+  time_GLM <- system.time({
+    
 ##==============================##
 ## General Parameters.
 ##==============================##
@@ -251,6 +293,8 @@ test_matrix <- sparse.model.matrix(sparse_formula, data = Test_Transformed)
 ## Discrete grid search (hyperparameter tuning of alpha and lambda).
 ##==============================##
 
+time_GLM_ds <- system.time({
+  
 ## Prepare the grid.
 grid_ds_glm <- tibble(
   alpha = seq(0, 1, by = 0.1) # 0 = Ridge, 1 = Lasso
@@ -266,10 +310,14 @@ results_ds_glm <- pmap_dfr(grid_ds_glm, GLM_gridsearch) %>%
 print("--- Top 5 Discrete GLM Models ---")
 print(head(results_ds_glm, 5))
 
+})
+
 ##==============================##
 ## Random grid search (hyperparameter tuning of alpha and lambda).
 ##==============================##
 
+time_GLM_rs <- system.time({
+  
 n_iter_rs <- 20
 
 ## Prepare the grid.
@@ -290,10 +338,14 @@ results_rs_glm <- pmap_dfr(grid_rs_glm, GLM_gridsearch) %>%
 print("--- Top 5 Random GLM Models ---")
 print(head(results_rs_glm, 5))
 
+})
+
 ##==============================##
 ## Bayesian Optimization (hyperparameter tuning of alpha and lambda).
 ##==============================##
 
+time_GLM_bo <- system.time({
+  
 ## Prepare the grid.
 bounds_glm <- list(
   alpha = c(0, 1)
@@ -303,6 +355,7 @@ bounds_glm <- list(
 n_init_glm <- 5
 n_iter_glm <- 15
 current_bayes_iter <- 0
+total_bayes_runs <- n_init_glm + n_iter_glm # Define this before running BO
 
 print("Starting Bayesian Optimization for GLM...")
 
@@ -333,6 +386,8 @@ results_bayes_glm <- bayes_out_glm$History %>%
 
 print("--- Top 5 Bayesian GLM Models ---")
 print(head(results_bayes_glm, 5))
+
+}) 
 
 ##==============================##
 ## Performance of the model with the highest training AUC in the test set.
@@ -375,7 +430,7 @@ probs_champion <- predict(final_cv_glm,
                           type = "response")
 
 roc_champion <- roc(test_y, as.vector(probs_champion), quiet = TRUE)
-auc_champion <- auc(roc_champion)
+auc_champion <- pROC::auc(roc_champion)
 
 ## Compute Test AUC: 1-SE Rule (lambda.1se)
 probs_1se <- predict(final_cv_glm, 
@@ -385,7 +440,7 @@ probs_1se <- predict(final_cv_glm,
 colnames(probs_1se) <- "prob"
 
 roc_1se <- roc(test_y, as.vector(probs_1se), quiet = TRUE)
-auc_1se <- auc(roc_1se)
+auc_1se <- pROC::auc(roc_1se)
 
 message("------------------------------------------------")
 message(sprintf("Final GLM Test AUC (Champion/Min):  %.5f", auc_champion))
@@ -568,7 +623,24 @@ ggsave(
 )
 
 
-
+}) ## End of the time counter.
+  
+#### Compare the time.
+  
+timing_comparison_GLM <- tibble(
+    Method = c("Grid Search", "Random Search", "Bayesian Optimization", "GLM Code"),
+    Time_Seconds = c(time_GLM_ds["elapsed"], time_GLM_rs["elapsed"], 
+                     time_GLM_bo["elapsed"], time_GLM["elapsed"])
+  ) %>%
+    mutate(
+      Time_Minutes = Time_Seconds / 60,
+      Iterations = c(nrow(grid_ds_glm), 
+                     nrow(grid_rs_glm), 
+                     nrow(bayes_out_glm$History),
+                     NA)
+    ) %>%
+    arrange(Time_Seconds)
+  
 }, error = function(e) message(e))
 
 #==============================================================================#
@@ -579,6 +651,8 @@ ggsave(
 
 tryCatch({
   
+time_RF <- system.time({
+    
 ##==============================##
 ## General Parameters.
 ##==============================##
@@ -587,7 +661,7 @@ temp_name <- "mtry_rounds_NOPIT"
   
 HPO_CONFIG <- list(
     learner_name = "ranger",  # Changed from xgboost to ranger
-    n_evals = 500L,
+    n_evals = 30L,
     stagnation_iters = 50L,
     stagnation_threshold = 0.001,
     n_folds = 5L,
@@ -694,18 +768,18 @@ print(hpo_results$best_params)
 # PLOT
 # ============================================================================
 
-p1 <- plot_optimization_history(hpo_results)
-print(p1)
-Path <- file.path(Charts_RF_Directory, paste0("01_RF_mbo_optimization_history_", temp_name, ".png"))
-ggsave(
-  filename = Path,
-  plot = p1,
-  width = width,
-  height = heigth,
-  units = "px",
-  dpi = 300,
-  limitsize = FALSE
-)
+# p1 <- plot_optimization_history(hpo_results)
+# print(p1)
+# Path <- file.path(Charts_RF_Directory, paste0("01_RF_mbo_optimization_history_", temp_name, ".png"))
+# ggsave(
+#   filename = Path,
+#   plot = p1,
+#   width = width,
+#   height = heigth,
+#   units = "px",
+#   dpi = 300,
+#   limitsize = FALSE
+# )
 
 # ggsave(paste0("mbo_optimization_history_", temp_name, ".png"), p1, width = 10, height = 6, dpi = 150) ####naming
 
@@ -762,8 +836,11 @@ cat("\nParallel backend reset to sequential.\n")
 # saveRDS(final_model_object, model_filename)
 # cat("\nFinal model saved to:", model_filename, "\n")
 
+}) ## time counter.
+
 }, error = function(e) message(e))
 
+<<<<<<< Updated upstream
 #==== 05B - AdaBoost ==========================================================#
 tryCatch({
   
@@ -1000,9 +1077,14 @@ tryCatch({
 ## To-Do: Fix overall parameters at the beginning of the code.
 ## Comparison of hyperparameter tuning methods.
 ## Visualisations and Outputs.
+=======
+#==== 05B - XGBoost ===========================================================#
+>>>>>>> Stashed changes
 
 tryCatch({
 
+  time_XGBoost <- system.time({
+    
 ##==============================##
 ## General Parameters.
 ##==============================##
@@ -1011,6 +1093,7 @@ tryCatch({
 ## Data preparation.
 ##==============================##
 sparse_formula <- as.formula("y ~ . - 1")
+length(unlist(Data_Train_CV_List))
 
 # Training Data
 train_y <- as.numeric(as.character(Train_Transformed$y))
@@ -1026,6 +1109,8 @@ dtest <- xgb.DMatrix(data = test_matrix, label = test_y)
 ## Discrete Grid Search for Hyperparameter Tuning.
 ##==============================##
 
+time_XGBoost_ds <- system.time({
+  
 ## Prepare the grid.
 grid_ds <- expand.grid(
   eta = c(0.01, 0.05, 0.1),
@@ -1095,13 +1180,17 @@ model_ds <- xgb.train(params = final_params_ds,
 ## Compute the training AUC.
 XGBoost_ds_probs <- predict(model_ds, dtrain)
 XGBoost_ds_Train_ROC <- roc(train_y, XGBoost_ds_probs, quiet = TRUE)
-XGBoost_ds_Train_AUC <- auc(XGBoost_ds_Train_ROC)
+XGBoost_ds_Train_AUC <- pROC::auc(XGBoost_ds_Train_ROC)
 print(paste("Final Train AUC:", round(XGBoost_ds_Train_AUC, 5)))
+
+}) ## time counter.
 
 ##==============================##
 ## Random Grid Search for Hyperparameter Tuning.
 ##==============================##
 
+time_XGBoost_rs <- system.time({
+  
 ## Prepare the grid.
 n_iter <- 20
 
@@ -1168,13 +1257,17 @@ model_rs <- xgb.train(params = final_params_rs,
 ## Compute the training AUC.
 XGBoost_rs_probs <- predict(model_rs, dtrain)
 XGBoost_rs_Train_ROC <- roc(train_y, XGBoost_rs_probs, quiet = TRUE)
-XGBoost_rs_Train_AUC <- auc(XGBoost_rs_Train_ROC)
+XGBoost_rs_Train_AUC <- pROC::auc(XGBoost_rs_Train_ROC)
 print(paste("Final Train AUC:", round(XGBoost_rs_Train_AUC, 5)))
+
+}) ## time counter.
 
 ##==============================##
 ## Bayesian Optimization for Hyperparameter Tuning.
 ##==============================##
 
+time_XGBoost_bo <- system.time({
+  
 ## Prepare the parameters.
 n_init_points <- 10
 n_iter_bayes  <- 20
@@ -1263,8 +1356,10 @@ model_bayes <- xgb.train(
 ## Compute the training AUC.
 XGBoost_bayes_probs <- predict(model_bayes, dtrain)
 XGBoost_bayes_Train_ROC <- roc(train_y, XGBoost_bayes_probs, quiet = TRUE)
-XGBoost_bayes_Train_AUC <- auc(XGBoost_bayes_Train_ROC)
+XGBoost_bayes_Train_AUC <- pROC::auc(XGBoost_bayes_Train_ROC)
 print(paste("Final Bayesian Train AUC:", round(XGBoost_bayes_Train_AUC, 5)))
+
+}) ## time counter.
 
 ##==============================##
 ## Performance of the model with the highest training AUC in the test set.
@@ -1317,13 +1412,13 @@ XGBoost_finalmodel <- xgb.train(
 ## Full:
 XGBoost_test_probs <- predict(XGBoost_finalmodel, dtest)
 XGBoost_test_ROC <- roc(test_y, XGBoost_test_probs, quiet = TRUE)
-XGBoost_test_AUC <- auc(XGBoost_test_ROC)
+XGBoost_test_AUC <- pROC::auc(XGBoost_test_ROC)
 print(paste("Final Test Set AUC:", round(XGBoost_test_AUC, 5)))
 
 ## 1-SE:
 XGBoost_test_probs_1SE <- predict(XGBoost_finalmodel_1SE, dtest)
 XGBoost_test_ROC_1SE   <- roc(test_y, XGBoost_test_probs_1SE, quiet = TRUE)
-XGBoost_test_AUC_1SE   <- auc(XGBoost_test_ROC_1SE)
+XGBoost_test_AUC_1SE   <- pROC::auc(XGBoost_test_ROC_1SE)
 print(paste("Final Test AUC (1-SE Rule):", round(XGBoost_test_AUC_1SE, 5)))
 
 ##==============================##
@@ -1593,6 +1688,30 @@ ggsave(
   limitsize = FALSE
 )
 
+})
+  
+### Time-Counter.
+  #### Compare the time.
+  
+timing_comparison_XGBoost <- tibble(
+    Method = c("Grid Search", "Random Search", "Bayesian Optimization", "XGBoost Code"),
+    Time_Seconds = c(
+      time_XGBoost_ds["elapsed"], 
+      time_XGBoost_rs["elapsed"], 
+      time_XGBoost_bo["elapsed"], 
+      time_XGBoost["elapsed"] 
+    )
+  ) %>%
+    mutate(
+      Time_Minutes = Time_Seconds / 60,
+      Iterations = c(
+        nrow(grid_ds),  
+        nrow(grid_rs),  
+        nrow(results_bayes), 
+        NA
+      )
+    ) %>%
+    arrange(Time_Seconds)
 
 }, error = function(e) message(e))
 
@@ -1602,7 +1721,103 @@ ggsave(
 
 
 #==============================================================================#
-#==== 07 - Model selection ====================================================#
+#==== 07 - Overview of the data ===============================================#
+#==============================================================================#
+
+# Helper function to format hyperparameter lists into strings
+format_params <- function(params_list) {
+  if (is.null(params_list)) return("NA")
+  simple_params <- params_list[sapply(params_list, function(x) length(x) == 1)]
+  paste(names(simple_params), simple_params, sep = "=", collapse = "; ")
+}
+
+##==============================##
+## Extract GLM-Results.
+##==============================##
+
+# We use the 1-SE rule as the "Conservative" metric for GLM
+glm_row <- tibble(
+  Model = "Regularized GLM",
+  Tuning_Method = champion_row$Method,
+  # Performance
+  Train_AUC = champion_row$Train_AUC,
+  Test_AUC_Best = auc_champion,        
+  Test_AUC_Conservative = auc_1se,     
+  # Complexity & Efficiency
+  N_Features = n_vars_1se,            
+  Time_Minutes = as.numeric(time_GLM["elapsed"]) / 60,
+  # Config
+  Hyperparameters = paste0("Alpha=", round(best_alpha, 2))
+)
+write.csv(glm_row, file = file.path(Data_Directory_write, "GLM_Details.csv"), row.names = FALSE)
+
+##==============================##
+## Extract RF-Results.
+##==============================##
+
+rf_row <- tibble(
+  Model = "Random Forest (Ranger)",
+  Tuning_Method = "MBO (mlr3)",
+  # Performance
+  Train_AUC = hpo_results$best_cv_auc, 
+  Test_AUC_Best = eval_results$auc,    
+  Test_AUC_Conservative = eval_results$auc, 
+  # Complexity & Efficiency
+  N_Features = n_features,             
+  # Time_Minutes = as.numeric(time_RF["elapsed"]) / 60,
+  # Config
+  Hyperparameters = format_params(hpo_results$best_params)
+)
+write.csv(rf_row, file = file.path(Data_Directory_write, "RF_Details.csv"), row.names = FALSE)
+
+##==============================##
+## Extract XGBoost-Results.
+##==============================##
+
+xgb_row <- tibble(
+  Model = "XGBoost",
+  Tuning_Method = "Bayesian Opt",
+  # Performance
+  Train_AUC = XGBoost_bayes_Train_AUC,  
+  Test_AUC_Best = XGBoost_test_AUC,       
+  Test_AUC_Conservative = XGBoost_test_AUC_1SE, 
+  # Complexity & Efficiency
+  # We calculate features from the matrix columns to be safe
+  N_Features = ncol(train_matrix), 
+  # We use the total time wrapper 'time_XGBoost' to be consistent with GLM/RF
+  Time_Minutes = as.numeric(time_XGBoost["elapsed"]) / 60,
+  # Config
+  Hyperparameters = paste(format_params(final_params_bayes), 
+                          "Rounds_1SE=", optimal_rounds_1se, sep="; ")
+)
+
+write.csv(xgb_row, file = file.path(Data_Directory_write, "XGBoost_Details.csv"), row.names = FALSE)
+
+
+##==============================##
+## Overall test-results ("Leaderboard").
+##==============================##
+
+Leaderboard <- bind_rows(glm_row, rf_row, xgb_row) %>%
+  mutate(
+    # The "Overfitting Gap": Positive means overfitting. 
+    # Small gap (e.g., < 0.02) is excellent. Large gap (> 0.05) is dangerous.
+    Overfitting_Gap = Train_AUC - Test_AUC_Best,
+    # "Safety Cost": How much AUC do we lose by being conservative?
+    Safety_Cost = Test_AUC_Best - Test_AUC_Conservative
+  ) %>%
+  select(Model, Test_AUC_Conservative, Test_AUC_Best, Overfitting_Gap, 
+         Train_AUC, Time_Minutes, Hyperparameters) %>%
+  arrange(desc(Test_AUC_Conservative))
+
+# Display the Final Result
+print("--- MODEL CHAMPIONSHIP LEADERBOARD ---")
+print(Leaderboard)
+
+write.csv(Leaderboard, file = file.path(Data_Directory_write, "Model_Data_TestSet.csv"), row.names = FALSE)
+
+#==============================================================================#
+#==== 08 - Model selection ====================================================#
 #==============================================================================#
 
 ## Model performance in the test set.

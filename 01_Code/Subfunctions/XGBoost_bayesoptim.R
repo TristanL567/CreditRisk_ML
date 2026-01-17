@@ -23,7 +23,7 @@ XGBoost_bayesoptim <- function(eta, max_depth, subsample, colsample_bytree) {
       params = params,
       data = dtrain,
       nrounds = 2000, 
-      folds = cv_folds_list,
+      folds = Data_Train_CV_List,
       # nfold = 5,
       early_stopping_rounds = 50,
       verbose = 0,

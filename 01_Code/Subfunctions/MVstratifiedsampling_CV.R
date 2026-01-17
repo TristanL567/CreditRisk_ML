@@ -24,7 +24,7 @@ MVstratifiedsampling_CV <- function(data,
   
   folds_list_indices <- lapply(firm_fold_indices, function(indices) {
     test_firm_ids <- firm_profile$id[indices]
-    which(Data$id %in% test_firm_ids)
+    which(data$id %in% test_firm_ids)
   })
   
   firm_fold_map <- data.frame(
