@@ -2113,97 +2113,101 @@ timing_comparison_XGBoost <- tibble(
 #==== 07 - Overview of the data ===============================================#
 #==============================================================================#
 
+tryCatch({
+
 # Helper function to format hyperparameter lists into strings
-format_params <- function(params_list) {
-  if (is.null(params_list)) return("NA")
-  simple_params <- params_list[sapply(params_list, function(x) length(x) == 1)]
-  paste(names(simple_params), simple_params, sep = "=", collapse = "; ")
-}
+# format_params <- function(params_list) {
+#   if (is.null(params_list)) return("NA")
+#   simple_params <- params_list[sapply(params_list, function(x) length(x) == 1)]
+#   paste(names(simple_params), simple_params, sep = "=", collapse = "; ")
+# }
 
 ##==============================##
 ## Extract GLM-Results.
 ##==============================##
 
 # We use the 1-SE rule as the "Conservative" metric for GLM
-glm_row <- tibble(
-  Model = "Regularized GLM",
-  Tuning_Method = champion_row$Method,
-  # Performance
-  Train_AUC = champion_row$Train_AUC,
-  Test_AUC_Best = auc_champion,        
-  Test_AUC_Conservative = auc_1se,     
-  # Complexity & Efficiency
-  N_Features = n_vars_1se,            
-  # Time_Minutes = as.numeric(time_GLM["elapsed"]) / 60,
-  # Config
-  Hyperparameters = paste0("Alpha=", round(best_alpha, 2))
-)
-write.csv(glm_row, file = file.path(Data_Directory_write, "GLM_Details.csv"), row.names = FALSE)
+# glm_row <- tibble(
+#   Model = "Regularized GLM",
+#   Tuning_Method = champion_row$Method,
+#   # Performance
+#   Train_AUC = champion_row$Train_AUC,
+#   Test_AUC_Best = auc_champion,        
+#   Test_AUC_Conservative = auc_1se,     
+#   # Complexity & Efficiency
+#   N_Features = n_vars_1se,            
+#   # Time_Minutes = as.numeric(time_GLM["elapsed"]) / 60,
+#   # Config
+#   Hyperparameters = paste0("Alpha=", round(best_alpha, 2))
+# )
+# write.csv(glm_row, file = file.path(Data_Directory_write, "GLM_Details.csv"), row.names = FALSE)
 
 ##==============================##
 ## Extract RF-Results.
 ##==============================##
 
-rf_row <- tibble(
-  Model = "Random Forest (Ranger)",
-  Tuning_Method = "MBO (mlr3)",
-  # Performance
-  Train_AUC = hpo_results$best_cv_auc, 
-  Test_AUC_Best = eval_results$auc,    
-  Test_AUC_Conservative = eval_results$auc, 
-  # Complexity & Efficiency
-  N_Features = n_features,             
-  # Time_Minutes = as.numeric(time_RF["elapsed"]) / 60,
-  # Config
-  Hyperparameters = format_params(hpo_results$best_params)
-)
-write.csv(rf_row, file = file.path(Data_Directory_write, "RF_Details.csv"), row.names = FALSE)
+# rf_row <- tibble(
+#   Model = "Random Forest (Ranger)",
+#   Tuning_Method = "MBO (mlr3)",
+#   # Performance
+#   Train_AUC = hpo_results$best_cv_auc, 
+#   Test_AUC_Best = eval_results$auc,    
+#   Test_AUC_Conservative = eval_results$auc, 
+#   # Complexity & Efficiency
+#   N_Features = n_features,             
+#   # Time_Minutes = as.numeric(time_RF["elapsed"]) / 60,
+#   # Config
+#   Hyperparameters = format_params(hpo_results$best_params)
+# )
+# write.csv(rf_row, file = file.path(Data_Directory_write, "RF_Details.csv"), row.names = FALSE)
 
 ##==============================##
 ## Extract XGBoost-Results.
 ##==============================##
 
-xgb_row <- tibble(
-  Model = "XGBoost",
-  Tuning_Method = "Bayesian Opt",
-  # Performance
-  Train_AUC = results_bayes[1,]$AUC,  
-  Test_AUC_Best = XGBoost_test_AUC,       
-  Test_AUC_Conservative = XGBoost_test_AUC_1SE, 
-  # Complexity & Efficiency
-  # We calculate features from the matrix columns to be safe
-  N_Features = ncol(train_matrix), 
-  # We use the total time wrapper 'time_XGBoost' to be consistent with GLM/RF
-  Time_Minutes = as.numeric(time_XGBoost["elapsed"]) / 60,
-  # Config
-  Hyperparameters = paste(format_params(final_params_bayes), 
-                          "Rounds_1SE=", optimal_rounds_1se, sep="; ")
-)
-
-write.csv(xgb_row, file = file.path(Data_Directory_write, "XGBoost_Details.csv"), row.names = FALSE)
+# xgb_row <- tibble(
+#   Model = "XGBoost",
+#   Tuning_Method = "Bayesian Opt",
+#   # Performance
+#   Train_AUC = results_bayes[1,]$AUC,  
+#   Test_AUC_Best = XGBoost_test_AUC,       
+#   Test_AUC_Conservative = XGBoost_test_AUC_1SE, 
+#   # Complexity & Efficiency
+#   # We calculate features from the matrix columns to be safe
+#   N_Features = ncol(train_matrix), 
+#   # We use the total time wrapper 'time_XGBoost' to be consistent with GLM/RF
+#   Time_Minutes = as.numeric(time_XGBoost["elapsed"]) / 60,
+#   # Config
+#   Hyperparameters = paste(format_params(final_params_bayes), 
+#                           "Rounds_1SE=", optimal_rounds_1se, sep="; ")
+# )
+# 
+# write.csv(xgb_row, file = file.path(Data_Directory_write, "XGBoost_Details.csv"), row.names = FALSE)
 
 
 ##==============================##
 ## Overall test-results ("Leaderboard").
 ##==============================##
 
-Leaderboard <- bind_rows(glm_row, rf_row, xgb_row) %>%
-  mutate(
-    # The "Overfitting Gap": Positive means overfitting. 
-    # Small gap (e.g., < 0.02) is excellent. Large gap (> 0.05) is dangerous.
-    Overfitting_Gap = Train_AUC - Test_AUC_Best,
-    # "Safety Cost": How much AUC do we lose by being conservative?
-    Safety_Cost = Test_AUC_Best - Test_AUC_Conservative
-  ) %>%
-  select(Model, Test_AUC_Conservative, Test_AUC_Best, Overfitting_Gap, 
-         Train_AUC, Time_Minutes, Hyperparameters) %>%
-  arrange(desc(Test_AUC_Conservative))
+# Leaderboard <- bind_rows(glm_row, rf_row, xgb_row) %>%
+#   mutate(
+#     # The "Overfitting Gap": Positive means overfitting. 
+#     # Small gap (e.g., < 0.02) is excellent. Large gap (> 0.05) is dangerous.
+#     Overfitting_Gap = Train_AUC - Test_AUC_Best,
+#     # "Safety Cost": How much AUC do we lose by being conservative?
+#     Safety_Cost = Test_AUC_Best - Test_AUC_Conservative
+#   ) %>%
+#   select(Model, Test_AUC_Conservative, Test_AUC_Best, Overfitting_Gap, 
+#          Train_AUC, Time_Minutes, Hyperparameters) %>%
+#   arrange(desc(Test_AUC_Conservative))
+# 
+# # Display the Final Result
+# print("--- MODEL CHAMPIONSHIP LEADERBOARD ---")
+# print(Leaderboard)
+# 
+# write.csv(Leaderboard, file = file.path(Data_Directory_write, "Model_Data_TestSet.csv"), row.names = FALSE)
 
-# Display the Final Result
-print("--- MODEL CHAMPIONSHIP LEADERBOARD ---")
-print(Leaderboard)
-
-write.csv(Leaderboard, file = file.path(Data_Directory_write, "Model_Data_TestSet.csv"), row.names = FALSE)
+}, error = function(e) message(e))
 
 #==============================================================================#
 #==== 08 - Model selection ====================================================#
