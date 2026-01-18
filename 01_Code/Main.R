@@ -471,6 +471,11 @@ glm_performance_test <- tibble(
 print("--- GLM Test-set AUC ---")
 print(glm_performance_test)
 
+## Brier Score of the full model.
+actuals_num <- as.numeric(as.character(test_y))
+GLM_BrierScore <- BrierScore(probs_champion, actuals_num)
+GLM_BrierScore_1SE <- BrierScore(probs_1se, actuals_num)
+
 ##==============================##
 ## Compare the hyperparameter tuning methods. Visualisations.
 ##==============================##
@@ -827,6 +832,8 @@ cat("\nTest Metrics:\n")
 cat("  AUC:", round(eval_results$auc, 4), "\n")
 cat("  Accuracy:", round(eval_results$acc, 4), "\n")
 cat("  Brier Score:", round(eval_results$brier, 4), "\n")
+
+RF_BrierScore <- eval_results$brier
   
 ##==============================##
 ## Visualisation.
@@ -1164,6 +1171,7 @@ ggsave(filename = Path,
 }, error = function(e) message(e))
 
 #==== 05B - AdaBoost ==========================================================#
+
 tryCatch({
   
 
@@ -1783,6 +1791,11 @@ XGBoost_test_ROC_1SE   <- roc(test_y, XGBoost_test_probs_1SE, quiet = TRUE)
 XGBoost_test_AUC_1SE   <- pROC::auc(XGBoost_test_ROC_1SE)
 print(paste("Final Test AUC (1-SE Rule):", round(XGBoost_test_AUC_1SE, 5)))
 
+## Brier Score of the full model.
+actuals_num <- as.numeric(as.character(test_y))
+XGBoost_BrierScore <- BrierScore(XGBoost_test_probs, actuals_num)
+XGBoost_BrierScore_1SE <- BrierScore(XGBoost_test_probs_1SE, actuals_num)
+
 ##==============================##
 ## Compare the hyperparameter tuning methods. Visualisations.
 ##==============================##
@@ -2206,7 +2219,8 @@ tryCatch({
 
 final_test_AUC <- tibble(
   Model = c("Regularized GLM (1-SE)", "Random Forest", "XGBoost"),
-  Test_AUC = c(auc_1se, RF_method_performance$AUC_Score[2], XGBoost_test_AUC)
+  Test_AUC = c(auc_1se, RF_method_performance$AUC_Score[2], XGBoost_test_AUC),
+  Brier_Score = c(GLM_BrierScore_1SE, RF_BrierScore, XGBoost_BrierScore)
   )
 
 ##==============================##
