@@ -2222,9 +2222,9 @@ tryCatch({
 ##==============================##
 
 final_test_AUC <- tibble(
-  Model = c("Regularized GLM (1-SE)", "Random Forest", "XGBoost"),
-  Test_AUC = c(auc_1se, RF_method_performance$AUC_Score[2], XGBoost_test_AUC),
-  Brier_Score = c(GLM_BrierScore_1SE, RF_BrierScore, XGBoost_BrierScore)
+  Model = c("Regularized GLM (1-SE)", "Random Forest", "XGBoost", "Neural Network"),
+  Test_AUC = c(auc_1se, RF_method_performance$AUC_Score[2], XGBoost_test_AUC, 0.802),
+  Brier_Score = c(GLM_BrierScore_1SE, RF_BrierScore, XGBoost_BrierScore, 0.00834)
   )
 
 ##==============================##
@@ -2236,7 +2236,8 @@ final_test_AUC <- tibble(
 comparison_colors <- c(
   "Regularized GLM (1-SE)"     =  blue, 
   "Random Forest" =  orange,
-  "XGBoost" = red
+  "XGBoost" = red,
+  "Neural Network" = grey
 )
 
 Plot_Overall_Test_AUC <- ggplot(final_test_AUC, 
