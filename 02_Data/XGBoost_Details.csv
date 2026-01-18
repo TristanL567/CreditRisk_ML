@@ -1,0 +1,2 @@
+"Model","Tuning_Method","Train_AUC","Test_AUC_Best","Test_AUC_Conservative","N_Features","Time_Minutes","Hyperparameters"
+"XGBoost","Bayesian Opt",0.892141134425628,0.823835576264038,0.809654839106518,21,84.3605,"booster=gbtree; objective=binary:logistic; eval_metric=auc; eta=0.0297896959283389; max_depth=5; subsample=0.922683706739917; colsample_bytree=0.777210938045755; Rounds_1SE=; 62"

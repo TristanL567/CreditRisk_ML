@@ -73,6 +73,7 @@ Data_Path <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/Data/WS2025" ## Needs
 Data_Directory <- file.path(Data_Path, "data.rda")
 Data_Directory_write <- file.path(Path, "02_Data")
 Charts_Directory <- file.path(Path, "03_Charts")
+Data_RF <- Path
 
 ## Charts Directories.
 Charts_GLM_Directory <- file.path(Charts_Directory, "GLM")
@@ -393,6 +394,12 @@ print(head(results_bayes_glm, 5))
 ## Performance of the model with the highest training AUC in the test set.
 ##==============================##
 
+## Train results.
+print(head(results_ds_glm, 5))
+print(head(results_rs_glm, 5))
+print(head(results_bayes_glm, 5))
+
+
 ## Data summary and consolidation.
 best_ds <- results_ds_glm[1, ] %>% mutate(Method = "Grid Search")
 best_rs <- results_rs_glm[1, ] %>% mutate(Method = "Random Search")
@@ -455,10 +462,12 @@ message(sprintf("Variables Selected (1-SE Rule):     %d", n_vars_1se))
 
 ## Regularized GLM performance in the Test-set.
 
+best_cv_bayes_glm <- max(results_bayes_glm$CV_AUC)
 glm_performance_test <- tibble(
-  Method = c("Regularized GLM", "Regularized GLM (1-SE)"),
-  Test_AUC = c(auc_champion, auc_1se)
+  Method    = c("Test Set", "Test Set (1-SE)", "Training Set"),
+  Test_AUC = c(auc_champion, auc_1se, best_cv_bayes_glm)
 )
+
 print("--- GLM Test-set AUC ---")
 print(glm_performance_test)
 
@@ -466,17 +475,40 @@ print(glm_performance_test)
 ## Compare the hyperparameter tuning methods. Visualisations.
 ##==============================##
 
+# Extract the best Cross-Validation AUC from each GLM results table
+best_cv_glm_ds    <- max(results_ds_glm$CV_AUC)    
+best_cv_glm_rs    <- max(results_rs_glm$CV_AUC)   
+best_cv_glm_bayes <- max(results_bayes_glm$CV_AUC)
+
+# Create the plotting dataframe
+glm_cv_performance <- data.frame(
+  Method = c("Grid Search", "Random Search", "Bayesian Opt"),
+  CV_AUC = c(best_cv_glm_ds, best_cv_glm_rs, best_cv_glm_bayes)
+)
+
+## Data.
+glm_path_data <- data.frame(
+  lambda = final_cv_glm$lambda,
+  log_lambda = log(final_cv_glm$lambda),
+  cv_mean = final_cv_glm$cvm,  
+  cv_std = final_cv_glm$cvsd  
+)
+
+optimal_lambda_log <- log(final_cv_glm$lambda.min)
+optimal_auc_val    <- max(final_cv_glm$cvm)
+
 ## Visualisation: Method AUC comparison.
+
 colors <- c(
   "Grid Search"   = blue,
   "Random Search" = orange,
   "Bayesian Opt" = red
 )
 
-Plot_Train_AUC <- ggplot(glm_method_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, 
+Plot_Train_AUC <- ggplot(glm_cv_performance, aes(x = reorder(Method, CV_AUC), y = CV_AUC, 
                                                          fill = Method)) +
   geom_col(width = 0.6, show.legend = FALSE) +
-  geom_text(aes(label = paste0(round(Train_AUC * 100, 1), "%")), 
+  geom_text(aes(label = paste0(round(CV_AUC * 100, 1), "%")), 
             vjust = -0.5, size = 5) +
   scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
   scale_fill_manual(values = colors) +
@@ -484,7 +516,7 @@ Plot_Train_AUC <- ggplot(glm_method_performance, aes(x = reorder(Method, Train_A
     title = "",
     subtitle = "",
     x = "Hyperparameter Tuning Method",
-    y = "AUC-Score (Training Set)"
+    y = "AUC-Score (CV)"
   ) +
   theme_minimal(base_size = 13) +
   theme(
@@ -510,6 +542,48 @@ ggsave(
 )
 
 ## Visualisation: Penalization strength or Bayesian Optimization.
+plot_GLM_LearningCurve <- ggplot(glm_path_data, aes(x = log_lambda, y = cv_mean)) +
+  geom_ribbon(aes(ymin = cv_mean - cv_std, 
+                  ymax = cv_mean + cv_std), 
+              alpha = 0.2, fill = "#2c3e50") +
+  geom_line(color = "#2c3e50", linewidth = 1) +
+  geom_vline(xintercept = optimal_lambda_log, 
+             linetype = "dashed", color = "#B22222", linewidth = 0.8) +
+  annotate("text", 
+           x = optimal_lambda_log + 0.5, # Offset label slightly to the right
+           y = min(glm_path_data$cv_mean), 
+           label = paste("Optimal Log(Lambda):", round(optimal_lambda_log, 2)), 
+           color = "#B22222", 
+           hjust = 0, fontface = "bold") +
+  scale_x_reverse() + 
+  scale_y_continuous(labels = scales::percent) +
+  
+  labs(title = "",
+       subtitle = "",
+       x = "Log(Lambda)",
+       y = "AUC-Score (CV)") +
+  
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"),
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_GLM_Directory, "02_RegularizationPath_GLM.png")
+ggsave(
+  filename = Path,
+  plot = plot_GLM_LearningCurve,
+  width = width,
+  height = heigth,
+  units = "px",
+  dpi = 300,
+  limitsize = FALSE
+)
 
 ##==============================##
 ## Visualisations of the test-set performance.
@@ -518,8 +592,9 @@ ggsave(
 ## Visualisation: AUC in the test set.
 
 colors <- c(
-  "Regularized GLM"   = blue,
-  "Regularized GLM (1-SE)" = red
+  "Training Set"   = grey,
+  "Test Set (1-SE)" = blue,
+  "Test Set" = red
 )
 
 Plot_Test_AUC <- ggplot(glm_performance_test, aes(x = reorder(Method, Test_AUC), y = Test_AUC, 
@@ -559,27 +634,28 @@ ggsave(
 )
 
 ## Visualisation: Calibration (predicted vs observed per bracket).
-calib_data <- data.frame(
+glm_risk_deciles <- ntile(probs_1se, 10)
+
+calib_data_glm <- data.frame(
   actual = test_y,
-  prob = probs_1se
+  prob   = probs_1se,
+  bin    = glm_risk_deciles
 ) %>%
-  mutate(bin = ntile(prob, 10)) %>%
   group_by(bin) %>%
   summarise(
-    mean_prob = mean(prob),
+    mean_prob     = mean(prob),
     observed_rate = mean(actual),
-    n = n()
+    n             = n()
   )
 
-calib_plot_data <- calib_data %>%
+calib_plot_data_glm <- calib_data_glm %>%
   select(bin, mean_prob, observed_rate) %>%
   rename(Predicted = mean_prob, Observed = observed_rate) %>%
   pivot_longer(cols = c("Predicted", "Observed"), 
-               names_to = "Type", 
-               values_to = "Rate") %>%
+               names_to = "Type", values_to = "Rate") %>%
   mutate(Type = factor(Type, levels = c("Predicted", "Observed")))
 
-plot_calib_bars <- ggplot(calib_plot_data, aes(x = factor(bin), y = Rate, fill = Type)) +
+plot_calib_bars <- ggplot(calib_plot_data_glm, aes(x = factor(bin), y = Rate, fill = Type)) +
   geom_col(position = position_dodge(width = 0.8), width = 0.7) +
   geom_text(aes(label = scales::percent(Rate, accuracy = 0.1)), 
             position = position_dodge(width = 0.8), 
@@ -677,7 +753,17 @@ set.seed(123)
 plan(multisession, workers = n_cores)
 cat("Parallel backend:", class(plan())[1], "\n")
 cat("Number of workers:", nbrOfWorkers(), "\n")
-  
+
+#### Load the checkpoint data.
+# non_feature_cols <- c("y")
+# feature_names <- setdiff(colnames(Train_Transformed_RF), non_feature_cols)
+# n_features <- length(feature_names)
+# 
+# checkpoint_path <- file.path(Data_RF, 
+#                              HPO_CONFIG$checkpoint_file)
+# 
+# hpo_results <- readRDS(checkpoint_path)
+
 ##==============================##
 ## Data preparation.
 ##==============================##  
@@ -748,11 +834,11 @@ cat("  Brier Score:", round(eval_results$brier, 4), "\n")
   
 summary_table <- data.table(
   Metric = c("Total Evaluations", "Warmup Points", "BO Evaluations",
-             "Optimization Time (s)", "Best CV AUC", "Test AUC", "Test Accuracy"),
+             "Best CV AUC", "Test AUC", "Test Accuracy"),
   Value = c(hpo_results$n_evals,
             min(hpo_results$n_initial_design, hpo_results$n_evals),
             max(0, hpo_results$n_evals - hpo_results$n_initial_design),
-            round(hpo_results$time, 2),
+            # round(hpo_results$time, 2),
             round(hpo_results$best_cv_auc, 4),
             round(eval_results$auc, 4),
             round(eval_results$acc, 4))
@@ -836,10 +922,246 @@ cat("\nParallel backend reset to sequential.\n")
 # saveRDS(final_model_object, model_filename)
 # cat("\nFinal model saved to:", model_filename, "\n")
 
+##==============================##
+## Compare the hyperparameter tuning methods. Visualisations.
+##==============================##
+
+#### Data.
+archive_dt <- as.data.table(hpo_results$archive)
+n_initial  <- hpo_results$n_initial_design
+
+best_cv_rs <- max(archive_dt[1:n_initial]$classif.auc)
+best_cv_bayes <- max(archive_dt[(n_initial + 1):nrow(archive_dt)]$classif.auc)
+
+RF_CV_performance <- data.frame(
+  Method = c("Random Search", "Bayesian Opt"),
+  CV_AUC = c(best_cv_rs, best_cv_bayes)
+)
+
+#### Plots.
+colors <- c(
+  "Random Search" = orange,  
+  "Bayesian Opt"  = red    
+)
+
+Plot_CV_AUC <- ggplot(RF_CV_performance, aes(x = reorder(Method, CV_AUC), y = CV_AUC, 
+                                             fill = Method)) +
+  geom_col(width = 0.5, show.legend = FALSE) + # Thinner bars for 2 items
+  geom_text(aes(label = paste0(round(CV_AUC * 100, 1), "%")), 
+            vjust = -0.5, size = 5, fontface = "bold") +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  scale_fill_manual(values = colors) +
+  labs(
+    title = "",
+    subtitle = "",
+    x = "Hyperparameter Tuning Method",
+    y = "AUC-Score (CV)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"), 
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", color = "black"),
+    strip.text = element_text(size = 12, face = "bold", color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_RF_Directory, "01_RF_HyperparameterTuningMethods_AUC_CV.png")
+ggsave(filename = Path, 
+       plot = Plot_CV_AUC, 
+       width = width, 
+       height = heigth, 
+       units = "px", 
+       dpi = 300, 
+       limitsize = FALSE)
+
+## Learning-Curve.
+
+archive_dt[, best_so_far := cummax(classif.auc)]
+archive_dt[, iteration := 1:.N]
+
+plot_LC_RF <- ggplot(archive_dt, aes(x = iteration, y = best_so_far)) +
+  geom_line(color = "#2c3e50", linewidth = 1) +
+  geom_point(aes(y = classif.auc), color = "grey70", alpha = 0.5, size = 1) +
+  geom_vline(xintercept = n_initial, linetype = "dashed", color = orange, linewidth = 0.8) +
+  annotate("text", x = n_initial + 1, y = min(archive_dt$classif.auc), 
+           label = "Start BayesOpt", color = orange, hjust = 0, vjust = -1, fontface = "bold") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "",
+       subtitle = "",
+       x = "Evaluation Iteration",
+       y = "AUC-Score (CV)") +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"),
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", color = "black"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_RF_Directory, "02_RF_OptimizationHistory.png")
+ggsave(filename = Path,
+       plot = plot_LC_RF, 
+       width = width, 
+       height = heigth, 
+       units = "px", 
+       dpi = 300, 
+       limitsize = FALSE)
+
+##### Feature Importance.
+
+rf_imp <- eval_results$learner$importance() 
+importance_df <- data.frame(
+  Feature = names(rf_imp),
+  Gain = as.numeric(rf_imp)
+) %>%
+  arrange(desc(Gain)) %>%
+  head(10)
+
+importance_df$Gain <- importance_df$Gain / sum(eval_results$learner$importance())
+
+plot_RF_FeatureImport <- ggplot(importance_df, aes(x = Gain, y = reorder(Feature, Gain))) +
+  geom_col(fill = blue, width = 0.7) + 
+  geom_text(aes(label = scales::percent(Gain, accuracy = 0.1)), 
+            hjust = -0.1, size = 4.5, fontface = "bold", color = "grey30") +
+  scale_x_continuous(labels = scales::percent, expand = expansion(mult = c(0, 0.15))) +
+  labs(title = "", subtitle = "", x = "Relative Importance (Impurity)", y = NULL) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"),
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_blank(),
+    axis.text.y = element_text(size = 11, face = "bold", color = "black"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_RF_Directory, "03_RF_FeatureImportance_BayesianOptimization.png")
+ggsave(filename = Path, 
+       plot = plot_RF_FeatureImport, 
+       width = width, 
+       height = heigth, 
+       units = "px", 
+       dpi = 300, 
+       limitsize = FALSE)
+
+##==============================##
+## Visualisations: Test-set.
+##==============================##
+
+#### Test-AUC.
+RF_method_performance <- data.frame(
+  Metric = c("Validation (CV)", "Test Set"),
+  AUC_Score = c(best_cv_bayes, eval_results$auc)
+)
+
+colors_test <- c("Validation (CV)" = grey, 
+                 "Test Set" = red)
+
+Plot_Test_AUC <- ggplot(RF_method_performance, aes(x = reorder(Metric, AUC_Score), y = AUC_Score, fill = Metric)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(AUC_Score * 100, 1), "%")), vjust = -0.5, size = 5, fontface = "bold") +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  scale_fill_manual(values = colors_test) +
+  labs(title = "", subtitle = "", x = "", y = "AUC-Score") +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"),
+    axis.title.x = element_text(size = 13, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 13, face = "bold", color = "black"),
+    panel.grid.major = element_line(color = "#d9d9d9"),
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_RF_Directory, "04_RF_AUC_Test.png")
+ggsave(filename = Path, 
+       plot = Plot_Test_AUC, 
+       width = width, 
+       height = heigth, 
+       units = "px", 
+       dpi = 300, 
+       limitsize = FALSE)
+
+#### Calibration chart.
+rf_pred_obj <- eval_results$pred
+rf_probs <- if("1" %in% colnames(rf_pred_obj$prob)) {
+  rf_pred_obj$prob[, "1"] 
+} else { 
+  rf_pred_obj$prob[, 2] 
+}
+
+calib_data_rf <- data.frame(
+  actual = test_y,
+  prob   = rf_probs, # RF Prediction
+  bin    = ntile(probs_1se, 10) # GLM Buckets!
+) %>%
+  group_by(bin) %>%
+  summarise(
+    mean_prob     = mean(prob),
+    observed_rate = mean(actual),
+    n             = n()
+  )
+
+calib_plot_data_rf <- calib_data_rf %>%
+  select(bin, mean_prob, observed_rate) %>%
+  rename(Predicted = mean_prob, Observed = observed_rate) %>%
+  pivot_longer(cols = c("Predicted", "Observed"), 
+               names_to = "Type", values_to = "Rate") %>%
+  mutate(Type = factor(Type, levels = c("Predicted", "Observed")))
+
+# Plotting
+plot_calib_bars <- ggplot(calib_plot_data_rf, aes(x = factor(bin), y = Rate, fill = Type)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = scales::percent(Rate, accuracy = 0.1)), 
+            position = position_dodge(width = 0.8), 
+            vjust = -0.5, 
+            size = 3.5, 
+            fontface = "bold", 
+            color = "black") +
+  scale_fill_manual(values = c("Predicted" = blue, "Observed" = grey)) + 
+  scale_y_continuous(labels = scales::percent, expand = expansion(mult = c(0, 0.15))) + 
+  labs(
+    title = "", 
+    subtitle = "", 
+    x = "Risk Decile (1 = Lowest Risk, 10 = Highest Risk)", 
+    y = "Default Rate", 
+    fill = ""
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12, color = "grey30"),
+    legend.position = "top", 
+    legend.text = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 13, face = "bold", margin = ggplot2::margin(t = 10)),
+    axis.title.y = element_text(size = 13, face = "bold", margin = ggplot2::margin(r = 10)),
+    panel.grid.major.x = element_blank(), 
+    plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
+  )
+
+Path <- file.path(Charts_RF_Directory, "05_RF_CalibrationChart_Test.png")
+ggsave(filename = Path, 
+       plot = plot_calib_bars, 
+       width = width, 
+       height = heigth, 
+       units = "px", 
+       dpi = 300, 
+       limitsize = FALSE)
+
+
+
 }) ## time counter.
 
 }, error = function(e) message(e))
-
 
 #==== 05B - AdaBoost ==========================================================#
 tryCatch({
@@ -1333,12 +1655,9 @@ bayes_out <- BayesianOptimization(
   bounds = bounds_bayes,
   init_points = n_init_points,
   n_iter = n_iter_bayes,
-  # REFINEMENT 1: Use Expected Improvement (Frazier (2018)).
-  acq = "ei", 
-  # REFINEMENT 2: Use Matern 5/2 Kernel (Better for realistic landscapes )
-  kernel = list(type = "matern", nu = 5/2),
-  # REFINEMENT 3: Slight epsilon increase to handle CV noise/prevent over-exploitation
-  eps = 0.01, 
+  acq = "ucb",
+  kappa = 2.576,                 
+  eps = 0.0,                     
   verbose = TRUE
 )
   
@@ -1468,6 +1787,21 @@ print(paste("Final Test AUC (1-SE Rule):", round(XGBoost_test_AUC_1SE, 5)))
 ## Compare the hyperparameter tuning methods. Visualisations.
 ##==============================##
 
+## CV-AUC:
+print(head(results_ds, 5))
+print(head(results_rs, 5))
+print(head(results_bayes, 5))
+
+# Extract the best Cross-Validation AUC from each results table
+best_cv_ds    <- max(results_ds$AUC)     
+best_cv_rs    <- max(results_rs$AUC)    
+best_cv_bayes <- max(results_bayes$AUC)  
+
+XGBoost_CV_performance <- data.frame(
+  Method = c("Grid Search", "Random Search", "Bayesian Opt"),
+  CV_AUC = c(best_cv_ds, best_cv_rs, best_cv_bayes)
+)
+
 ## Data summary and consolidation.
 results_ds <- results_ds %>% mutate(Method = "Grid Search", Iteration = 1:n())
 results_rs <- results_rs %>% mutate(Method = "Random Search", Iteration = 1:n())
@@ -1492,23 +1826,23 @@ colors <- c(
   "Bayesian Opt"  = red   
 )
 
-Plot_Train_AUC <- ggplot(XGBoost_method_performance, aes(x = reorder(Method, Train_AUC), y = Train_AUC, 
-                                                         fill = Method)) +
+Plot_Train_AUC <- Plot_CV_AUC <- ggplot(XGBoost_CV_performance, aes(x = reorder(Method, CV_AUC), y = CV_AUC, 
+                                                                    fill = Method)) +
   geom_col(width = 0.6, show.legend = FALSE) +
-  geom_text(aes(label = paste0(round(Train_AUC * 100, 1), "%")), 
-            vjust = -0.5, size = 5) +
+  geom_text(aes(label = paste0(round(CV_AUC * 100, 1), "%")), 
+            vjust = -0.5, size = 5, fontface = "bold") +
   scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
   scale_fill_manual(values = colors) +
   labs(
     title = "",
     subtitle = "",
     x = "Hyperparameter Tuning Method",
-    y = "AUC-Score (Training Set)"
+    y = "AUC-Score (CV)"
   ) +
   theme_minimal(base_size = 13) +
   theme(
     plot.title = element_text(face = "bold", size = 16),
-    plot.subtitle = element_text(size = 12, color = "grey30"), # Adjusted to "grey30" for safety
+    plot.subtitle = element_text(size = 12, color = "grey30"), 
     axis.title.x = element_text(size = 13, face = "bold", color = "black"),
     axis.title.y = element_text(size = 13, face = "bold", color = "black"),
     strip.text = element_text(size = 12, face = "bold", color = "black"),
@@ -1545,7 +1879,7 @@ plot_LC_bayesOptim <- ggplot(cv_log, aes(x = iter, y = test_auc_mean)) +
            color = "#e41a1c", 
            hjust = 0, fontface = "bold") +
     labs(title = "",
-       subtitle = "Cross-Validation AUC +/- 1 Std Dev (Bayesian Optim.)",
+       subtitle = "",
        x = "Number of Boosting Iterations",
        y = "AUC-Score (Training Set)") +
     theme_minimal(base_size = 13) +
@@ -1559,7 +1893,7 @@ plot_LC_bayesOptim <- ggplot(cv_log, aes(x = iter, y = test_auc_mean)) +
     plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
   )
 
-Path <- file.path(Charts_XGBoost_Directory, "02_LearningCurve_BayesianOptimization_Training.png")
+Path <- file.path(Charts_XGBoost_Directory, "02_LearningCurve_Bayes_Training.png")
 ggsave(
   filename = Path,
   plot = plot_LC_bayesOptim,
@@ -1622,7 +1956,7 @@ ggsave(
 ## Visualisation: Test-set performance. Full model and 1-SE Rule.
 XGBoost_method_performance <- data.frame(
   Method = c("Training Set", "Test Set (1-SE)", "Test Set"),
-  Test_AUC = c(XGBoost_bayes_Train_AUC, XGBoost_test_AUC_1SE, XGBoost_test_AUC)
+  Test_AUC = c(best_cv_bayes, XGBoost_test_AUC_1SE, XGBoost_test_AUC)
 )
 
 colors <- c(
@@ -1668,27 +2002,26 @@ ggsave(
 )
 
 ## Visualisation: Calibration (predicted vs observed per bracket).
-calib_data <- data.frame(
+calib_data_xgb <- data.frame(
   actual = test_y,
-  prob = XGBoost_test_probs
+  prob   = XGBoost_test_probs, # XGB Prediction
+  bin    = ntile(probs_1se, 10) # GLM Buckets!
 ) %>%
-  mutate(bin = ntile(prob, 10)) %>%
   group_by(bin) %>%
   summarise(
-    mean_prob = mean(prob),
+    mean_prob     = mean(prob),
     observed_rate = mean(actual),
-    n = n()
+    n             = n()
   )
 
-calib_plot_data <- calib_data %>%
+calib_plot_data_xgb <- calib_data_xgb %>%
   select(bin, mean_prob, observed_rate) %>%
   rename(Predicted = mean_prob, Observed = observed_rate) %>%
   pivot_longer(cols = c("Predicted", "Observed"), 
-               names_to = "Type", 
-               values_to = "Rate") %>%
+               names_to = "Type", values_to = "Rate") %>%
   mutate(Type = factor(Type, levels = c("Predicted", "Observed")))
 
-plot_calib_bars <- ggplot(calib_plot_data, aes(x = factor(bin), y = Rate, fill = Type)) +
+plot_calib_bars <- ggplot(calib_plot_data_xgb, aes(x = factor(bin), y = Rate, fill = Type)) +
   geom_col(position = position_dodge(width = 0.8), width = 0.7) +
   geom_text(aes(label = scales::percent(Rate, accuracy = 0.1)), 
             position = position_dodge(width = 0.8), 
@@ -1788,7 +2121,7 @@ glm_row <- tibble(
   Test_AUC_Conservative = auc_1se,     
   # Complexity & Efficiency
   N_Features = n_vars_1se,            
-  Time_Minutes = as.numeric(time_GLM["elapsed"]) / 60,
+  # Time_Minutes = as.numeric(time_GLM["elapsed"]) / 60,
   # Config
   Hyperparameters = paste0("Alpha=", round(best_alpha, 2))
 )
@@ -1821,7 +2154,7 @@ xgb_row <- tibble(
   Model = "XGBoost",
   Tuning_Method = "Bayesian Opt",
   # Performance
-  Train_AUC = XGBoost_bayes_Train_AUC,  
+  Train_AUC = results_bayes[1,]$AUC,  
   Test_AUC_Best = XGBoost_test_AUC,       
   Test_AUC_Conservative = XGBoost_test_AUC_1SE, 
   # Complexity & Efficiency
@@ -1871,12 +2204,9 @@ tryCatch({
 ## Data.
 ##==============================##
 
-glm_performance_test          ## Regularized GLM - Test AUC.
-XGBoost_method_performance    ## XGBoost - Test AUC.
-
 final_test_AUC <- tibble(
-  Model = c("XGBoost (Bayesian)", "Regularized GLM (1-SE)"),
-  Test_AUC = c(XGBoost_test_AUC, auc_1se)
+  Model = c("Regularized GLM (1-SE)", "Random Forest", "XGBoost"),
+  Test_AUC = c(auc_1se, RF_method_performance$AUC_Score[2], XGBoost_test_AUC)
   )
 
 ##==============================##
@@ -1886,8 +2216,9 @@ final_test_AUC <- tibble(
 ## Visualisation: Test AUC.
 
 comparison_colors <- c(
-  "XGBoost (Bayesian)"     =  blue, 
-  "Regularized GLM (1-SE)" =  orange
+  "Regularized GLM (1-SE)"     =  blue, 
+  "Random Forest" =  orange,
+  "XGBoost" = red
 )
 
 Plot_Overall_Test_AUC <- ggplot(final_test_AUC, 
@@ -1920,8 +2251,6 @@ Plot_Overall_Test_AUC <- ggplot(final_test_AUC,
     panel.grid.major.x = element_line(color = "#d9d9d9"),
     plot.margin = ggplot2::margin(t = 15, r = 10, b = 10, l = 10)
   )
-
-print(Plot_Overall_Test_AUC)
 
 Path <- file.path(Charts_TestSet_Directory, "04_AUC_Test_Overall.png")
 ggsave(

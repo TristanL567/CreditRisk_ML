@@ -1,0 +1,2 @@
+"Model","Tuning_Method","Train_AUC","Test_AUC_Best","Test_AUC_Conservative","N_Features","Hyperparameters"
+"Regularized GLM","Bayesian Opt",0.801633692025883,0.818036447074744,0.815902587388622,19,"Alpha=1"

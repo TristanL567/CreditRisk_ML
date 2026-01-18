@@ -213,8 +213,6 @@ Selection is done by the AuC-ROC measure as per client instructions. \\
 
 \section{GLMs}
 
-\subsection{Logistic Regression}
-
 \subsection{Regularized GLMs}
 
 \begin{figure}[ht]
@@ -234,6 +232,47 @@ Selection is done by the AuC-ROC measure as per client instructions. \\
         \label{fig:calibration}
     \end{minipage}
 \end{figure}
+
+\subsection{Preliminary Results}
+
+\subsubsection{Final Tuning Selection}
+
+\begin{table}[h]
+\centering
+\caption{Hyperparameter Configuration and Model Performance (GLM). All optimization strategies converged to a Lasso-like solution ($\alpha \approx 1$).}
+\label{tab:glm_model_comparison}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \textbf{Mixing Param} & \textbf{Penalty Strength} & \textbf{CV AUC} \\
+& ($\alpha$) & ($\lambda$) & (Validation) \\ \midrule
+Grid Search & 1.00 & $3.03 \times 10^{-5}$ & 79.9\% \\ 
+Random Search & 1.00 & $3.03 \times 10^{-5}$ & 79.9\% \\ 
+\textbf{Bayesian Opt} & \textbf{1.00} & $\mathbf{3.04 \times 10^{-5}}$ & \textbf{79.9\%} \\ \bottomrule
+\multicolumn{4}{l}{\footnotesize $\alpha$: Elastic Net mixing parameter ($0=$ Ridge, $1=$ Lasso). Controls variable selection;} \\
+\multicolumn{4}{l}{\footnotesize $\lambda$: Regularization penalty strength. Controls the magnitude of coefficient shrinkage.} \\
+\end{tabular}
+\end{table}
+
+\subsubsection{Test Set Performance \& Calibration}
+
+\begin{table}[h]
+\centering
+\caption{Summary of Final GLM Performance on the Test Set. The model is highly parsimonious, achieving 81.6\% AUC with just 19 variables (1-SE Rule).}
+\label{tab:glm_final_results}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Best-fit} & \textbf{1-SE} \\
+& (Lambda Min) & (1-SE Rule) \\ \midrule
+\textbf{Test AUC} & \textbf{81.8\%} & 81.6\% \\
+CV AUC & 79.9\% & -- \\
+N Features & 20 & 19 \\ \midrule
+\multicolumn{3}{l}{\textbf{Optimal Hyperparameters}} \\
+Mixing Param ($\alpha$) & \multicolumn{2}{c}{1.00 (Lasso)} \\
+Penalty ($\lambda$) & $3.04 \times 10^{-5}$ & $8.45 \times 10^{-4}$ \\ \bottomrule
+\multicolumn{3}{l}{\footnotesize \textit{Note:} The 1-SE Rule removed one additional variable to improve parsimony with negligible performance loss.} \\
+\end{tabular}
+\end{table}
+
 
 %==== Chapter 4: Decision Trees ===============================================%
 
@@ -352,6 +391,50 @@ prediction error. The absolute formulation employed here is equivalent up to sca
 preserves the same ranking of predictors. Consequently, permutation-based importance is
 used as the primary criterion for ranking variables, while Gini-based importance is
 reported for completeness.
+
+\subsection{Preliminary Results}
+
+\subsubsection{Final Tuning Selection}
+
+\begin{table}[h]
+\centering
+\caption{Hyperparameter Configuration and Model Performance (Random Forest). The Bayesian optimizer improved generalization by selecting 'ExtraTrees' splits and specific node sizes.}
+\label{tab:rf_model_comparison}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Method} & \textbf{Vars/Split} & \textbf{Min Node} & \textbf{Sample Frac} & \textbf{Split Rule} & \textbf{CV AUC} \\
+& (\texttt{mtry}) & (Size) & (Fraction) & (Type) & (Validation) \\ \midrule
+Random Search & 4 & 37 & 0.39 & ExtraTrees & 78.9\% \\ 
+\textbf{Bayesian Opt} & \textbf{3} & \textbf{48} & \textbf{0.87} & \textbf{ExtraTrees} & \textbf{79.1\%} \\ \bottomrule
+\multicolumn{6}{l}{\footnotesize \texttt{mtry}: Number of variables candidates at each split;} \\
+\multicolumn{6}{l}{\footnotesize Min Node: Minimum size of terminal nodes (controls depth/complexity);} \\
+\multicolumn{6}{l}{\footnotesize ExtraTrees: Extremely Randomized Trees (randomly selected thresholds).} \\
+\end{tabular}
+\end{table}
+
+\subsubsection{Test Set Performance \& Calibration}
+
+\begin{table}[h]
+\centering
+\caption{Summary of Final Random Forest Performance on the Test Set. The model achieves strong discrimination (81.0\% AUC) using sampling without replacement.}
+\label{tab:rf_final_results}
+\begin{tabular}{lc}
+\toprule
+\textbf{Metric} & \textbf{Best-fit} \\
+& (Bayesian Opt) \\ \midrule
+\textbf{Test AUC} & \textbf{81.0\%} \\
+CV AUC & 79.1\% \\
+N Features & 21 \\ \midrule
+\multicolumn{2}{l}{\textbf{Optimal Hyperparameters}} \\
+Split Rule & ExtraTrees \\
+Vars per Split (\texttt{mtry}) & 3 \\
+Min Node Size & 48 \\
+Sample Fraction & 0.87 (No Replace) \\ \bottomrule
+\multicolumn{2}{l}{\footnotesize \textit{Note:} 'No Replace' indicates sampling without replacement, which can reduce bias.} \\
+\end{tabular}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
 \section{AdaBoost}
@@ -538,15 +621,20 @@ Table \ref{tab:model_comparison} summarizes the top-performing model configurati
 
 \begin{table}[h]
 \centering
-\begin{tabular}{lccccc}
-\hline
-\textbf{Method} & \textbf{Eta} & \textbf{Max Depth} & \textbf{Subsample} & \textbf{Colsample} & \textbf{Train AUC} \\ \hline
-Grid Search & 0.05 & 5 & 0.9 & 0.7 & 86.1\% \\ 
-Random Search & 0.034 & 6 & 0.82 & 0.65 & 87.2\% \\ 
-\textbf{Bayesian Opt} & \textbf{0.022} & \textbf{4} & \textbf{0.59} & \textbf{0.83} & \textbf{87.7\%} \\ \hline
-\end{tabular}
-\caption{Comparison of Best Hyperparameters and Final Training AUC by Method. The Bayesian model provides the best discrimination.}
+\caption{Hyperparameter Configuration and Model Performance. Bayesian Optimization achieved the highest Mean Cross-Validation AUC.}
 \label{tab:model_comparison}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Method} & \textbf{Learn Rate} & \textbf{Tree Depth} & \textbf{Row Sample} & \textbf{Feat Sample} & \textbf{CV AUC} \\
+& ($\eta$) & ($J$) & (Subsample) & (Colsample) & (Validation) \\ \midrule
+Grid Search & 0.010 & 5 & 0.70 & 0.90 & 80.7\% \\ 
+Random Search & 0.030 & 5 & 0.92 & 0.78 & 80.6\% \\ 
+\textbf{Bayesian Opt} & \textbf{0.010} & \textbf{4} & \textbf{0.50} & \textbf{0.76} & \textbf{80.8\%} \\ \bottomrule
+\multicolumn{6}{l}{\footnotesize \textit{Note:} CV AUC represents the mean performance across 5 stratified validation folds.} \\
+\multicolumn{6}{l}{\footnotesize $\eta$: Learning Rate; $J$: Interaction Depth;} \\
+\multicolumn{6}{l}{\footnotesize Subsample: Fraction of training instances (rows) used per tree;} \\
+\multicolumn{6}{l}{\footnotesize Colsample: Fraction of features (columns) used per tree.} \\
+\end{tabular}
 \end{table}
 
 \subsubsection{Training Stability \& Feature Importance}
@@ -580,6 +668,26 @@ To assess generalization, we evaluated the champion model on the hold-out Test S
 As shown in Figure \ref{fig:test_auc}, the **Standard Bayesian Model** achieved a Test AUC of \textbf{81.9\%}, significantly outperforming the 1-SE model (80.0\%). The drop from Training AUC (87.7\%) to Test AUC (81.9\%) is within acceptable limits for this portfolio type, confirming the model generalizes well to unseen data.
 
 Finally, Figure \ref{fig:calibration} demonstrates the model's calibration. The \textbf{Observed Default Rate} (Grey) closely tracks the \textbf{Predicted Probability} (Blue) across all risk deciles. The strict monotonicity from Decile 1 to 10 confirms the model effectively ranks borrowers from low to high risk.
+
+\begin{table}[h]
+\centering
+\caption{Summary of Final XGBoost Model Performance on the Test Set. The model utilizes the hyperparameters identified via Bayesian Optimization.}
+\label{tab:xgboost_final_results}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Best-fit} & \textbf{1-SE} \\
+& (Max AUC) & (1-SE Rule) \\ \midrule
+\textbf{Test AUC} & \textbf{83.6\%} & 82.8\% \\
+CV AUC & 80.8\% & -- \\
+N Features & 21 & 21 \\ \midrule
+\multicolumn{3}{l}{\textbf{Optimal Hyperparameters}} \\
+Learning Rate ($\eta$) & \multicolumn{2}{c}{0.010} \\
+Tree Depth ($J$) & \multicolumn{2}{c}{4} \\
+Row Sampling & \multicolumn{2}{c}{0.50} \\
+Feat. Sampling & \multicolumn{2}{c}{0.76} \\ \bottomrule
+\multicolumn{3}{l}{\footnotesize \textit{Note:} The 1-SE model uses fewer boosting iterations to reduce overfitting variance.} \\
+\end{tabular}
+\end{table}
 
 \begin{figure}[ht]
     \centering
