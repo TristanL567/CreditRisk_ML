@@ -171,6 +171,27 @@ Based on the instructions from the client, we filter the balance sheet data base
     \item $(f_6 + f_{11}) \le f_1$
 \end{enumerate}
 
+\begin{table}[h]
+\centering
+\caption{Financial positions (numeric) from the financial statement.}
+\label{tab:financial_positions}
+\begin{tabular}{lll}
+\toprule
+\textbf{Variable} & \textbf{Description (DE)} & \textbf{Description (EN)} \\ \midrule
+f1 & Aktiva & Total assets \\
+f2 & Anlagevermögen & Invested capital \\
+f3 & Umlaufvermögen & Current assets \\
+f4 & Vorräte & Inventories \\
+f5 & Kassenbestand & Cash \\
+f6 & Eigenkapital & Equity \\
+f7 & Gewinnrücklage & Retained earnings \\
+f8 & Bilanzgewinn & Net profit \\
+f9 & Gewinnvortrag & Retained earnings \\
+f10 & Rückstellungen & Provisions \\
+f11 & Verbindlichkeiten & Liabilities \\ \bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Data splitting}
 
 We utilize a custom function, \texttt{MVstratifiedsampling}, to perform a stratified split at the firm level rather than the observation level. This ensures that all records for a specific firm ID reside in the same partition.
