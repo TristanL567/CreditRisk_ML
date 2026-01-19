@@ -118,11 +118,41 @@ Data <- d
 ## Apply the simple methodology to exclude some observations (outlined by the Leitner Notes).
 ## Remove all ratios.
 
-Data_filtered <- DataPreprocessing(DataPreprocessing, Tolerance = 2)
+Data <- DataPreprocessing(Data, Tolerance = 2)
 
 ## Drop all ratios for now.
 Exclude <- c(paste("r", seq(1:18), sep = "")) ## Drop all ratios for now.
 Data <- Data[, -which(names(Data) %in% Exclude)]
+
+##===========================================##
+## Check for "cured"-defaults.
+##===========================================##
+
+audit_data <- CuredDefaultsCheck(Data, mode = "flag")
+zombies <- audit_data %>% 
+  filter(Is_Post_Default == TRUE & y == 0)
+
+print(head(zombies))
+
+## Remove the "cured" defaults.
+Data_CD <- CuredDefaultsCheck(
+  data = Data, 
+  id_col = "id", 
+  date_col = "refdate", 
+  target_col = "y", 
+  mode = "remove"
+)
+
+## check the no. of obs.
+
+# nrow(Data)
+# nrow(Data_CD)
+
+Data <- Data_CD
+
+##===========================================##
+## Check for "cured"-defaults.
+##===========================================##
 
 Exclude <- c("id", "refdate", "size","sector", "y")
 Features <- Data[, -which(names(Data) %in% Exclude)]
@@ -2285,8 +2315,64 @@ ggsave(
 ## Visualisation: 
 
 }, error = function(e) message(e))
-  
-#==============================================================================#
-#==============================================================================#
-#==============================================================================#
 
+#==============================================================================#
+#==== 09 - Appendix ===========================================================#
+#==============================================================================#
+  
+##==============================##
+## Calibratio plot.
+##==============================##
+
+model_performance_df <- data.frame(
+  Actual    = test_y,          
+  Predicted_GLM = as.vector(probs_1se),
+  Predicted_RF = as.vector(rf_probs),
+  Predicted_XGBoost = as.vector(XGBoost_test_probs)
+)
+
+top_risk_comparison <- model_performance_df %>%
+  arrange(desc(Predicted_GLM)) %>%
+  mutate(Rank = row_number()) %>%
+  select(Rank, Actual, Predicted_GLM, Predicted_RF, Predicted_XGBoost)
+
+####
+
+print(head(top_risk_comparison, 60))
+
+### Test case.
+Test_with_id_new <- Test_with_id
+Test_with_id_new$refdate <- as.Date(Test_with_id_new$refdate)
+
+detailed_cure_analysis <- Test_with_id_new %>%
+  group_by(id) %>%
+  mutate(
+    # 1. Find the date of the *first* default for this company
+    # We use first() or min() logic safely inside the vector
+    First_Default_Date = if_else(any(y == 1), min(refdate[y == 1]), as.Date(NA)),
+    
+    # 2. Boolean: Is this specific row happening AFTER a default occurred?
+    Is_Post_Default = !is.na(First_Default_Date) & refdate > First_Default_Date,
+    
+    # 3. Metric: How many years has it been since the first default?
+    # FIX: Use if_else() instead of if() because 'First_Default_Date' is a column vector
+    Years_Since_Default = if_else(
+      !is.na(First_Default_Date),
+      as.numeric(difftime(refdate, First_Default_Date, units = "weeks")) / 52.25,
+      NA_real_
+    )
+  ) %>%
+  ungroup()
+
+# Inspect the result
+print(head(detailed_cure_analysis))
+
+clean_training_data <- detailed_cure_analysis %>%
+  filter(Is_Post_Default == FALSE)
+
+nrow(Test_with_id_new)
+nrow(clean_training_data)
+
+#==============================================================================#
+#==============================================================================#
+#==============================================================================#

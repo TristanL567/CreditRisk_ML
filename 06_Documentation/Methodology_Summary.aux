@@ -2,115 +2,118 @@
 \providecommand\hyper@newdestlabel[2]{}
 \providecommand\HyField@AuxAddToFields[1]{}
 \providecommand\HyField@AuxAddToCoFields[2]{}
-\@writefile{toc}{\contentsline {chapter}{\numberline {1}Data Processing}{2}{chapter.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {1}Data Processing}{3}{chapter.1}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\@writefile{toc}{\contentsline {section}{\numberline {1.1}Preprocessing and data splitting}{2}{section.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {1.1.1}Preprocessing}{2}{subsection.1.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {1.1.2}Data splitting}{2}{subsection.1.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {1.2}Feature engineering}{3}{section.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {1.2.1}Standardization (Size Normalization)}{3}{subsection.1.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {1.2.2}Quantile Transformation (Probability Integral Transform)}{3}{subsection.1.2.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {chapter}{\numberline {2}Modeling Methodology}{4}{chapter.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.1}Preprocessing and data splitting}{3}{section.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.1.1}Preprocessing}{3}{subsection.1.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.1.2}Data splitting}{3}{subsection.1.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.2}Feature engineering}{4}{section.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2.1}Standardization (Size Normalization)}{4}{subsection.1.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2.2}Quantile Transformation (Probability Integral Transform)}{4}{subsection.1.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {2}Modeling Methodology}{5}{chapter.2}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\@writefile{toc}{\contentsline {section}{\numberline {2.1}Hyperparameter Tuning}{4}{section.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.1.1}Discrete Grid Search}{4}{subsection.2.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.1.2}Random Grid Search}{4}{subsection.2.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.1.3}Bayesian Optimization}{4}{subsection.2.1.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {2.2}Model Selection}{4}{section.2.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {chapter}{\numberline {3}Linear Models}{5}{chapter.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.1}Hyperparameter Tuning}{5}{section.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1.1}Discrete Grid Search}{5}{subsection.2.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1.2}Random Grid Search}{5}{subsection.2.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1.3}Bayesian Optimization}{5}{subsection.2.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.2}Model Selection}{5}{section.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.3}Calibration Plot}{5}{section.2.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2.1}{\ignorespaces Top 15 Risk Profiles (GLM Ranked). Despite the predominance of non-defaults ($0$), the model successfully concentrates defaults ($1$) in the top percentiles compared to the portfolio average.}}{5}{table.2.1}\protected@file@percent }
+\newlabel{tab:top_risk_actuals}{{2.1}{5}{Top 15 Risk Profiles (GLM Ranked). Despite the predominance of non-defaults ($0$), the model successfully concentrates defaults ($1$) in the top percentiles compared to the portfolio average}{table.2.1}{}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {3}Linear Models}{6}{chapter.3}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\@writefile{toc}{\contentsline {section}{\numberline {3.1}GLMs}{5}{section.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1.1}Regularized GLMs}{5}{subsection.3.1.1}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.1}{\ignorespaces Training Set AU for regularized GLMs.}}{5}{figure.3.1}\protected@file@percent }
-\newlabel{fig:GLM_train_AUC}{{3.1}{5}{Training Set AU for regularized GLMs}{figure.3.1}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.2}{\ignorespaces Calibration Chart GLM(Test Set). Observed rates closely align with predictions, showing strong ranking ability.}}{5}{figure.3.2}\protected@file@percent }
-\newlabel{fig:calibration}{{3.2}{5}{Calibration Chart GLM(Test Set). Observed rates closely align with predictions, showing strong ranking ability}{figure.3.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1.2}Preliminary Results}{5}{subsection.3.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Final Tuning Selection}{5}{section*.2}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {3.1}{\ignorespaces Hyperparameter Configuration and Model Performance (GLM). All optimization strategies converged to a Lasso-like solution ($\alpha \approx 1$).}}{5}{table.3.1}\protected@file@percent }
-\newlabel{tab:glm_model_comparison}{{3.1}{5}{Hyperparameter Configuration and Model Performance (GLM). All optimization strategies converged to a Lasso-like solution ($\alpha \approx 1$)}{table.3.1}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Test Set Performance \& Calibration}{5}{section*.3}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {3.2}{\ignorespaces Summary of Final GLM Performance on the Test Set. The model is highly parsimonious, achieving 81.6\% AUC with just 19 variables (1-SE Rule).}}{6}{table.3.2}\protected@file@percent }
-\newlabel{tab:glm_final_results}{{3.2}{6}{Summary of Final GLM Performance on the Test Set. The model is highly parsimonious, achieving 81.6\% AUC with just 19 variables (1-SE Rule)}{table.3.2}{}}
-\@writefile{toc}{\contentsline {chapter}{\numberline {4}Decision Trees}{7}{chapter.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.1}GLMs}{6}{section.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1.1}Regularized GLMs}{6}{subsection.3.1.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.1}{\ignorespaces Training Set AU for regularized GLMs.}}{6}{figure.3.1}\protected@file@percent }
+\newlabel{fig:GLM_train_AUC}{{3.1}{6}{Training Set AU for regularized GLMs}{figure.3.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.2}{\ignorespaces Calibration Chart GLM(Test Set). Observed rates closely align with predictions, showing strong ranking ability.}}{6}{figure.3.2}\protected@file@percent }
+\newlabel{fig:calibration}{{3.2}{6}{Calibration Chart GLM(Test Set). Observed rates closely align with predictions, showing strong ranking ability}{figure.3.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1.2}Preliminary Results}{6}{subsection.3.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Final Tuning Selection}{6}{section*.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3.1}{\ignorespaces Hyperparameter Configuration and Model Performance (GLM). All optimization strategies converged to a Lasso-like solution ($\alpha \approx 1$).}}{6}{table.3.1}\protected@file@percent }
+\newlabel{tab:glm_model_comparison}{{3.1}{6}{Hyperparameter Configuration and Model Performance (GLM). All optimization strategies converged to a Lasso-like solution ($\alpha \approx 1$)}{table.3.1}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Test Set Performance \& Calibration}{6}{section*.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3.2}{\ignorespaces Summary of Final GLM Performance on the Test Set. The model is highly parsimonious, achieving 81.6\% AUC with just 19 variables (1-SE Rule).}}{7}{table.3.2}\protected@file@percent }
+\newlabel{tab:glm_final_results}{{3.2}{7}{Summary of Final GLM Performance on the Test Set. The model is highly parsimonious, achieving 81.6\% AUC with just 19 variables (1-SE Rule)}{table.3.2}{}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {4}Decision Trees}{8}{chapter.4}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\@writefile{toc}{\contentsline {section}{\numberline {4.1}Random Forest}{7}{section.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.1}Hyperparameter Specification}{7}{subsection.4.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.2}Algorithm}{7}{subsection.4.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.1}Random Forest}{8}{section.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.1}Hyperparameter Specification}{8}{subsection.4.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.2}Algorithm}{8}{subsection.4.1.2}\protected@file@percent }
 \citation{breiman2001random}
 \citation{breiman2001random}
 \citation{zhou2009credit}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.3}Model Evaluation}{8}{subsection.4.1.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.4}Variable Importance}{8}{subsection.4.1.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.5}Preliminary Results}{8}{subsection.4.1.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Final Tuning Selection}{8}{section*.4}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4.1}{\ignorespaces Hyperparameter Configuration and Model Performance (Random Forest). The Bayesian optimizer improved generalization by selecting 'ExtraTrees' splits and specific node sizes.}}{8}{table.4.1}\protected@file@percent }
-\newlabel{tab:rf_model_comparison}{{4.1}{8}{Hyperparameter Configuration and Model Performance (Random Forest). The Bayesian optimizer improved generalization by selecting 'ExtraTrees' splits and specific node sizes}{table.4.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.3}Model Evaluation}{9}{subsection.4.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.4}Variable Importance}{9}{subsection.4.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.5}Preliminary Results}{9}{subsection.4.1.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Final Tuning Selection}{9}{section*.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4.1}{\ignorespaces Hyperparameter Configuration and Model Performance (Random Forest). The Bayesian optimizer improved generalization by selecting 'ExtraTrees' splits and specific node sizes.}}{9}{table.4.1}\protected@file@percent }
+\newlabel{tab:rf_model_comparison}{{4.1}{9}{Hyperparameter Configuration and Model Performance (Random Forest). The Bayesian optimizer improved generalization by selecting 'ExtraTrees' splits and specific node sizes}{table.4.1}{}}
 \citation{lessmann2015benchmarking}
-\@writefile{lot}{\contentsline {table}{\numberline {4.2}{\ignorespaces Summary of Final Random Forest Performance on the Test Set. The model achieves strong discrimination (81.0\% AUC) using sampling without replacement.}}{9}{table.4.2}\protected@file@percent }
-\newlabel{tab:rf_final_results}{{4.2}{9}{Summary of Final Random Forest Performance on the Test Set. The model achieves strong discrimination (81.0\% AUC) using sampling without replacement}{table.4.2}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Test Set Performance \& Calibration}{9}{section*.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4.2}AdaBoost}{9}{section.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.1}Model description}{9}{subsection.4.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.2}Algorithm}{9}{subsection.4.2.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4.2}{\ignorespaces Summary of Final Random Forest Performance on the Test Set. The model achieves strong discrimination (81.0\% AUC) using sampling without replacement.}}{10}{table.4.2}\protected@file@percent }
+\newlabel{tab:rf_final_results}{{4.2}{10}{Summary of Final Random Forest Performance on the Test Set. The model achieves strong discrimination (81.0\% AUC) using sampling without replacement}{table.4.2}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Test Set Performance \& Calibration}{10}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.2}AdaBoost}{10}{section.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.1}Model description}{10}{subsection.4.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.2}Algorithm}{10}{subsection.4.2.2}\protected@file@percent }
 \citation{lessmann2015benchmarking}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.3}Logic}{10}{subsection.4.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.4}Comments on code}{10}{subsection.4.2.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4.3}XGBoost}{10}{section.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.1}Model Description}{10}{subsection.4.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.2}Validation Strategy: Stratified Group K-Fold}{11}{subsection.4.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.3}Algorithm}{11}{subsection.4.3.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Objective Function}{11}{section*.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Taylor Expansion}{11}{section*.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Regularization}{11}{section*.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.4}Hyperparameter Specifications}{11}{subsection.4.3.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.5}Tuning Strategies}{12}{subsection.4.3.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.6}Preliminary Results}{12}{subsection.4.3.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{Comparison of Tuning Efficiency}{12}{section*.9}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4.1}{\ignorespaces Comparison of Best Training AUC found by each search strategy. Bayesian Optimization identified the optimal configuration.}}{12}{figure.4.1}\protected@file@percent }
-\newlabel{fig:tuning_comparison}{{4.1}{12}{Comparison of Best Training AUC found by each search strategy. Bayesian Optimization identified the optimal configuration}{figure.4.1}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Final Tuning Selection}{12}{section*.10}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4.3}{\ignorespaces Hyperparameter Configuration and Model Performance. Bayesian Optimization achieved the highest Mean Cross-Validation AUC.}}{13}{table.4.3}\protected@file@percent }
-\newlabel{tab:model_comparison}{{4.3}{13}{Hyperparameter Configuration and Model Performance. Bayesian Optimization achieved the highest Mean Cross-Validation AUC}{table.4.3}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Training Stability \& Feature Importance}{13}{section*.11}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4.2}{\ignorespaces Boosting Iteration Learning Curve (Bayesian Opt). The red line marks the optimal stopping point.}}{13}{figure.4.2}\protected@file@percent }
-\newlabel{fig:learning_curve}{{4.2}{13}{Boosting Iteration Learning Curve (Bayesian Opt). The red line marks the optimal stopping point}{figure.4.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4.3}{\ignorespaces Top 10 Features by Gain. Feature f8 is the strongest driver of default risk.}}{13}{figure.4.3}\protected@file@percent }
-\newlabel{fig:feat_imp}{{4.3}{13}{Top 10 Features by Gain. Feature f8 is the strongest driver of default risk}{figure.4.3}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Test Set Performance \& Calibration}{13}{section*.12}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4.4}{\ignorespaces Summary of Final XGBoost Model Performance on the Test Set. The model utilizes the hyperparameters identified via Bayesian Optimization.}}{14}{table.4.4}\protected@file@percent }
-\newlabel{tab:xgboost_final_results}{{4.4}{14}{Summary of Final XGBoost Model Performance on the Test Set. The model utilizes the hyperparameters identified via Bayesian Optimization}{table.4.4}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4.4}{\ignorespaces Final Test Set AUC. The Standard Bayesian model outperforms the 1-SE heuristic.}}{14}{figure.4.4}\protected@file@percent }
-\newlabel{fig:test_auc}{{4.4}{14}{Final Test Set AUC. The Standard Bayesian model outperforms the 1-SE heuristic}{figure.4.4}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4.5}{\ignorespaces Calibration Chart (Test Set). Observed rates closely align with predictions, showing strong ranking ability.}}{14}{figure.4.5}\protected@file@percent }
-\newlabel{fig:calibration}{{4.5}{14}{Calibration Chart (Test Set). Observed rates closely align with predictions, showing strong ranking ability}{figure.4.5}{}}
-\@writefile{toc}{\contentsline {chapter}{\numberline {5}Neural Networks}{15}{chapter.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.3}Logic}{11}{subsection.4.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.4}Comments on code}{11}{subsection.4.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.3}XGBoost}{11}{section.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.1}Model Description}{11}{subsection.4.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.2}Validation Strategy: Stratified Group K-Fold}{12}{subsection.4.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.3}Algorithm}{12}{subsection.4.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Objective Function}{12}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Taylor Expansion}{12}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Regularization}{12}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.4}Hyperparameter Specifications}{12}{subsection.4.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.5}Tuning Strategies}{13}{subsection.4.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.6}Preliminary Results}{13}{subsection.4.3.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Comparison of Tuning Efficiency}{13}{section*.9}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4.1}{\ignorespaces Comparison of Best Training AUC found by each search strategy. Bayesian Optimization identified the optimal configuration.}}{13}{figure.4.1}\protected@file@percent }
+\newlabel{fig:tuning_comparison}{{4.1}{13}{Comparison of Best Training AUC found by each search strategy. Bayesian Optimization identified the optimal configuration}{figure.4.1}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Final Tuning Selection}{13}{section*.10}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4.3}{\ignorespaces Hyperparameter Configuration and Model Performance. Bayesian Optimization achieved the highest Mean Cross-Validation AUC.}}{14}{table.4.3}\protected@file@percent }
+\newlabel{tab:model_comparison}{{4.3}{14}{Hyperparameter Configuration and Model Performance. Bayesian Optimization achieved the highest Mean Cross-Validation AUC}{table.4.3}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Training Stability \& Feature Importance}{14}{section*.11}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4.2}{\ignorespaces Boosting Iteration Learning Curve (Bayesian Opt). The red line marks the optimal stopping point.}}{14}{figure.4.2}\protected@file@percent }
+\newlabel{fig:learning_curve}{{4.2}{14}{Boosting Iteration Learning Curve (Bayesian Opt). The red line marks the optimal stopping point}{figure.4.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4.3}{\ignorespaces Top 10 Features by Gain. Feature f8 is the strongest driver of default risk.}}{14}{figure.4.3}\protected@file@percent }
+\newlabel{fig:feat_imp}{{4.3}{14}{Top 10 Features by Gain. Feature f8 is the strongest driver of default risk}{figure.4.3}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Test Set Performance \& Calibration}{14}{section*.12}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4.4}{\ignorespaces Summary of Final XGBoost Model Performance on the Test Set. The model utilizes the hyperparameters identified via Bayesian Optimization.}}{15}{table.4.4}\protected@file@percent }
+\newlabel{tab:xgboost_final_results}{{4.4}{15}{Summary of Final XGBoost Model Performance on the Test Set. The model utilizes the hyperparameters identified via Bayesian Optimization}{table.4.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4.4}{\ignorespaces Final Test Set AUC. The Standard Bayesian model outperforms the 1-SE heuristic.}}{15}{figure.4.4}\protected@file@percent }
+\newlabel{fig:test_auc}{{4.4}{15}{Final Test Set AUC. The Standard Bayesian model outperforms the 1-SE heuristic}{figure.4.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4.5}{\ignorespaces Calibration Chart (Test Set). Observed rates closely align with predictions, showing strong ranking ability.}}{15}{figure.4.5}\protected@file@percent }
+\newlabel{fig:calibration}{{4.5}{15}{Calibration Chart (Test Set). Observed rates closely align with predictions, showing strong ranking ability}{figure.4.5}{}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {5}Neural Networks}{16}{chapter.5}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\@writefile{toc}{\contentsline {section}{\numberline {5.1}Neural Networks}{15}{section.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {chapter}{\numberline {6}Model Assessment}{16}{chapter.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.1}Neural Networks}{16}{section.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {6}Model Assessment}{17}{chapter.6}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\@writefile{toc}{\contentsline {section}{\numberline {6.1}Model Selection}{16}{section.6.1}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6.1}{\ignorespaces Comparison of the Test-AUC of the models with the highest training AUC in each category.}}{16}{figure.6.1}\protected@file@percent }
-\newlabel{fig:test_auc}{{6.1}{16}{Comparison of the Test-AUC of the models with the highest training AUC in each category}{figure.6.1}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {6.1}{\ignorespaces Final Model Comparison and Champion Selection. XGBoost is selected as the Champion Model as it outperforms the baseline (GLM) and Random Forest in both discrimination (AUC) and probability calibration (Brier Score).}}{16}{table.6.1}\protected@file@percent }
-\newlabel{tab:model_selection}{{6.1}{16}{Final Model Comparison and Champion Selection. XGBoost is selected as the Champion Model as it outperforms the baseline (GLM) and Random Forest in both discrimination (AUC) and probability calibration (Brier Score)}{table.6.1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.2}Final Model}{16}{section.6.2}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {6.2}{\ignorespaces Summary of Final XGBoost Model Performance on the Test Set. The model achieves the highest discrimination and calibration accuracy of all candidates.}}{17}{table.6.2}\protected@file@percent }
-\newlabel{tab:xgboost_final_results}{{6.2}{17}{Summary of Final XGBoost Model Performance on the Test Set. The model achieves the highest discrimination and calibration accuracy of all candidates}{table.6.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.1}Model Selection}{17}{section.6.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6.1}{\ignorespaces Comparison of the Test-AUC of the models with the highest training AUC in each category.}}{17}{figure.6.1}\protected@file@percent }
+\newlabel{fig:test_auc}{{6.1}{17}{Comparison of the Test-AUC of the models with the highest training AUC in each category}{figure.6.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6.1}{\ignorespaces Final Model Comparison and Champion Selection. XGBoost is selected as the Champion Model as it outperforms the baseline (GLM) and Random Forest in both discrimination (AUC) and probability calibration (Brier Score).}}{17}{table.6.1}\protected@file@percent }
+\newlabel{tab:model_selection}{{6.1}{17}{Final Model Comparison and Champion Selection. XGBoost is selected as the Champion Model as it outperforms the baseline (GLM) and Random Forest in both discrimination (AUC) and probability calibration (Brier Score)}{table.6.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.2}Final Model}{17}{section.6.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6.2}{\ignorespaces Summary of Final XGBoost Model Performance on the Test Set. The model achieves the highest discrimination and calibration accuracy of all candidates.}}{18}{table.6.2}\protected@file@percent }
+\newlabel{tab:xgboost_final_results}{{6.2}{18}{Summary of Final XGBoost Model Performance on the Test Set. The model achieves the highest discrimination and calibration accuracy of all candidates}{table.6.2}{}}
 \bibstyle{plainnat}
 \bibdata{references}
-\@writefile{toc}{\contentsline {chapter}{\numberline {7}Task Distribution}{18}{chapter.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {7}Task Distribution}{19}{chapter.7}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces Team Task Distribution Matrix}}{18}{table.7.1}\protected@file@percent }
-\newlabel{tab:task_matrix}{{7.1}{18}{Team Task Distribution Matrix}{table.7.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces Team Task Distribution Matrix}}{19}{table.7.1}\protected@file@percent }
+\newlabel{tab:task_matrix}{{7.1}{19}{Team Task Distribution Matrix}{table.7.1}{}}
 \bibcite{breiman2001random}{{1}{2001}{{Breiman}}{{}}}
 \bibcite{lessmann2015benchmarking}{{2}{2015}{{Lessmann et~al.}}{{Lessmann, Baesens, Seow, and Thomas}}}
 \bibcite{zhou2009credit}{{3}{2009}{{Zhou et~al.}}{{Zhou, Lai, and Yen}}}
-\gdef \@abspage@last{20}
+\gdef \@abspage@last{21}

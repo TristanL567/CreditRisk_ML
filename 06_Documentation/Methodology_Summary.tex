@@ -4,7 +4,7 @@
 
 %==== START ===================================================================%
 
-\documentclass{report}\usepackage[]{graphicx}\usepackage[]{xcolor}
+\documentclass{report}\usepackage[]{graphicx}\usepackage[table]{xcolor}
 % maxwidth is the original width if it is less than linewidth
 % otherwise use linewidth (to make sure the graphics do not exceed the margin)
 \makeatletter
@@ -78,6 +78,7 @@
 %% Testing different layout.
 \usepackage{geometry}
 \usepackage{xcolor}
+\usepackage[table]{xcolor} % <--- THIS IS THE FIX for \rowcolor
 
 %% Charts.
 \graphicspath{
@@ -240,6 +241,40 @@ Where $x_{input}$ is either the calculated ratio ($\frac{x_{raw}}{\text{Assets}}
 \section{Model Selection}
 
 Selection is done by the AuC-ROC measure as per client instructions. \\
+
+\section{Calibration Plot}
+
+\begin{table}[h]
+\centering
+\caption{Top 15 Risk Profiles (GLM Ranked). Despite the predominance of non-defaults ($0$), the model successfully concentrates defaults ($1$) in the top percentiles compared to the portfolio average.}
+\label{tab:top_risk_actuals}
+\begin{tabular}{ccccc}
+\toprule
+\textbf{Rank} & \textbf{Actual} & \textbf{GLM} & \textbf{Random Forest} & \textbf{XGBoost} \\
+(Risk Order) & (Default) & ($P_{def}$) & ($P_{def}$) & ($P_{def}$) \\ \midrule
+1  & 0 & 0.323 & 0.055 & 0.243 \\ 
+2  & 0 & 0.267 & 0.037 & 0.374 \\ 
+3  & 0 & 0.217 & 0.039 & 0.088 \\ 
+4  & 0 & 0.198 & 0.059 & 0.165 \\ 
+5  & 0 & 0.193 & 0.051 & 0.125 \\ 
+\addlinespace
+6  & 0 & 0.193 & 0.040 & 0.187 \\ 
+7  & 0 & 0.192 & 0.057 & 0.302 \\ 
+\rowcolor{gray!20} \textbf{8}  & \textbf{1} & \textbf{0.163} & \textbf{0.053} & \textbf{0.182} \\ 
+9  & 0 & 0.159 & 0.056 & 0.319 \\ 
+10 & 0 & 0.157 & 0.056 & 0.155 \\ 
+\addlinespace
+11 & 0 & 0.154 & 0.062 & 0.187 \\ 
+12 & 0 & 0.145 & 0.047 & 0.277 \\ 
+13 & 0 & 0.144 & 0.093 & 0.228 \\ 
+\rowcolor{gray!20} \textbf{14} & \textbf{1} & \textbf{0.142} & \textbf{0.038} & \textbf{0.070} \\ 
+15 & 0 & 0.140 & 0.027 & 0.156 \\ 
+\bottomrule
+\multicolumn{5}{l}{\footnotesize \textbf{Note}: Defaults (Rows 8, 14) are captured despite low absolute probabilities.} \\
+\multicolumn{5}{l}{\footnotesize \textbf{Observation}: RF probabilities are consistently lower than GLM/XGB.} \\
+\end{tabular}
+\end{table}
+
 
 
 %==== Chapter 3: Linear Models ================================================%
