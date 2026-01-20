@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.1.30)  19 JAN 2026 17:55
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.1.30)  20 JAN 2026 15:39
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -532,12 +532,12 @@ Underfull \hbox (badness 10000) in paragraph at lines 264--265
 
 ]
 Chapter 3.
-<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/01_GLM_HyperparameterTuningMethods_AUC_Training.png, id=277, 903.375pt x 441.5697pt>
+<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/01_GLM_HyperparameterTuningMethods_AUC_Training.png, id=287, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/01_GLM_HyperparameterTuningMethods_AUC_Training.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/01_GLM_HyperparameterTuningMethods_AUC_Training.png>
 Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/01_GLM_HyperparameterTuningMethods_AUC_Training.png  used on input line 314.
 (pdftex.def)             Requested size: 240.23016pt x 117.41968pt.
-<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/05_GLM_CalibrationChart_BayesianOptimization_Test.png, id=279, 903.375pt x 441.5697pt>
+<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/05_GLM_CalibrationChart_BayesianOptimization_Test.png, id=289, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/05_GLM_CalibrationChart_BayesianOptimization_Test.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/05_GLM_CalibrationChart_BayesianOptimization_Test.png>
 Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/GLM/05_GLM_CalibrationChart_BayesianOptimization_Test.png  used on input line 321.
@@ -574,7 +574,7 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 [11]
 
 [12]
-<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png, id=357, 903.375pt x 441.5697pt>
+<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png, id=367, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png>
 Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png  used on input line 701.
@@ -585,7 +585,7 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 [13 <c:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/01_HyperparameterTuningMethods_AUC_Training.png>]
-<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/02_LearningCurve_BayesianOptimization_Training.png, id=373, 903.375pt x 441.5697pt>
+<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/02_LearningCurve_BayesianOptimization_Training.png, id=383, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/02_LearningCurve_BayesianOptimization_Training.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/02_LearningCurve_BayesianOptimization_Training.png>
 Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/02_LearningCurve_BayesianOptimization_Training.png  used on input line 739.
@@ -595,7 +595,7 @@ Underfull \hbox (badness 5231) in paragraph at lines 740--740
 []\T1/lmr/m/n/10 Figure 4.2: []Boosting It-er-a-tion Learn-ing Curve
  []
 
-<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/03_FeatureImportance_BayesianOptimization_Training.png, id=374, 903.375pt x 441.5697pt>
+<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/03_FeatureImportance_BayesianOptimization_Training.png, id=384, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/03_FeatureImportance_BayesianOptimization_Training.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/03_FeatureImportance_BayesianOptimization_Training.png>
 Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/03_FeatureImportance_BayesianOptimization_Training.png  used on input line 746.
@@ -603,12 +603,12 @@ Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/04_AUC_Test.png, id=377, 903.375pt x 441.5697pt>
+<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/04_AUC_Test.png, id=387, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/04_AUC_Test.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/04_AUC_Test.png>
 Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/04_AUC_Test.png  used on input line 785.
 (pdftex.def)             Requested size: 240.23016pt x 117.41968pt.
-<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/05_CalibrationChart_BayesianOptimization_Test.png, id=378, 903.375pt x 441.5697pt>
+<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/05_CalibrationChart_BayesianOptimization_Test.png, id=388, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/05_CalibrationChart_BayesianOptimization_Test.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/05_CalibrationChart_BayesianOptimization_Test.png>
 Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/XGBoost/05_CalibrationChart_BayesianOptimization_Test.png  used on input line 792.
@@ -625,7 +625,7 @@ Chapter 5.
 
 ]
 Chapter 6.
-<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/04_AUC_Test_Overall.png, id=403, 903.375pt x 441.5697pt>
+<C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/04_AUC_Test_Overall.png, id=413, 903.375pt x 441.5697pt>
 File: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/04_AUC_Test_Overall.png Graphic file (type png)
 <use C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/04_AUC_Test_Overall.png>
 Package pdftex.def Info: C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/TestSet/04_AUC_Test_Overall.png  used on input line 821.
@@ -641,13 +641,19 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 [18]
 Chapter 7.
-(./Methodology_Summary.bbl
+
 
 [19
 
-])
+]
+Chapter 8.
+(./Methodology_Summary.bbl
 
 [20
+
+])
+
+[21
 
 ] (./Methodology_Summary.aux)
  ***********
@@ -658,21 +664,21 @@ L3 programming layer <2024-12-25>
 LaTeX Warning: There were multiply-defined labels.
 
 Package rerunfilecheck Info: File `Methodology_Summary.out' has not changed.
-(rerunfilecheck)             Checksum: 8618528FD29B83D03C1004A3FC076D11;6460.
+(rerunfilecheck)             Checksum: F5665E98CF4B4FCF5120677ECAB260D3;6841.
  ) 
 Here is how much of TeX's memory you used:
- 11392 strings out of 475177
- 185281 string characters out of 5763703
- 590362 words of memory out of 5000000
- 34071 multiletter control sequences out of 15000+600000
+ 11402 strings out of 475177
+ 185375 string characters out of 5763703
+ 590367 words of memory out of 5000000
+ 34073 multiletter control sequences out of 15000+600000
  652387 words of font info for 80 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  75i,13n,79p,802b,575s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx12.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx7.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx8.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmcsc10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmex10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi5.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi7.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi8.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr12.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr5.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr7.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr8.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmri10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmri8.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy5.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy7.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtt10.pfb><c:/Users/TristanLeiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtt8.pfb>
-Output written on Methodology_Summary.pdf (21 pages, 1230079 bytes).
+Output written on Methodology_Summary.pdf (22 pages, 1233674 bytes).
 PDF statistics:
- 563 PDF objects out of 1000 (max. 8388607)
- 470 compressed objects within 5 object streams
- 122 named destinations out of 1000 (max. 500000)
- 385 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 583 PDF objects out of 1000 (max. 8388607)
+ 489 compressed objects within 5 object streams
+ 130 named destinations out of 1000 (max. 500000)
+ 401 words of extra memory for PDF output out of 10000 (max. 10000000)
 

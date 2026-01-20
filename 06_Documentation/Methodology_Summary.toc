@@ -52,3 +52,5 @@
 \contentsline {section}{\numberline {6.1}Model Selection}{17}{section.6.1}%
 \contentsline {section}{\numberline {6.2}Final Model}{17}{section.6.2}%
 \contentsline {chapter}{\numberline {7}Task Distribution}{19}{chapter.7}%
+\contentsline {chapter}{\numberline {8}Model Improvements}{20}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Feature Engineering via Autoencoders}{20}{section.8.1}%
