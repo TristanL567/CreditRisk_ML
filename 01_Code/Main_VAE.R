@@ -278,19 +278,58 @@ str(Train_Transformed[, cat_cols, drop=FALSE])
 
 #==== 03C - Stratified Folds (for CV) =========================================#
 
-## Add the firm id and sector back.
-Strat_Data <- Train_Transformed %>%
+Strat_Data_1 <- Train_Exp1 %>%
+  mutate(
+    id = Train_with_id$id,
+    sector = Train_with_id$sector 
+  ) 
+
+Strat_Data_2 <- Train_Exp2 %>%
   mutate(
     id = Train_with_id$id,
     sector = Train_with_id$sector 
   )
 
-Data_Train_CV_stratified_sampling <- MVstratifiedsampling_CV(Strat_Data, num_folds = N_folds)
-Data_Train_CV_List <- Data_Train_CV_stratified_sampling[["fold_list"]]
-Data_Train_CV_Vector <- Data_Train_CV_stratified_sampling[["fold_vector"]]
+Strat_Data_3 <- Train_Exp3 %>%
+  mutate(
+    id = Train_with_id$id,
+    sector = Train_with_id$sector 
+  )
 
-print(paste("Folds generated:", length(Data_Train_CV_List)))
-length(Data_Train_CV_Vector)
+##=========================================##
+##==== First stratify by IDs.
+##=========================================##
+
+Data_Train_CV_Split_IDs <- MVstratifiedsampling_CV_ID(data = Strat_Data_1, 
+                                                      num_folds = N_folds)
+
+##=========================================##
+##==== Now use the stratified IDs to get the row in the train set for each fold.
+##=========================================##
+
+## Rows remain the same.
+Data_Train_CV_1 <- MVstratifiedsampling_CV_Split(data = Strat_Data_1, 
+                                                 firm_fold_indices = Data_Train_CV_Split_IDs)
+
+Data_Train_CV_List_1 <- Data_Train_CV_1[["fold_list"]]
+Data_Train_CV_Vector_1 <- Data_Train_CV_1[["fold_vector"]]
+
+#### Previous.
+
+## Add the firm id and sector back.
+# Strat_Data <- Train_Transformed %>%
+#   mutate(
+#     id = Train_with_id$id,
+#     sector = Train_with_id$sector
+#   )
+# 
+# Data_Train_CV_stratified_sampling <- MVstratifiedsampling_CV(Strat_Data, num_folds = N_folds)
+# 
+# Data_Train_CV_List <- Data_Train_CV_stratified_sampling[["fold_list"]]
+# Data_Train_CV_Vector <- Data_Train_CV_stratified_sampling[["fold_vector"]]
+# 
+# print(paste("Folds generated:", length(Data_Train_CV_List)))
+# length(Data_Train_CV_Vector)
 
 #==============================================================================#
 #==== 04 - GLMs ===============================================================#
@@ -1495,11 +1534,10 @@ tryCatch({
 ## Data preparation.
 ##==============================##
 sparse_formula <- as.formula("y ~ . - 1")
-length(unlist(Data_Train_CV_List))
 
 # Training Data
-train_y <- as.numeric(as.character(Train_Transformed$y))
-train_matrix <- sparse.model.matrix(sparse_formula, data = Train_Transformed)
+train_y <- as.numeric(as.character(Strat_Data_1$y))
+train_matrix <- sparse.model.matrix(sparse_formula, data = Strat_Data_1)
 dtrain <- xgb.DMatrix(data = train_matrix, label = train_y)
 
 # Test Data
@@ -1508,167 +1546,14 @@ test_matrix <- sparse.model.matrix(sparse_formula, data = Test_Transformed)
 dtest <- xgb.DMatrix(data = test_matrix, label = test_y)
 
 ##==============================##
-## Discrete Grid Search for Hyperparameter Tuning.
-##==============================##
-
-time_XGBoost_ds <- system.time({
-  
-## Prepare the grid.
-grid_ds <- expand.grid(
-  eta = c(0.01, 0.05, 0.1),
-  max_depth = c(3, 5, 6),
-  subsample = c(0.7, 0.9),
-  colsample_bytree = c(0.7, 0.9)
-)
-
-## Add the tuning and progress params.
-grid_ds <- grid_ds %>%
-  mutate(
-    nrounds = 2000,
-    early_stopping_rounds = 50,
-    current_iter = 1:n(),
-    total_iters = n()
-  )
-
-print(paste("Total combinations to test:", nrow(grid_ds)))
-
-## Implement the vectorized grid search function.
-tryCatch({
-results_ds <- pmap_dfr(grid_ds, XGBoost_gridsearch,
-                       folds_custom = Data_Train_CV_List) %>%
-    arrange(desc(AUC))
-  
-print("--- Top 5 Discrete Models ---")
-print(head(results_ds, 5))
-  
-}, error = function(e) print(e))
-
-## Train the final model (optimal combination of hyperparameters).
-tryCatch({
-best_ds <- results_ds[1, ]
-  
-final_params_ds <- list(
-    booster = "gbtree", 
-    objective = "binary:logistic", 
-    eval_metric = "auc",
-    eta = best_ds$eta, 
-    max_depth = best_ds$max_depth, 
-    subsample = best_ds$subsample, 
-    colsample_bytree = best_ds$colsample_bytree
-)
-
-## Find the best iteration.
-check_cv <- xgb.cv(
-  params = final_params_ds,
-  data = dtrain,
-  nrounds = 2000,
-  folds = Data_Train_CV_List,
-  # nfold = 5,
-  early_stopping_rounds = 50,
-  verbose = 0,
-  maximize = TRUE
-)
-
-optimal_rounds <- check_cv$evaluation_log[which.max(check_cv$evaluation_log$test_auc_mean)]$iter
-
-## Train the model with the optimal hyperparameters.
-model_ds <- xgb.train(params = final_params_ds, 
-                      data = dtrain, 
-                      nrounds = optimal_rounds, 
-                      verbose = 0)
-
-}, error = function(e) print(e))
-
-## Compute the training AUC.
-XGBoost_ds_probs <- predict(model_ds, dtrain)
-XGBoost_ds_Train_ROC <- roc(train_y, XGBoost_ds_probs, quiet = TRUE)
-XGBoost_ds_Train_AUC <- pROC::auc(XGBoost_ds_Train_ROC)
-print(paste("Final Train AUC:", round(XGBoost_ds_Train_AUC, 5)))
-
-}) ## time counter.
-
-##==============================##
-## Random Grid Search for Hyperparameter Tuning.
-##==============================##
-
-time_XGBoost_rs <- system.time({
-  
-## Prepare the grid.
-n_iter <- 20
-
-grid_rs <- data.frame(
-  eta = runif(n_iter, 0.01, 0.3),
-  max_depth = sample(3:8, n_iter, replace = TRUE),
-  subsample = runif(n_iter, 0.5, 1.0),
-  colsample_bytree = runif(n_iter, 0.5, 1.0)
-)
-
-## Add the tuning and progress params.
-grid_rs <- grid_rs %>%
-  mutate(
-    nrounds = 2000,
-    early_stopping_rounds = 50,
-    current_iter = 1:n(),
-    total_iters = n()
-  )
-
-print(paste("Total random combinations:", nrow(grid_rs)))
-
-## Implement the vectorized grid search function.
-tryCatch({
-  results_rs <- pmap_dfr(grid_rs, XGBoost_gridsearch,
-                         folds_custom = Data_Train_CV_List) %>%
-    arrange(desc(AUC))
-  
-  print("--- Top 5 Random Models ---")
-  print(head(results_rs, 5))
-  
-}, error = function(e) message(e))
-
-## Train the final model (optimal combination of hyperparameters).
-tryCatch({
-best_rs <- results_rs[1, ]
-
-final_params_rs <- list(
-  booster = "gbtree", objective = "binary:logistic", eval_metric = "auc",
-  eta = best_rs$eta, max_depth = best_rs$max_depth, 
-  subsample = best_rs$subsample, colsample_bytree = best_rs$colsample_bytree
-)
-
-# Determine optimal rounds for the Random Search winner
-check_cv_rs <- xgb.cv(
-  params = final_params_rs,
-  data = dtrain,
-  nrounds = 2000,
-  folds = Data_Train_CV_List,
-  # nfold = 5,
-  early_stopping_rounds = 50,
-  verbose = 0,
-  maximize = TRUE
-)
-optimal_rounds_rs <- check_cv_rs$evaluation_log[which.max(check_cv_rs$evaluation_log$test_auc_mean)]$iter
-
-## Train the model with the optimal hyperparameters.
-model_rs <- xgb.train(params = final_params_rs, 
-                      data = dtrain,
-                      nrounds = optimal_rounds_rs, 
-                      verbose = 0)
-
-}, error = function(e) message(e))
-
-## Compute the training AUC.
-XGBoost_rs_probs <- predict(model_rs, dtrain)
-XGBoost_rs_Train_ROC <- roc(train_y, XGBoost_rs_probs, quiet = TRUE)
-XGBoost_rs_Train_AUC <- pROC::auc(XGBoost_rs_Train_ROC)
-print(paste("Final Train AUC:", round(XGBoost_rs_Train_AUC, 5)))
-
-}) ## time counter.
-
-##==============================##
-## Bayesian Optimization for Hyperparameter Tuning.
+## Bayesian Optimization for Hyperparameter Tuning - Dataset 1.
 ##==============================##
 
 time_XGBoost_bo <- system.time({
+  
+## specific data
+Data_Train_CV_List <- Data_Train_CV_List_1
+length(unlist(Data_Train_CV_List))
   
 ## Prepare the parameters.
 n_init_points <- 10
