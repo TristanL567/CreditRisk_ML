@@ -32,10 +32,26 @@ brier_val <- mean((pred_probs - test_y)^2)
 epsilon <- 1e-15
 preds_clipped <- pmax(pmin(pred_probs, 1 - epsilon), epsilon)
 log_loss <- -mean(test_y * log(preds_clipped) + (1 - test_y) * log(1 - preds_clipped))
-    
+
 message(paste("Test Set Evaluation Complete."))
 message(paste("AUC:       ", round(auc_val, 5)))
 message(paste("Brier:     ", round(brier_val, 5)))
+
+#########
+
+R <- 2 # Binary classification
+penalty_term <- (R - 1) / R # 0.5
+
+df_calc <- data.frame(
+  Actual = test_y,
+  Predicted = pred_probs
+)
+
+df_calc$Predicted_Class <- round(df_calc$Predicted)
+df_calc$Squared_Error   <- (df_calc$Predicted - df_calc$Actual)^2
+df_calc$Penalty         <- ifelse(df_calc$Predicted_Class != df_calc$Actual, penalty_term, 0)
+
+penalized_brier_val <- mean(df_calc$Squared_Error + df_calc$Penalty)
  
 ##==============================##
 ## 4. Return statement.
@@ -47,6 +63,7 @@ message(paste("Brier:     ", round(brier_val, 5)))
       Metrics = data.frame(
         AUC = auc_val,
         Brier_Score = brier_val,
+        Penalized_Brier_Score = penalized_brier_val,
         Log_Loss = log_loss,
         Inference_Time_Sec = timer["elapsed"]
       )

@@ -1,0 +1,337 @@
+%==== KNITR ===================================================================%
+
+
+
+%==== START ===================================================================%
+
+\documentclass{report}\usepackage[]{graphicx}\usepackage[]{xcolor}
+% maxwidth is the original width if it is less than linewidth
+% otherwise use linewidth (to make sure the graphics do not exceed the margin)
+\makeatletter
+\def\maxwidth{ %
+  \ifdim\Gin@nat@width>\linewidth
+    \linewidth
+  \else
+    \Gin@nat@width
+  \fi
+}
+\makeatother
+
+\definecolor{fgcolor}{rgb}{0.345, 0.345, 0.345}
+\newcommand{\hlnum}[1]{\textcolor[rgb]{0.686,0.059,0.569}{#1}}%
+\newcommand{\hlstr}[1]{\textcolor[rgb]{0.192,0.494,0.8}{#1}}%
+\newcommand{\hlcom}[1]{\textcolor[rgb]{0.678,0.584,0.686}{\textit{#1}}}%
+\newcommand{\hlopt}[1]{\textcolor[rgb]{0,0,0}{#1}}%
+\newcommand{\hlstd}[1]{\textcolor[rgb]{0.345,0.345,0.345}{#1}}%
+\newcommand{\hlkwa}[1]{\textcolor[rgb]{0.161,0.373,0.58}{\textbf{#1}}}%
+\newcommand{\hlkwb}[1]{\textcolor[rgb]{0.69,0.353,0.396}{#1}}%
+\newcommand{\hlkwc}[1]{\textcolor[rgb]{0.333,0.667,0.333}{#1}}%
+\newcommand{\hlkwd}[1]{\textcolor[rgb]{0.737,0.353,0.396}{\textbf{#1}}}%
+\let\hlipl\hlkwb
+
+\usepackage{framed}
+\makeatletter
+\newenvironment{kframe}{%
+ \def\at@end@of@kframe{}%
+ \ifinner\ifhmode%
+  \def\at@end@of@kframe{\end{minipage}}%
+  \begin{minipage}{\columnwidth}%
+ \fi\fi%
+ \def\FrameCommand##1{\hskip\@totalleftmargin \hskip-\fboxsep
+ \colorbox{shadecolor}{##1}\hskip-\fboxsep
+     % There is no \\@totalrightmargin, so:
+     \hskip-\linewidth \hskip-\@totalleftmargin \hskip\columnwidth}%
+ \MakeFramed {\advance\hsize-\width
+   \@totalleftmargin\z@ \linewidth\hsize
+   \@setminipage}}%
+ {\par\unskip\endMakeFramed%
+ \at@end@of@kframe}
+\makeatother
+
+\definecolor{shadecolor}{rgb}{.97, .97, .97}
+\definecolor{messagecolor}{rgb}{0, 0, 0}
+\definecolor{warningcolor}{rgb}{1, 0, 1}
+\definecolor{errorcolor}{rgb}{1, 0, 0}
+\newenvironment{knitrout}{}{} % an empty environment to be redefined in TeX
+
+\usepackage{alltt}
+
+\usepackage[left=2cm, right=2cm, top=1cm, bottom=2cm]{geometry}
+
+% Language setting.
+\usepackage[main=ngerman, provide=*]{babel}
+
+% Main packages.
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs} 
+\usepackage{rotating} 
+\usepackage{lmodern}
+
+% Citations.
+\usepackage{natbib}
+\setcitestyle{authoryear,open={(},close={)}} %Citation-related commands
+
+%% Testing different layout.
+\usepackage{geometry}
+\usepackage{xcolor}
+
+% Chart placement.
+\usepackage{float}
+
+% Grafik-Pfad.
+% \graphicspath{
+%     {O:/00_Procedures&Tasks/Anleitungen/05_Research/PerformanceMandate/Grafiken/}
+% }
+
+%==== DOCUMENT START ==========================================================%
+
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\begin{document}
+
+\begin{titlepage}
+    \newgeometry{top=3cm, bottom=3cm, left=2.5cm, right=2.5cm}
+    \centering
+    
+    % \includegraphics[width=0.4\textwidth]{logo.png} \par
+    {\scshape\LARGE ILAB: OeNB \par}
+    \vspace{1cm}
+    {\scshape\Large Documentation \par}
+    
+    \vspace{2.5cm}
+    
+    % --- Title Section ---
+    \hrule height 2pt
+    \vspace{0.5cm}
+    { \huge \bfseries Variational Autoencoders \\}
+    \vspace{0.5cm}
+    \hrule height 2pt
+    
+    \vspace{2cm}
+    
+    % --- Author Section ---
+    \Large
+    \textbf{Author:} \\
+    Tristan \textsc{Leiter}
+    
+    \vspace{1.5cm}
+    
+    % --- Metadata ---
+    \normalsize
+    % \textbf{Submission Date:} \\
+    \today
+
+    \vfill
+    
+\end{titlepage}
+\restoregeometry
+
+% \maketitle
+
+%==== ABSTRACT ================================================================%
+
+% \begin{abstract}
+% This report demonstrates the integration of R code and its output within a LaTeX document using Sweave. It covers the basic structure of a report, including a summary, chapters with subchapters, and a bibliography.
+% \end{abstract}
+
+%==== Table of content ========================================================%
+
+\tableofcontents
+\newpage
+
+%==== Chapter 1: Allgemein ====================================================%
+
+%==== Chapter: VAE Integration and Diagnostics ================================%
+
+\chapter{Variational Autoencoder (VAE) Integration \& Diagnostics}
+
+\section{Motivation and Objective}
+
+The primary objective of integrating a Variational Autoencoder (VAE) into the credit risk modeling pipeline was to leverage unsupervised learning to capture non-linear latent structures that standard gradient boosting models (XGBoost) might miss. While XGBoost excels at identifying decision boundaries based on provided features, it struggles to capture the underlying "manifold" of the data without explicit feature engineering.
+
+The implementation follows a "Hybrid Expert" approach, where the VAE acts as a feature extractor and anomaly detector to augment the supervised XGBoost model. The specific goals were:
+
+\begin{itemize}
+    \item \textbf{Dimensionality Reduction:} Compressing 11 financial ratios into a lower-dimensional latent space to identify clusters of firm behavior.
+    \item \textbf{Anomaly Detection:} Using reconstruction error to flag firms that are structurally "weird" or inconsistent with the general population, hypothesizing that high structural anomaly correlates with default risk.
+    \item \textbf{Residual Modeling:} Using the VAE to specifically model the "hard samples" that the baseline XGBoost model fails to predict correctly.
+\end{itemize}
+
+
+
+\section{VAE Implementation Strategies}
+
+Several strategies were tested to extract value from the VAE. The code iterates through five distinct approaches (Strategies A through E) to determine the optimal integration method.
+
+\subsection{Strategy A: Latent Features (Dimensionality Reduction)}
+This strategy utilizes the \textbf{Encoder} part of the VAE. The 11 continuous financial variables and categorical metadata are compressed into an 8-dimensional latent vector ($l_1 \dots l_8$).
+\begin{itemize}
+    \item \textbf{Mechanism:} The encoder maps the input $x$ to a latent distribution $P(z|x)$. The mean of this distribution is extracted as the new feature set.
+    \item \textbf{Hypothesis:} These latent features capture non-linear "concepts" (e.g., a "high-growth but low-liquidity" cluster) that are more robust than raw financial ratios.
+\end{itemize}
+
+\subsection{Strategy B: Anomaly Score (Reconstruction Error)}
+This strategy utilizes the \textbf{Decoder}. It measures how well the VAE can reconstruct the input data after compression.
+\begin{itemize}
+    \item \textbf{Mechanism:} The model calculates the Mean Squared Error (MSE) for continuous variables and Binary Cross Entropy (BCE) for categorical variables between the input and the reconstruction. The sum is the \texttt{anomaly\_score\_total}.
+    \item \textbf{Refinement (Strategy B Revised):} The anomaly score was augmented with manual "Zombie" interaction features, such as the \texttt{Gap\_Debt\_Equity} and \texttt{Ratio\_Cash\_Profit}, to capture specific diagonal decision boundaries that pure reconstruction error might miss.
+\end{itemize}
+
+\subsection{Strategy C: Regime Switching (Directional Surprise)}
+Instead of a single scalar error score, this strategy looks at the \textit{direction} of the error.
+\begin{itemize}
+    \item \textbf{Mechanism:} Signed residuals are calculated ($Actual - Reconstructed$). This creates "Soft Surprise" features.
+    \item \textbf{Hypothesis:} If a firm has much higher profit ($f8$) than the VAE expects based on its other features, this "positive surprise" contains signal distinct from the raw profit value.
+\end{itemize}
+
+\subsection{Strategy D: Residual Fit (The Specialist VAE)}
+This is a "Hard Sample Mining" approach.
+\begin{itemize}
+    \item \textbf{Mechanism:} A base XGBoost model is trained, and the residuals (absolute errors) are calculated. A "Specialist VAE" is then trained \textit{only} on the top 25\% "hardest" samples (the observations with the highest residuals).
+    \item \textbf{Usage:} This Specialist VAE scores the full dataset. A low reconstruction error from this model indicates the firm looks like a "hard failure case," providing a \texttt{Specialist\_Risk\_Score}.
+\end{itemize}
+
+\subsection{Strategy E: Feature Denoising (DAE)}
+This strategy employs a Denoising Autoencoder (DAE) to force robustness.
+\begin{itemize}
+    \item \textbf{Mechanism:} A dropout layer (rate 0.1) is added to the input of the encoder. The model attempts to reconstruct the clean original data from the corrupted input.
+    \item \textbf{Output:} "Robust" latent features (\texttt{dae\_l1} \dots \texttt{dae\_l8}) are extracted, theoretically effectively filtering out noise from the financial ratios.
+\end{itemize}
+
+\section{Residual Diagnostics Methodology}
+
+A critical finding during the analysis was the failure of the standard decision threshold (0.5) due to the extreme class imbalance (approx. 0.86\% default rate). A new diagnostic methodology was developed to evaluate model performance forensically.
+
+\subsection{Dynamic Thresholding (Youden's J)}
+The standard classification threshold resulted in near-zero True Positives. The new methodology replaces the arbitrary 0.5 cutoff with an optimized threshold derived from the ROC curve.
+\begin{itemize}
+    \item \textbf{Procedure:} The code calculates the Receiver Operating Characteristic (ROC) curve and extracts the coordinates for the "best" threshold (Youden's J statistic), which maximizes the sum of Sensitivity and Specificity.
+    \item \textbf{Result:} This shifts the decision boundary (e.g., to 0.02), allowing the model to capture the majority of defaults at the cost of higher false positives, rendering the model usable for risk screening.
+\end{itemize}
+
+
+
+\subsection{Forensic Error Analysis}
+To understand \textit{why} the model fails, the predictions are segmented into four confusion matrix categories (True Positive, True Negative, False Positive, False Negative).
+
+\begin{itemize}
+    \item \textbf{Stealth Defaulters (False Negatives):} The analysis compares the distribution of key drivers (Profit, Solvency Gap) for False Negatives against True Positives. This reveals risks that are invisible to the model (e.g., profitable firms that default due to liquidity shocks).
+    \item \textbf{Healthy Losers (False Positives):} The analysis compares False Positives against True Negatives. This identifies "Zombie" firms—those with high debt and low profit that technically \textit{should} default but survive due to hidden buffers like high cash reserves.
+\end{itemize}
+
+%==== Chapter 3: Final Model Optimization =====================================%
+
+\chapter{Final Model Optimization: The Solvency Stabilizer}
+
+\section{The Breakthrough: Solving the ``Healthy Loser'' Panic}
+
+The primary weakness identified in previous iterations was the model's tendency to panic when observing negative profitability, resulting in a high rate of False Positives. This phenomenon, termed the ``Healthy Loser'' Panic, flagged firms that were technically unprofitable but structurally sound due to high cash reserves.
+
+By implementing \textbf{Strategy D}, which utilizes the \texttt{Feature\_Stabilizer} (switching the focus to Cash $f5$ when Profit $f8$ is negative), we achieved a ``Double Win'': the model successfully caught more defaulters while drastically reducing false alarms.
+
+\section{Quantitative Impact: Before vs. After}
+
+The implementation of the stabilizer logic produced a decisive shift in model performance. Table \ref{tab:scorecard} details the impact on the confusion matrix.
+
+\begin{table}[h]
+\centering
+\caption{Impact of Strategy D (Feature Stabilizer) on Model Performance}
+\label{tab:scorecard}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Metric} & \textbf{Previous Result} & \textbf{Strategy D Result} & \textbf{Improvement} \\ \midrule
+True Positives (Caught Risks) & 1,191 & \textbf{1,361} & +170 (Sensitivity $\uparrow$) \\
+False Negatives (Missed Risks) & 275 & \textbf{105} & -170 (Safety $\uparrow$) \\
+False Positives (False Alarms) & 39,738 & \textbf{26,077} & -13,661 (Precision $\uparrow$) \\
+True Negatives (Correct Safe) & 129,450 & \textbf{143,111} & +13,661 (Efficiency $\uparrow$) \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Key Outcomes:}
+\begin{itemize}
+    \item \textbf{Efficiency:} 13,661 healthy firms were rescued from being wrongly flagged as risky.
+    \item \textbf{Sensitivity:} Simultaneously, an additional 170 defaulters were caught that were previously missed.
+    \item \textbf{Total Capture Rate:} The model now captures \textbf{92.8\%} of all defaults ($1,361 / 1,466$), a figure considered exceptional for credit risk modeling.
+\end{itemize}
+
+\section{Mechanism of Action: Why the Stabilizer Worked}
+
+The significant drop in False Positives (from 39k to 26k) confirms the hypothesis regarding ``Healthy Losers.''
+
+\begin{itemize}
+    \item \textbf{The Old Logic:} The model observed $f8$ (Profit) at values like $-2.0$ and immediately classified the firm as high risk based on income statement bleeding.
+    \item \textbf{The New Logic:} The \texttt{Feature\_Stabilizer} intervened: \textit{``Profit is negative; therefore, evaluate Cash ($f5$) instead.''}
+    \item \textbf{The Result:} For the 13,661 rescued firms, the model recognized the ``Cash Cushion'' ($f5 > 0$) as a sufficient buffer against the ``Profit Bleed,'' correctly reclassifying them as Survivors (True Negatives).
+\end{itemize}
+
+\section{Forensic Analysis of Remaining Errors}
+
+Despite optimization, specific error groups remain. A forensic analysis reveals the distinct profiles of these residual errors.
+
+\subsection{The Remaining False Negatives (105 Firms)}
+These are the \textbf{``Stealth Defaulters.''}
+\begin{itemize}
+    \item \textbf{Profile:} Median Profit ($f8$) $\approx -0.157$; Median Solvency Gap $\approx -0.235$.
+    \item \textbf{Diagnosis:} These firms exhibit ``safe'' balance sheets (Equity $>$ Debt) and are barely losing money.
+    \item \textbf{Root Cause:} Financially, they appear identical to safe firms. Their default is likely driven by non-financial factors—such as fraud, lawsuits, or sudden management exits—or extreme short-term liquidity shocks not captured in annual reports. This represents the likely ``irreducible error'' floor for a model based solely on annual financial statements.
+\end{itemize}
+
+\subsection{The Remaining False Positives (26,077 Firms)}
+These are the \textbf{``Hardcore Zombies.''}
+\begin{itemize}
+    \item \textbf{Profile:} Massive Losses (Median $f8 \approx -1.05$); Massive Debt (Median Gap $\approx +0.90$).
+    \item \textbf{Diagnosis:} By all standard financial logic, these firms should be insolvent.
+    \item \textbf{Root Cause:} Their survival is likely due to external factors such as government bailouts, parent company guarantees, or extreme asset liquidation.
+    \item \textbf{Interpretation:} Flagging these firms is the \textit{correct behavior} for a risk model. They represent high risk; they simply survived against the odds.
+\end{itemize}
+
+\section{Future Improvements and Limitations}
+
+While the current model is production-ready, further reduction of the remaining error types requires data beyond the current scope.
+
+\subsection{Addressing False Positives (The ``Zombie'' Survivor)}
+The model fails to exclude these firms because their survival is mathematically improbable based on their financials alone.
+\begin{itemize}
+    \item \textbf{Limitation:} The model cannot see ``external support.''
+    \item \textbf{Solution path:} To reduce these False Positives, we would need to integrate:
+    \begin{enumerate}
+        \item \textbf{Ownership Structure Data:} Identifying parent companies with deep pockets.
+        \item \textbf{State Aid/Subsidy Data:} Identifying firms receiving government support.
+        \item \textbf{News Sentiment:} Detecting announcements of restructuring or bailouts.
+    \end{enumerate}
+    \item \textbf{Recommendation:} Treat these 26,077 firms as a ``High Risk Watchlist.'' They are not defaults yet, but they are living on borrowed time.
+\end{itemize}
+
+\subsection{Addressing False Negatives (The ``Stealth'' Defaulter)}
+The model fails to catch these firms because their annual reports look healthy right up until the moment of collapse.
+\begin{itemize}
+    \item \textbf{Limitation:} The latency of annual reporting masks sudden liquidity crises or fraud.
+    \item \textbf{Solution path:} To capture these Stealth Defaulters, we would need:
+    \begin{enumerate}
+        \item \textbf{Higher Frequency Data:} Monthly cash flow or bank transaction data to catch sudden liquidity drying.
+        \item \textbf{Fraud Detection Models:} Applying Benford’s Law or forensic accounting ratios to detect manipulated financial statements.
+        \item \textbf{Legal Filings:} Monitoring court dockets for sudden litigation which often precedes ``healthy'' defaults.
+    \end{enumerate}
+\end{itemize}
+
+\section{Final Recommendation}
+
+We have reached the point of diminishing returns for feature engineering on this specific dataset. The recommendation is to \textbf{Stop Engineering} and accept the model. Capturing $\sim$93\% of defaults with a drastically reduced False Positive rate is a robust result. The pipeline (Strategy D + Threshold Optimization) should now be applied to the final Holdout Test Set to confirm these metrics on unseen data.
+
+%==== Chapter 4: References ===================================================%
+
+% \bibliographystyle{plainnat} 
+% \bibliography{references}
+
+%==== Appendix ================================================================%
+
+% \appendix 
+% 
+% \chapter{Overview}
+
+%==== END =====================================================================%
+
+\end{document}

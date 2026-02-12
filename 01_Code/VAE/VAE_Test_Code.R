@@ -480,7 +480,7 @@ tryCatch({
       # If f8 is high (positive) but f5 is low (negative), this ratio drops.
       Ratio_Cash_Profit = f5 / (abs(f8) + 0.0001),
       Interaction_Cash_Profit = f5 * f8,
-      
+      Feature_Stabilizer = ifelse(f8 < 0, f5, f8)
       ##======================================================================##
       ## Strategy 3: The "Red Flag" Counter (Aggregating Risk)
       ##======================================================================##
@@ -522,8 +522,49 @@ tryCatch({
 
 }, error = function(e) message(e))
 
-#==== 04F - Strategy C Fitting a base GBM Model ===============================#
+### Test-set.
 
+tryCatch({
+  
+  Strategy_B_AS_Test_revised <- Test_Transformed %>%
+    mutate(
+      ##======================================================================##
+      ## Strategy 2: The "Zombie" Interactions (Exact Match to Train)
+      ##======================================================================##
+      
+      # 1. Support Structure Ratio (Commented out in Train, so commented out here)
+      # Ratio_Support_Structure = f11 / (abs(f6) + 0.0001),
+      
+      # 2. The "Distress Gap"
+      # Logic: Difference between Liabilities (f11) and Equity (f6). 
+      Gap_Debt_Equity = f11 - f6,
+      
+      # 3. Cash Burn Ratio
+      # Logic: Relates Cash (f5) to Profit (f8). 
+      # Added +0.0001 to denominator as per training set to handle zeros.
+      Ratio_Cash_Profit = f5 / (abs(f8) + 0.0001),
+      
+      # 4. Interaction Term
+      Interaction_Cash_Profit = f5 * f8,
+      
+      # 5. Feature Stabilizer (The Strategy D Breakthrough)
+      # Logic: If Profit is negative, look at Cash.
+      Feature_Stabilizer = ifelse(f8 < 0, f5, f8)
+      
+      ##======================================================================##
+      ## Strategy 3: Flags (Commented out to match Train)
+      ##======================================================================##
+      # Flag_Liquidity = ...
+      # Red_Flag_Counter = ...
+    )
+  
+  # Validation: Check that columns were created
+  print("Test Set Engineering Complete.")
+  print(glimpse(Strategy_B_AS_Test_revised %>% 
+                  select(Gap_Debt_Equity, Ratio_Cash_Profit, Feature_Stabilizer)))
+  
+  
+}, error = function(e) message(e))
   
 #==============================================================================#
 #==== 05 - VAE Evaluation =====================================================#

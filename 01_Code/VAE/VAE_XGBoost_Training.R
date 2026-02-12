@@ -37,7 +37,7 @@ Train_Data_Strategy_B <- Strategy_B_AS
 #   mutate(
 #     id = Train_with_id$id) 
 
-### Strategy C: regime switching.
+### Strategy C: Manual Feature engineering.
 Train_Data_Strategy_C <- Strategy_B_AS_revised
 # Train_Data_Strategy_C <- Train_Data_Strategy_C %>%
 #   mutate(
@@ -89,8 +89,8 @@ Train_Data_Base_Model <- Train_Data_Base_Model %>%
 ## General Parameters.
 ##==============================##
 
-n_init_points <- 2
-n_iter_bayes  <- 4
+n_init_points <- 10
+n_iter_bayes  <- 20
 
 #==== 01A - Base model ========================================================#
 
@@ -224,7 +224,7 @@ XGBoost_Results_Strategy_B$Brier_Score <- brier_score
 
 }, error = function(e) message(e))
 
-#==== 01D - Strategy C: Regime Switching ======================================#
+#==== 01D - Strategy C: Manual Feature Engineering ============================#
 
 tryCatch({
   
@@ -413,25 +413,29 @@ tryCatch({
 
 #==== 02B - Settings ==========================================================#
 
+tryCatch({
+  
 Path <- file.path(here::here("")) ## You need to install the package first incase you do not have it.
 Charts_Directory_Model <- file.path(Path, "03_Charts/VAE")
 
 ###### Input parameters.
 ## BaseModel, StrategyA, StrategyB or Strategy C, StrategyD, StrategyE
-model_used_name <- "BaseModel"
+model_used_name <- "Strategy"
 
 ## XGBoost_Results_BaseModel, XGBoost_Results_Strategy_A, 
 ## XGBoost_Results_Strategy_B, XGBoost_Results_Strategy_C, 
 ## XGBoost_Results_Strategy_D
-model_object <- XGBoost_Results_BaseModel$optimal_model
+model_object <- XGBoost_Results_Strategy_C$optimal_model
 
 ## Train_Data_Base_Model, Train_Data_Strategy_A, 
 ## Train_Data_Strategy_B, Train_Data_Strategy_C
-data_input <- Train_Data_Base_Model
+data_input <- Train_Data_Strategy_C
 
 # Ensure directory exists
 Directory <- file.path(Charts_Directory_Model, model_used_name)
 if(!dir.exists(Directory)) dir.create(Directory)
+
+}, error = function(e) message(e))
 
 #==== 02B - Feature Importance ================================================#
 
@@ -748,6 +752,153 @@ tryCatch({
   
 }, error = function(e) message("Density Plot Error: ", e))
 
+#==== 02G - Residual diagnostics ==============================================#
+
+tryCatch({
+  
+# 1. Prepare Data (Strictly separating features)
+# We remove 'y' to ensure the matrix only contains predictors
+label_vec <- as.numeric(as.character(data_input$y))
+data_features <- data_input %>% select(-y)
+
+# 2. Create Matrix
+# Note: We use the exact same formula structure (~ . -1) to generate dummies
+X_matrix <- sparse.model.matrix(~ . - 1, data = data_features)
+
+# 3. Generate Raw Probabilities
+pred_probs <- predict(model_object, X_matrix)
+
+# --- DEBUG: CHECK PROBABILITY DISTRIBUTION ---
+# You will likely see the Max is < 0.5
+print("--- Probability Distribution ---")
+print(summary(pred_probs))
+
+# 4. Find the "Best" Threshold (Youden's J Statistic)
+# This finds the point on the ROC curve that balances Sensitivity and Specificity
+roc_obj <- roc(label_vec, pred_probs, quiet = TRUE)
+best_threshold_obj <- coords(roc_obj, "best", ret = "threshold", transpose = TRUE)
+best_cutoff <- best_threshold_obj[1] # Extract the numeric value
+
+print(paste("Optimal Decision Threshold:", round(best_cutoff, 4)))
+
+# 5. Create Diagnosis DF with Optimal Threshold
+Diagnosis_DF <- data_input %>%
+  mutate(
+    y_num = label_vec,
+    xgb_prob = pred_probs,
+    
+    # CRITICAL CHANGE: Use the calculated best_cutoff instead of 0.5
+    Prediction_Class = ifelse(xgb_prob > best_cutoff, 1, 0),
+    
+    # Classification Logic
+    Error_Type = case_when(
+      y_num == 1 & Prediction_Class == 1 ~ "True Positive",
+      y_num == 0 & Prediction_Class == 0 ~ "True Negative",
+      y_num == 0 & Prediction_Class == 1 ~ "False Positive",
+      y_num == 1 & Prediction_Class == 0 ~ "False Negative"
+    )
+  )
+
+# 6. Verify Result
+print("--- Revised Confusion Matrix ---")
+print(table(Diagnosis_DF$Error_Type))
+
+# 1. Prepare the Diagnostic Data
+# We classify every firm into one of 4 buckets: TP, TN, FP, FN.
+# Threshold = 0.5 (Standard cutoff, adjust if your threshold is different)
+
+Residual_Analysis <- Diagnosis_DF %>%
+  mutate(
+    Prediction_Class = ifelse(xgb_prob > 0.5, 1, 0),
+    Error_Type = case_when(
+      y_num == 1 & Prediction_Class == 1 ~ "True Positive (Correct Catch)",
+      y_num == 0 & Prediction_Class == 0 ~ "True Negative (Correct Safe)",
+      y_num == 0 & Prediction_Class == 1 ~ "False Positive (False Alarm)",
+      y_num == 1 & Prediction_Class == 0 ~ "False Negative (Missed Risk)"
+    )
+  )
+
+features_to_plot <- c("f8", "Gap_Debt_Equity", "Ratio_Cash_Profit")
+
+# 2. Reshape Data for Plotting (Long Format)
+Residual_Long <- Diagnosis_DF %>%
+  select(Error_Type, all_of(features_to_plot)) %>%
+  pivot_longer(cols = all_of(features_to_plot), names_to = "Feature", values_to = "Value")
+
+#==============================================================================#
+#==== PLOT A: THE "STEALTH DEFAULTER" ANALYSIS (Actual Defaulters) ===========#
+#==============================================================================#
+# Focus: Why did we miss the False Negatives? 
+# Comparing: Missed Risks (FN) vs. Caught Risks (TP)
+
+Plot_Data_Defaulters <- Residual_Long %>%
+  filter(Error_Type %in% c("False Negative", "True Positive"))
+
+p1 <- ggplot(Plot_Data_Defaulters, aes(x = Value, fill = Error_Type)) +
+  geom_density(alpha = 0.6) +
+  facet_wrap(~ Feature, scales = "free", ncol = 1) +
+  scale_fill_manual(values = c(
+    "False Negative" = "#F8766D",  # Red (The Missed Risk / Stealth)
+    "True Positive"  = "#00BA38"   # Green (The Caught Risk / Obvious)
+  )) +
+  labs(
+    title = "Plot A: Analysis of Actual Defaulters",
+    subtitle = "Comparing 'Stealth Defaulters' (Missed) vs. 'Obvious Defaulters' (Caught)",
+    y = "Density", x = "Feature Value"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top") + 
+  # CRITICAL: Zoom in to remove extreme outliers for better visibility
+  coord_cartesian(xlim = c(-3, 3)) 
+
+print(p1)
+
+#==============================================================================#
+#==== PLOT B: THE "HEALTHY LOSER" ANALYSIS (Actual Survivors) ================#
+#==============================================================================#
+# Focus: Why did we flag the False Positives?
+# Comparing: False Alarms (FP) vs. Normal Safe Firms (TN)
+
+Plot_Data_Survivors <- Residual_Long %>%
+  filter(Error_Type %in% c("False Positive", "True Negative"))
+
+p2 <- ggplot(Plot_Data_Survivors, aes(x = Value, fill = Error_Type)) +
+  geom_density(alpha = 0.6) +
+  facet_wrap(~ Feature, scales = "free", ncol = 1) +
+  scale_fill_manual(values = c(
+    "False Positive" = "#FFA500",  # Orange (False Alarm / Healthy Loser)
+    "True Negative"  = "#619CFF"   # Blue (The Normal Safe)
+  )) +
+  labs(
+    title = "Plot B: Analysis of Actual Survivors",
+    subtitle = "Comparing 'False Alarms' (Risky Profile) vs. 'Safe Profile' (Normal)",
+    y = "Density", x = "Feature Value"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top") + 
+  coord_cartesian(xlim = c(-3, 3))
+
+print(p2) 
+
+# 5. Summary Table (The Quantified "Why")
+# Calculate the median value of each feature for each error group.
+Error_Summary <- Diagnosis_DF %>%
+  group_by(Error_Type) %>%
+  summarise(
+    Count = n(),
+    # Use na.rm = TRUE to be safe against any missing values
+    Median_Profit_f8    = median(f8, na.rm = TRUE),
+    Median_Solvency_Gap = median(Gap_Debt_Equity, na.rm = TRUE),
+    Median_Burn_Ratio   = median(Ratio_Cash_Profit, na.rm = TRUE)
+  ) %>%
+  # Arrange logically: Missed Risk -> Caught Risk -> False Alarm -> Safe
+  arrange(factor(Error_Type, levels = c("False Negative", "True Positive", "False Positive", "True Negative")))
+
+print("--- Forensic Summary of Model Errors ---")
+print(Error_Summary)
+
+}, error = function(e) message(e))
+
 #==============================================================================#
 #==== 03 - XGBoost Model in the test-set ======================================#
 #==============================================================================#
@@ -767,13 +918,13 @@ Test_Data_Strategy_A <- Final_Test_Set_A
 Test_Data_Strategy_B <- Strategy_B_AS_Test
 
 ### Strategy C: regime switching.
-Test_Data_Strategy_C <- Strategy_C_Test_Soft
+Test_Data_Strategy_C <- Strategy_B_AS_Test_revised
 
 ### Strategy D: residual fit
-Test_Data_Strategy_D <- Strategy_D_Test_Soft
+# Test_Data_Strategy_D <- Strategy_D_Test_Soft
 
 ### Strategy E: Denoising
-Test_Data_Strategy_E <- Test_Data_Strategy_E
+# Test_Data_Strategy_E <- Test_Data_Strategy_E
 
 }, error = function(e) message(e))
 
@@ -839,7 +990,7 @@ XGBoost_Test_Results_Strategy_B <- XGBoost_Test(Model = Model,
 
 }, error = function(e) message(e))
 
-#==== 03E - Strategy C: Regime Switching ======================================#
+#==== 03E - Strategy C: Manual Feature Engineering ============================#
 
 tryCatch({
   
@@ -909,13 +1060,13 @@ tryCatch({
   
 Final_Leaderboard <- bind_rows(
   XGBoost_Test_Results_BaseModel$Metrics %>% mutate(Strategy = "Base Model"),
-  XGBoost_Test_Results_Strategy_A$Metrics %>% mutate(Strategy = "Strategy A (Latent)"),
-  XGBoost_Test_Results_Strategy_B$Metrics %>% mutate(Strategy = "Strategy B (Anomaly)"),
-  XGBoost_Test_Results_Strategy_C$Metrics %>% mutate(Strategy = "Strategy C (Regime)"),
-  XGBoost_Test_Results_Strategy_D$Metrics %>% mutate(Strategy = "Strategy D (Residual Fit)"),
-  XGBoost_Test_Results_Strategy_E$Metrics %>% mutate(Strategy = "Strategy E (Denoising)")
+  # XGBoost_Test_Results_Strategy_A$Metrics %>% mutate(Strategy = "Strategy A (Latent)"),
+  # XGBoost_Test_Results_Strategy_B$Metrics %>% mutate(Strategy = "Strategy B (Anomaly)"),
+  XGBoost_Test_Results_Strategy_C$Metrics %>% mutate(Strategy = "Strategy C (Manual.Feature.Eng)"),
+  # XGBoost_Test_Results_Strategy_D$Metrics %>% mutate(Strategy = "Strategy D (Residual Fit)"),
+  # XGBoost_Test_Results_Strategy_E$Metrics %>% mutate(Strategy = "Strategy E (Denoising)")
 ) %>%
-  select(Strategy, AUC, Brier_Score, Log_Loss, Inference_Time_Sec) %>%
+  select(Strategy, AUC, Brier_Score, Penalized_Brier_Score ,Log_Loss, Inference_Time_Sec) %>%
   arrange(desc(AUC))
 
 base_auc <- Final_Leaderboard$AUC[Final_Leaderboard$Strategy == "Base Model"]
@@ -945,6 +1096,162 @@ p_results <- ggplot(Final_Leaderboard, aes(x = reorder(Strategy, AUC), y = AUC, 
 
 print(p_results)
 
+}, error = function(e) message(e))
+
+#==== 04B - Residual diagnostics ==============================================#
+
+tryCatch({
+  
+  data_input <- Test_Data_Base_Model
+  data_input_C <- Test_Data_Strategy_C
+  
+  model_object <- XGBoost_Results_BaseModel$optimal_model
+  model_object_C <- XGBoost_Results_Strategy_C$optimal_model
+  
+  data_input <- data_input_C
+  model_object <- model_object_C
+  
+  # 1. Prepare Data (Strictly separating features)
+  # We remove 'y' to ensure the matrix only contains predictors
+  label_vec <- as.numeric(as.character(data_input$y))
+  data_features <- data_input %>% select(-y)
+  
+  # 2. Create Matrix
+  # Note: We use the exact same formula structure (~ . -1) to generate dummies
+  X_matrix <- sparse.model.matrix(~ . - 1, data = data_features)
+  
+  # 3. Generate Raw Probabilities
+  pred_probs <- predict(model_object, X_matrix)
+  
+  # --- DEBUG: CHECK PROBABILITY DISTRIBUTION ---
+  # You will likely see the Max is < 0.5
+  print("--- Probability Distribution ---")
+  print(summary(pred_probs))
+  
+  # 4. Find the "Best" Threshold (Youden's J Statistic)
+  # This finds the point on the ROC curve that balances Sensitivity and Specificity
+  roc_obj <- roc(label_vec, pred_probs, quiet = TRUE)
+  best_threshold_obj <- coords(roc_obj, "best", ret = "threshold", transpose = TRUE)
+  best_cutoff <- best_threshold_obj[1] # Extract the numeric value
+  
+  print(paste("Optimal Decision Threshold:", round(best_cutoff, 4)))
+  
+  # 5. Create Diagnosis DF with Optimal Threshold
+  Diagnosis_DF <- data_input %>%
+    mutate(
+      y_num = label_vec,
+      xgb_prob = pred_probs,
+      
+      # CRITICAL CHANGE: Use the calculated best_cutoff instead of 0.5
+      Prediction_Class = ifelse(xgb_prob > best_cutoff, 1, 0),
+      
+      # Classification Logic
+      Error_Type = case_when(
+        y_num == 1 & Prediction_Class == 1 ~ "True Positive",
+        y_num == 0 & Prediction_Class == 0 ~ "True Negative",
+        y_num == 0 & Prediction_Class == 1 ~ "False Positive",
+        y_num == 1 & Prediction_Class == 0 ~ "False Negative"
+      )
+    )
+  
+  # 6. Verify Result
+  print("--- Revised Confusion Matrix ---")
+  print(table(Diagnosis_DF$Error_Type))
+  
+  # 1. Prepare the Diagnostic Data
+  # We classify every firm into one of 4 buckets: TP, TN, FP, FN.
+  # Threshold = 0.5 (Standard cutoff, adjust if your threshold is different)
+  
+  Residual_Analysis <- Diagnosis_DF %>%
+    mutate(
+      Prediction_Class = ifelse(xgb_prob > 0.5, 1, 0),
+      Error_Type = case_when(
+        y_num == 1 & Prediction_Class == 1 ~ "True Positive (Correct Catch)",
+        y_num == 0 & Prediction_Class == 0 ~ "True Negative (Correct Safe)",
+        y_num == 0 & Prediction_Class == 1 ~ "False Positive (False Alarm)",
+        y_num == 1 & Prediction_Class == 0 ~ "False Negative (Missed Risk)"
+      )
+    )
+  
+  features_to_plot <- c("f8", "Gap_Debt_Equity", "Ratio_Cash_Profit")
+  
+  # 2. Reshape Data for Plotting (Long Format)
+  Residual_Long <- Diagnosis_DF %>%
+    select(Error_Type, all_of(features_to_plot)) %>%
+    pivot_longer(cols = all_of(features_to_plot), names_to = "Feature", values_to = "Value")
+  
+  #==============================================================================#
+  #==== PLOT A: THE "STEALTH DEFAULTER" ANALYSIS (Actual Defaulters) ===========#
+  #==============================================================================#
+  # Focus: Why did we miss the False Negatives? 
+  # Comparing: Missed Risks (FN) vs. Caught Risks (TP)
+  
+  Plot_Data_Defaulters <- Residual_Long %>%
+    filter(Error_Type %in% c("False Negative", "True Positive"))
+  
+  p1 <- ggplot(Plot_Data_Defaulters, aes(x = Value, fill = Error_Type)) +
+    geom_density(alpha = 0.6) +
+    facet_wrap(~ Feature, scales = "free", ncol = 1) +
+    scale_fill_manual(values = c(
+      "False Negative" = "#F8766D",  # Red (The Missed Risk / Stealth)
+      "True Positive"  = "#00BA38"   # Green (The Caught Risk / Obvious)
+    )) +
+    labs(
+      title = "Plot A: Analysis of Actual Defaulters",
+      subtitle = "Comparing 'Stealth Defaulters' (Missed) vs. 'Obvious Defaulters' (Caught)",
+      y = "Density", x = "Feature Value"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "top") + 
+    # CRITICAL: Zoom in to remove extreme outliers for better visibility
+    coord_cartesian(xlim = c(-3, 3)) 
+  
+  print(p1)
+  
+  #==============================================================================#
+  #==== PLOT B: THE "HEALTHY LOSER" ANALYSIS (Actual Survivors) ================#
+  #==============================================================================#
+  # Focus: Why did we flag the False Positives?
+  # Comparing: False Alarms (FP) vs. Normal Safe Firms (TN)
+  
+  Plot_Data_Survivors <- Residual_Long %>%
+    filter(Error_Type %in% c("False Positive", "True Negative"))
+  
+  p2 <- ggplot(Plot_Data_Survivors, aes(x = Value, fill = Error_Type)) +
+    geom_density(alpha = 0.6) +
+    facet_wrap(~ Feature, scales = "free", ncol = 1) +
+    scale_fill_manual(values = c(
+      "False Positive" = "#FFA500",  # Orange (False Alarm / Healthy Loser)
+      "True Negative"  = "#619CFF"   # Blue (The Normal Safe)
+    )) +
+    labs(
+      title = "Plot B: Analysis of Actual Survivors",
+      subtitle = "Comparing 'False Alarms' (Risky Profile) vs. 'Safe Profile' (Normal)",
+      y = "Density", x = "Feature Value"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "top") + 
+    coord_cartesian(xlim = c(-3, 3))
+  
+  print(p2) 
+  
+  # 5. Summary Table (The Quantified "Why")
+  # Calculate the median value of each feature for each error group.
+  Error_Summary <- Diagnosis_DF %>%
+    group_by(Error_Type) %>%
+    summarise(
+      Count = n(),
+      # Use na.rm = TRUE to be safe against any missing values
+      Median_Profit_f8    = median(f8, na.rm = TRUE),
+      Median_Solvency_Gap = median(Gap_Debt_Equity, na.rm = TRUE),
+      Median_Burn_Ratio   = median(Ratio_Cash_Profit, na.rm = TRUE)
+    ) %>%
+    # Arrange logically: Missed Risk -> Caught Risk -> False Alarm -> Safe
+    arrange(factor(Error_Type, levels = c("False Negative", "True Positive", "False Positive", "True Negative")))
+  
+  print("--- Forensic Summary of Model Errors ---")
+  print(Error_Summary)
+  
 }, error = function(e) message(e))
 
 #==============================================================================#
