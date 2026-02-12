@@ -449,6 +449,81 @@ tryCatch({
     )
   
 }, error = function(e) message(e))
+
+#==== 04E - Strategy B revised: ===============================================#
+
+### Only for the train set.
+
+tryCatch({
+  
+  Strategy_B_AS_revised <- Train_Transformed %>%
+    mutate(
+      ##======================================================================##
+      ## Strategy 2: The "Zombie" Interactions (Diagonal Decision Boundaries)
+      ##======================================================================##
+      
+      # 1. Support Structure Ratio
+      # Logic: How much Debt (f11) is piled on top of the Equity position?
+      # Interpretation: High Value = High Debt relative to Equity size.
+      # Note: Added +0.1 to denominator to prevent division by zero near the median.
+      # Ratio_Support_Structure = f11 / (abs(f6) + 0.0001),
+      
+      # 2. The "Distress Gap"
+      # Logic: Difference between Liabilities and Equity. 
+      # Zombies have High f11 (+0.36) and Low f6 (-1.2). Result: 0.36 - (-1.2) = 1.56 (High Score)
+      # Healthy firms have Low f11 (-0.2) and High f6 (+0.5). Result: -0.7 (Low Score)
+      Gap_Debt_Equity = f11 - f6,
+      
+      # 3. Cash Burn Ratio
+      # Logic: Relates Cash (f5) to Profit (f8). 
+      # Captures "Profitable but Illiquid" scenarios (The False Negatives).
+      # If f8 is high (positive) but f5 is low (negative), this ratio drops.
+      Ratio_Cash_Profit = f5 / (abs(f8) + 0.0001),
+      Interaction_Cash_Profit = f5 * f8,
+      
+      ##======================================================================##
+      ## Strategy 3: The "Red Flag" Counter (Aggregating Risk)
+      ##======================================================================##
+      
+      # Thresholds derived from your Density Cluster Analysis (Median values)
+      
+      # Flag 1: Liquidity Crisis (The "Silent Killer")
+      # Analysis: Defaulters had median f5 = -0.175.
+      # Flag_Liquidity = ifelse(f5 < -0.2, 1, 0),
+      
+      # Flag 2: Solvency Crisis
+      # Analysis: Cluster 2 Defaulters had f6 = -0.488.
+      # Flag_Solvency = ifelse(f6 < -0.5, 1, 0),
+      
+      # Flag 3: Profitability Crisis
+      # Analysis: Cluster 3 Defaulters had f8 = -1.09.
+      # Flag_Profit = ifelse(f8 < -0.5, 1, 0),
+      
+      # Analysis: Cluster 4 (Zombies) had f4 = -0.923.
+      # Flag_Inventory = ifelse(f4 < -0.8, 1, 0),
+      
+      # Flag 5: The "Zombie" Profile
+      # Analysis: The False Positive group had Low Equity (<-1.2) but Positive Liabilities (>0.3).
+      # This captures the "Protected" status.
+      # Flag_Zombie_Type = ifelse(f6 < -0.5 & f11 > 0.2, 1, 0),
+      
+      ##======================================================================##
+      ## Aggregation
+      ##======================================================================##
+      
+      # Sum of Flags (0 to 5)
+      # XGBoost can split on this integer: "If Flags > 3, then High Risk"
+      # Red_Flag_Counter = Flag_Liquidity + Flag_Solvency + Flag_Profit + Flag_Inventory + Flag_Zombie_Type
+    )
+  
+  # Check the new features
+  # print("--- New Engineering Summary ---")
+  # print(glimpse(Strategy_B_AS_revised %>% select(starts_with("Ratio"), starts_with("Flag"), Red_Flag_Counter)))
+
+}, error = function(e) message(e))
+
+#==== 04F - Strategy C Fitting a base GBM Model ===============================#
+
   
 #==============================================================================#
 #==== 05 - VAE Evaluation =====================================================#
@@ -462,8 +537,8 @@ tryCatch({
 
 tryCatch({
   
-  y_true <- as.numeric(as.factor(Strategy_B_AS$y)) - 1 
-  roc_obj <- roc(y_true, Strategy_B_AS$anomaly_score_total)
+  y_true <- as.numeric(as.factor(Strategy_B_AS_revised$y)) - 1 
+  roc_obj <- roc(y_true, Strategy_B_AS_revised$Gap_Debt_Equity)
   
   auc_score <- pROC::auc(roc_obj)
   
@@ -479,11 +554,11 @@ tryCatch({
 
 tryCatch({
   
-  plot_data <- Strategy_B_AS %>%
-    select(y, anomaly_score_total) %>%
+  plot_data <- Strategy_B_AS_revised %>%
+    select(y, Ratio_Cash_Profit) %>%
     mutate(Status = ifelse(y == "1", "Default", "Non-Default"))
   
-  p_dens <- ggplot(plot_data, aes(x = log(anomaly_score_total), fill = Status)) +
+  p_dens <- ggplot(plot_data, aes(x = log(Ratio_Cash_Profit), fill = Status)) +
     geom_density(alpha = 0.6) +
     scale_fill_manual(values = c("Non-Default" = "#00BFC4", "Default" = "#F8766D")) +
     labs(title = "Global Separation: Anomaly Score Distribution",
@@ -492,8 +567,206 @@ tryCatch({
     theme_minimal()
   
   print(p_dens)
+  # p_dens_2 <- p_dens
   
 }, error = function(e) message(e))
+
+#==== 05C - Boundaries of the density plot ====================================#
+
+tryCatch({
+  
+  library(dplyr)
+  library(ggplot2)
+  library(tidyr)
+  
+  message("--- Starting Automated Density Segmentation ---")
+  
+  # 1. Filter for Non-Defaults & Log-Transform
+  # We focus only on Non-Defaults (y == 0 or "0") as requested.
+  df_safe <- Strategy_B_AS %>%
+    filter(y == "0" | y == 0) %>%
+    mutate(log_score = log(anomaly_score_total))
+  
+  # 2. Estimate Density
+  # adjust=1.5 smoothes the curve to avoid finding tiny, insignificant noise peaks.
+  dens <- density(df_safe$log_score, adjust = 1.5) 
+  
+  # 3. Find the "Valleys" (Local Minima)
+  # A valley is a point lower than its neighbors.
+  # We find indices where the derivative changes from negative to positive.
+  
+  y_vals <- dens$y
+  x_vals <- dens$x
+  
+  # Identify local minima indices
+  valley_indices <- which(diff(sign(diff(y_vals))) == 2) + 1
+  
+  # Get the actual Log-Score values for these valleys (the cut-offs)
+  cut_offs <- x_vals[valley_indices]
+  
+  # Filter boundaries to ensure they are within the data range (sanity check)
+  cut_offs <- cut_offs[cut_offs > min(df_safe$log_score) & cut_offs < max(df_safe$log_score)]
+  
+  message(paste("Detected Boundaries (Valleys) at Log-Scores:", paste(round(cut_offs, 2), collapse = ", ")))
+  
+  # 4. Segment the Data based on these Cut-Offs
+  # We create a function to assign clusters dynamically based on N cut-offs
+  assign_cluster <- function(score, cuts) {
+    if(length(cuts) == 0) return("Cluster 1 (Single Peak)")
+    
+    # Sort cuts just in case
+    cuts <- sort(cuts)
+    
+    for(i in 1:length(cuts)) {
+      if(score <= cuts[i]) return(paste0("Cluster ", i))
+    }
+    return(paste0("Cluster ", length(cuts) + 1))
+  }
+  
+  df_safe$Cluster <- sapply(df_safe$log_score, assign_cluster, cuts = cut_offs)
+  
+  # 5. Feature Profiling: What makes them different?
+  # We calculate the Mean of every feature per Cluster
+  cluster_profile <- df_safe %>%
+    group_by(Cluster) %>%
+    summarise(
+      Count = n(),
+      Avg_Anomaly_Score = mean(anomaly_score_total),
+      # Summarize all features (f1...fN)
+      across(starts_with("f"), mean, .names = "{.col}") 
+    ) %>%
+    mutate(across(where(is.numeric), \(x) round(x, 4)))
+  
+  print("--- Cluster Feature Summary (Non-Defaults) ---")
+  print(cluster_profile)
+  
+  cluster_profile_med <- df_safe %>%
+    group_by(Cluster) %>%
+    summarise(
+      Count = n(),
+      Avg_Anomaly_Score = median(anomaly_score_total),
+      # Summarize all features (f1...fN)
+      across(starts_with("f"), median, .names = "{.col}") 
+    ) %>%
+    mutate(across(where(is.numeric), \(x) round(x, 4)))
+  
+  print("--- Cluster Feature Summary (Non-Defaults) ---")
+  print(cluster_profile_med)
+  
+  # 6. Visualization: The "Cut" Plot
+  # This visually confirms where the code decided to split the groups.
+  p_splits <- ggplot(df_safe, aes(x = log_score)) +
+    geom_density(fill = "#00BFC4", alpha = 0.6) +
+    geom_vline(xintercept = cut_offs, linetype = "dashed", color = "red", size = 1) +
+    annotate("text", x = cut_offs, y = 0, label = "Split", vjust = 1.5, color = "red") +
+    labs(title = "Automated Peak Detection (Non-Defaults)",
+         subtitle = paste("Red dashed lines indicate detected valleys separating the", length(cut_offs)+1, "clusters."),
+         x = "Log(Anomaly Score)", y = "Density") +
+    theme_minimal()
+  
+  print(p_splits)
+  
+  # 7. (Optional) Z-Score Difference
+  # To see purely "what is different" compared to the global average
+  global_means <- df_safe %>% 
+    summarise(across(starts_with("f"), mean, na.rm = TRUE))
+  
+  # Calculate Difference from Global Average
+  diff_profile <- cluster_profile %>%
+    # 1. Remove non-feature columns
+    select(-Count, -Avg_Anomaly_Score) %>%
+    # 2. Compute differences
+    mutate(across(starts_with("f"), ~ . - global_means[[cur_column()]])) %>%
+    # 3. Add Cluster label back for readability (optional)
+    mutate(Cluster = cluster_profile$Cluster) %>%
+    select(Cluster, everything()) %>%
+    mutate(across(where(is.numeric), \(x) round(x, 4)))
+  
+  print("--- Difference from Global Average (What makes this cluster unique?) ---")
+  print(diff_profile)
+  
+}, error = function(e) message(e))
+
+#==== 05D - Boundaries of the density plot (all firms, density safe firms) ====#
+
+##======================================##
+## Density via the safe-firms.
+##======================================##
+
+tryCatch({
+  
+  df_safe <- Strategy_B_AS %>%
+    filter(y == "0" | y == 0) %>%
+    mutate(log_score = log(anomaly_score_total))
+  df_safe$Cluster <- sapply(df_safe$log_score, assign_cluster, cuts = cut_offs)
+  
+  df_default <- Strategy_B_AS %>%
+    filter(y == "1" | y == 1) %>%
+    mutate(log_score = log(anomaly_score_total))
+  df_default$Cluster <- sapply(df_default$log_score, assign_cluster, cuts = cut_offs)
+  
+############
+  cluster_profile_safe <- df_safe %>%
+    group_by(Cluster) %>%
+    summarise(
+      Count = n(),
+      Avg_Anomaly_Score = median(anomaly_score_total),
+      # Summarize all features (f1...fN)
+      across(starts_with("f"), median, .names = "{.col}") 
+    ) %>%
+    mutate(across(where(is.numeric), \(x) round(x, 4)))
+  
+  cluster_profile_default <- df_default %>%
+    group_by(Cluster) %>%
+    summarise(
+      Count = n(),
+      Avg_Anomaly_Score = median(anomaly_score_total),
+      # Summarize all features (f1...fN)
+      across(starts_with("f"), median, .names = "{.col}") 
+    ) %>%
+    mutate(across(where(is.numeric), \(x) round(x, 4)))
+  
+########
+  
+  print(cluster_profile_safe)
+  print(cluster_profile_default)
+  
+  # 6. Visualization: The "Cut" Plot
+  # This visually confirms where the code decided to split the groups.
+  p_splits <- ggplot(df_safe, aes(x = log_score)) +
+    geom_density(fill = "#00BFC4", alpha = 0.6) +
+    geom_vline(xintercept = cut_offs, linetype = "dashed", color = "red", size = 1) +
+    annotate("text", x = cut_offs, y = 0, label = "Split", vjust = 1.5, color = "red") +
+    labs(title = "Automated Peak Detection (Non-Defaults)",
+         subtitle = paste("Red dashed lines indicate detected valleys separating the", length(cut_offs)+1, "clusters."),
+         x = "Log(Anomaly Score)", y = "Density") +
+    theme_minimal()
+  
+  print(p_splits)
+  
+  # 7. (Optional) Z-Score Difference
+  # To see purely "what is different" compared to the global average
+  global_means <- df_safe %>% 
+    summarise(across(starts_with("f"), mean, na.rm = TRUE))
+  
+  # Calculate Difference from Global Average
+  diff_profile <- cluster_profile %>%
+    # 1. Remove non-feature columns
+    select(-Count, -Avg_Anomaly_Score) %>%
+    # 2. Compute differences
+    mutate(across(starts_with("f"), ~ . - global_means[[cur_column()]])) %>%
+    # 3. Add Cluster label back for readability (optional)
+    mutate(Cluster = cluster_profile$Cluster) %>%
+    select(Cluster, everything()) %>%
+    mutate(across(where(is.numeric), \(x) round(x, 4)))
+  
+  print("--- Difference from Global Average (What makes this cluster unique?) ---")
+  print(diff_profile)
+  
+}, error = function(e) message(e))
+
+
+
 
 #==============================================================================#
 #==== 06 - VAE Improvements ===================================================#

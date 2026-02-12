@@ -31,22 +31,23 @@ Train_Data_Strategy_A <- Final_Train_Set_A
 #     id = Train_with_id$id) 
 
 ### Strategy B: anomaly score.
+# Train_Data_Strategy_B <- Strategy_B_AS
 Train_Data_Strategy_B <- Strategy_B_AS
 # Train_Data_Strategy_B <- Train_Data_Strategy_B %>%
 #   mutate(
 #     id = Train_with_id$id) 
 
 ### Strategy C: regime switching.
-Train_Data_Strategy_C <- Strategy_C_Soft
+Train_Data_Strategy_C <- Strategy_B_AS_revised
 # Train_Data_Strategy_C <- Train_Data_Strategy_C %>%
 #   mutate(
 #     id = Train_with_id$id) 
 
 ### Strategy D: fitting on the residuals of the base model.
-Train_Data_Strategy_D <- Strategy_D_Soft
+# Train_Data_Strategy_D <- Strategy_D_Soft
 
 ### Strategy E: Denoising the features.
-Train_Data_Strategy_E <- Train_Data_Strategy_E
+# Train_Data_Strategy_E <- Train_Data_Strategy_E
 
 ##=========================================##
 ##==== First stratify by IDs.
@@ -88,8 +89,8 @@ Train_Data_Base_Model <- Train_Data_Base_Model %>%
 ## General Parameters.
 ##==============================##
 
-n_init_points <- 10
-n_iter_bayes  <- 20
+n_init_points <- 2
+n_iter_bayes  <- 4
 
 #==== 01A - Base model ========================================================#
 
@@ -417,16 +418,16 @@ Charts_Directory_Model <- file.path(Path, "03_Charts/VAE")
 
 ###### Input parameters.
 ## BaseModel, StrategyA, StrategyB or Strategy C, StrategyD, StrategyE
-model_used_name <- "StrategyD"
+model_used_name <- "BaseModel"
 
 ## XGBoost_Results_BaseModel, XGBoost_Results_Strategy_A, 
 ## XGBoost_Results_Strategy_B, XGBoost_Results_Strategy_C, 
 ## XGBoost_Results_Strategy_D
-model_object <- XGBoost_Results_Strategy_D$optimal_model
+model_object <- XGBoost_Results_BaseModel$optimal_model
 
 ## Train_Data_Base_Model, Train_Data_Strategy_A, 
 ## Train_Data_Strategy_B, Train_Data_Strategy_C
-data_input <- Train_Data_Strategy_D
+data_input <- Train_Data_Base_Model
 
 # Ensure directory exists
 Directory <- file.path(Charts_Directory_Model, model_used_name)

@@ -37,16 +37,16 @@ Train_Data_Strategy_B <- Strategy_B_AS
 #     id = Train_with_id$id) 
   
 ## Strategy C: regime switching.
-Train_Data_Strategy_C <- Strategy_C_Soft
+Train_Data_Strategy_C <- Strategy_B_AS_revised
 # Train_Data_Strategy_C <- Train_Data_Strategy_C %>%
 #   mutate(
 #     id = Train_with_id$id) 
   
 ## Strategy D: fitting on the residuals of the base model.
-Train_Data_Strategy_D <- Strategy_D_Soft
+# Train_Data_Strategy_D <- Strategy_D_Soft
   
 ### Strategy E: Denoising the features.
-Train_Data_Strategy_E <- Train_Data_Strategy_E
+# Train_Data_Strategy_E <- Train_Data_Strategy_E
   
 ##=========================================##
 ##==== First stratify by IDs.
