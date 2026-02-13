@@ -146,81 +146,91 @@
 
 %==== Chapter: VAE Integration and Diagnostics ================================%
 
-\chapter{Variational Autoencoder (VAE) Integration \& Diagnostics}
+\chapter{Hybrid VAE-XGBoost Architecture \& Implementation}
 
 \section{Motivation and Objective}
 
-The primary objective of integrating a Variational Autoencoder (VAE) into the credit risk modeling pipeline was to leverage unsupervised learning to capture non-linear latent structures that standard gradient boosting models (XGBoost) might miss. While XGBoost excels at identifying decision boundaries based on provided features, it struggles to capture the underlying "manifold" of the data without explicit feature engineering.
+The primary objective of this study is to augment a standard Gradient Boosting Machine (XGBoost) with unsupervised representation learning. While XGBoost is a powerful supervised learner, it relies on orthogonal decision boundaries that may fail to capture the complex, non-linear manifolds typical of distressed firms (e.g., "Zombie companies" that are technically insolvent but survive via liquidity).
 
-The implementation follows a "Hybrid Expert" approach, where the VAE acts as a feature extractor and anomaly detector to augment the supervised XGBoost model. The specific goals were:
+We adopt a "Hybrid Expert" architecture where a Variational Autoencoder (VAE) and a Denoising Autoencoder (DAE) act as upstream feature extractors. These neural networks compress high-dimensional financial data into dense representations, which are then fed into the XGBoost model alongside the original features.
 
-\begin{itemize}
-    \item \textbf{Dimensionality Reduction:} Compressing 11 financial ratios into a lower-dimensional latent space to identify clusters of firm behavior.
-    \item \textbf{Anomaly Detection:} Using reconstruction error to flag firms that are structurally "weird" or inconsistent with the general population, hypothesizing that high structural anomaly correlates with default risk.
-    \item \textbf{Residual Modeling:} Using the VAE to specifically model the "hard samples" that the baseline XGBoost model fails to predict correctly.
-\end{itemize}
+\section{Implementation Strategies}
 
+The implementation iterates through four distinct feature engineering strategies (A through D), each targeting a specific type of risk signal.
 
-
-\section{VAE Implementation Strategies}
-
-Several strategies were tested to extract value from the VAE. The code iterates through five distinct approaches (Strategies A through E) to determine the optimal integration method.
-
-\subsection{Strategy A: Latent Features (Dimensionality Reduction)}
-This strategy utilizes the \textbf{Encoder} part of the VAE. The 11 continuous financial variables and categorical metadata are compressed into an 8-dimensional latent vector ($l_1 \dots l_8$).
-\begin{itemize}
-    \item \textbf{Mechanism:} The encoder maps the input $x$ to a latent distribution $P(z|x)$. The mean of this distribution is extracted as the new feature set.
-    \item \textbf{Hypothesis:} These latent features capture non-linear "concepts" (e.g., a "high-growth but low-liquidity" cluster) that are more robust than raw financial ratios.
-\end{itemize}
-
-\subsection{Strategy B: Anomaly Score (Reconstruction Error)}
-This strategy utilizes the \textbf{Decoder}. It measures how well the VAE can reconstruct the input data after compression.
-\begin{itemize}
-    \item \textbf{Mechanism:} The model calculates the Mean Squared Error (MSE) for continuous variables and Binary Cross Entropy (BCE) for categorical variables between the input and the reconstruction. The sum is the \texttt{anomaly\_score\_total}.
-    \item \textbf{Refinement (Strategy B Revised):} The anomaly score was augmented with manual "Zombie" interaction features, such as the \texttt{Gap\_Debt\_Equity} and \texttt{Ratio\_Cash\_Profit}, to capture specific diagonal decision boundaries that pure reconstruction error might miss.
-\end{itemize}
-
-\subsection{Strategy C: Regime Switching (Directional Surprise)}
-Instead of a single scalar error score, this strategy looks at the \textit{direction} of the error.
-\begin{itemize}
-    \item \textbf{Mechanism:} Signed residuals are calculated ($Actual - Reconstructed$). This creates "Soft Surprise" features.
-    \item \textbf{Hypothesis:} If a firm has much higher profit ($f8$) than the VAE expects based on its other features, this "positive surprise" contains signal distinct from the raw profit value.
-\end{itemize}
-
-\subsection{Strategy D: Residual Fit (The Specialist VAE)}
-This is a "Hard Sample Mining" approach.
-\begin{itemize}
-    \item \textbf{Mechanism:} A base XGBoost model is trained, and the residuals (absolute errors) are calculated. A "Specialist VAE" is then trained \textit{only} on the top 25\% "hardest" samples (the observations with the highest residuals).
-    \item \textbf{Usage:} This Specialist VAE scores the full dataset. A low reconstruction error from this model indicates the firm looks like a "hard failure case," providing a \texttt{Specialist\_Risk\_Score}.
-\end{itemize}
-
-\subsection{Strategy E: Feature Denoising (DAE)}
-This strategy employs a Denoising Autoencoder (DAE) to force robustness.
-\begin{itemize}
-    \item \textbf{Mechanism:} A dropout layer (rate 0.1) is added to the input of the encoder. The model attempts to reconstruct the clean original data from the corrupted input.
-    \item \textbf{Output:} "Robust" latent features (\texttt{dae\_l1} \dots \texttt{dae\_l8}) are extracted, theoretically effectively filtering out noise from the financial ratios.
-\end{itemize}
-
-\section{Residual Diagnostics Methodology}
-
-A critical finding during the analysis was the failure of the standard decision threshold (0.5) due to the extreme class imbalance (approx. 0.86\% default rate). A new diagnostic methodology was developed to evaluate model performance forensically.
-
-\subsection{Dynamic Thresholding (Youden's J)}
-The standard classification threshold resulted in near-zero True Positives. The new methodology replaces the arbitrary 0.5 cutoff with an optimized threshold derived from the ROC curve.
-\begin{itemize}
-    \item \textbf{Procedure:} The code calculates the Receiver Operating Characteristic (ROC) curve and extracts the coordinates for the "best" threshold (Youden's J statistic), which maximizes the sum of Sensitivity and Specificity.
-    \item \textbf{Result:} This shifts the decision boundary (e.g., to 0.02), allowing the model to capture the majority of defaults at the cost of higher false positives, rendering the model usable for risk screening.
-\end{itemize}
-
-
-
-\subsection{Forensic Error Analysis}
-To understand \textit{why} the model fails, the predictions are segmented into four confusion matrix categories (True Positive, True Negative, False Positive, False Negative).
+\subsection{Strategy A: Latent Manifold Features (Standard VAE)}
+This strategy utilizes the \textbf{Encoder} of a standard Variational Autoencoder to perform non-linear dimensionality reduction.
 
 \begin{itemize}
-    \item \textbf{Stealth Defaulters (False Negatives):} The analysis compares the distribution of key drivers (Profit, Solvency Gap) for False Negatives against True Positives. This reveals risks that are invisible to the model (e.g., profitable firms that default due to liquidity shocks).
-    \item \textbf{Healthy Losers (False Positives):} The analysis compares False Positives against True Negatives. This identifies "Zombie" firms—those with high debt and low profit that technically \textit{should} default but survive due to hidden buffers like high cash reserves.
+    \item \textbf{Implementation:} The model compresses the 11 continuous financial ratios and one-hot encoded categorical metadata into an 8-dimensional probabilistic latent space.
+    \item \textbf{Mechanism:} We extract the mean vector $\mu$ of the latent distribution $P(z|x)$ for each observation.
+    \item \textbf{Code Logic:}
+    \begin{itemize}
+        \item The VAE is trained to minimize the Evidence Lower Bound (ELBO), balancing reconstruction loss against the KL-divergence from a standard normal prior.
+        \item \texttt{Strategy\_A\_LF} = The 8-column matrix output from the bottleneck layer ($l_1 \dots l_8$).
+    \end{itemize}
+    \item \textbf{Hypothesis:} These features capture "clusters of behavior" (e.g., high-growth/low-liquidity) that raw ratios cannot express individually.
 \end{itemize}
+
+\subsection{Strategy B: Anomaly Scores (Reconstruction Error)}
+This strategy utilizes the \textbf{Decoder} to quantify how "weird" a firm's financial structure is relative to the population.
+
+\begin{itemize}
+    \item \textbf{Implementation:} We measure the distance between the original input vector $x$ and the VAE's reconstruction $\hat{x}$. To handle mixed data types (continuous and categorical), the code implements a split-loss calculation.
+    \item \textbf{Formula (Balanced Score):}
+    \begin{equation}
+        \text{Score} = w_{cont} \cdot \left( \frac{1}{N_{cont}} \sum (x_{cont} - \hat{x}_{cont})^2 \right) + w_{cat} \cdot \left( \frac{1}{N_{cat}} \text{BCE}(x_{cat}, \hat{x}_{cat}) \right)
+    \end{equation}
+    Where BCE is the Binary Cross Entropy for categorical variables.
+    \item \textbf{Code Logic:}
+    \begin{itemize}
+        \item \texttt{anomaly\_score\_cont\_avg}: MSE normalized by the number of continuous columns.
+        \item \texttt{anomaly\_score\_cat\_avg}: BCE normalized by the number of categorical columns (one-hot levels).
+        \item The normalization prevents the score from being dominated by the categorical vector simply due to its higher dimensionality.
+    \end{itemize}
+    \item \textbf{Hypothesis:} High reconstruction error implies the firm's financial structure deviates from the norm. In credit risk, structural outliers are often highly correlated with default (e.g., fraud or extreme distress).
+\end{itemize}
+
+\subsection{Strategy C: Robust Features (Denoising Autoencoder)}
+
+This strategy moves beyond the standard VAE by implementing a \textbf{Denoising Autoencoder (DAE)} to force feature robustness.
+
+\begin{itemize}
+    \item \textbf{Implementation:} Unlike Strategy A, this model is trained by intentionally corrupting the input data while forcing the model to predict the clean original data.
+    \item \textbf{Mechanism:}
+    \begin{itemize}
+        \item \textbf{Noise Injection:} A Gaussian Noise layer ($\sigma = 0.1$) is added immediately after the input layer in Keras.
+        \item \textbf{Training Objective:} Minimize $L(x, g(f(\tilde{x})))$, where $\tilde{x} = x + \epsilon$ and $\epsilon \sim \mathcal{N}(0, 0.1)$.
+    \end{itemize}
+    \item \textbf{Code Logic:}
+    \begin{itemize}
+        \item A separate Keras model (\texttt{dae\_autoencoder}) is defined using the Functional API.
+        \item The encoder weights are extracted after training to generate features \texttt{dae\_l1} \dots \texttt{dae\_l8}.
+    \end{itemize}
+    \item \textbf{Hypothesis:} By forcing the network to "subtract" the noise, the latent features become invariant to small fluctuations and measurement errors in the financial ratios, focusing only on the robust structural signal.
+\end{itemize}
+
+\subsection{Strategy D: Domain Expert Interactions (The "Zombie" Detectors)}
+This strategy eschews deep learning in favor of explicit domain knowledge, specifically targeting "Zombie Companies"—firms that are profitable but insolvent, or solvent but illiquid.
+
+\begin{itemize}
+    \item \textbf{Implementation:} We manually construct interaction terms that define diagonal decision boundaries XGBoost might struggle to approximate with shallow trees.
+    \item \textbf{Key Features Created:}
+    \begin{itemize}
+        \item \textbf{Distress Gap (\texttt{Gap\_Debt\_Equity}):} $f_{11} - f_6$. This measures the absolute distance between Liabilities and Equity. A high positive gap indicates a leverage crisis regardless of firm size.
+        \item \textbf{Cash Burn Ratio (\texttt{Ratio\_Cash\_Profit}):} $f_5 / (|f_8| + \epsilon)$. This identifies "Profitable but Illiquid" firms (False Negatives) where high accounting profit masks a dangerously low cash position.
+        \item \textbf{Feature Stabilizer:} A conditional feature (\texttt{ifelse}) that swaps Profit for Cash when Profit is negative, creating a continuous "Solvency Capacity" metric.
+    \end{itemize}
+    \item \textbf{Hypothesis:} These ratios explicitly expose the "hidden buffers" that allow distressed firms to survive, directly addressing the "Healthy Loser" confusion matrix quadrant.
+\end{itemize}
+
+\section{Base Model Integration}
+
+The final modeling stage aggregates the outputs of these strategies:
+\begin{equation}
+    X_{final} = [X_{raw}, X_{Latent(A)}, X_{Anomaly(B)}, X_{Robust(C)}, X_{Expert(D)}]
+\end{equation}
+This augmented dataset is fed into an XGBoost classifier. The inclusion of VAE/DAE features allows the gradient boosting model to view the data through multiple "lenses": the raw financial values, the probabilistic manifold (VAE), the robust structural view (DAE), and the financial analyst's view (Strategy D).
 
 %==== Chapter 3: Final Model Optimization =====================================%
 

@@ -2,6 +2,12 @@
 #==== 00 - Data Preparation ===================================================#
 #==============================================================================#
 
+Path <- dirname(this.path::this.path())
+setwd(Path)
+
+source("XGBoost_Training.R")
+source("XGBoost_Test.R")
+
 ##==============================##
 ## General Parameters.
 ##==============================##
@@ -26,28 +32,15 @@ Train_Data_Base_Model <- Train_Data_Base_Model %>%
 ### Strategy A: latent features.
 Final_Train_Set_A <- cbind(Train_Transformed, Strategy_A_LF)
 Train_Data_Strategy_A <- Final_Train_Set_A
-# Train_Data_Strategy_A <- Train_Data_Strategy_A %>%
-#   mutate(
-#     id = Train_with_id$id) 
 
 ### Strategy B: anomaly score.
-# Train_Data_Strategy_B <- Strategy_B_AS
 Train_Data_Strategy_B <- Strategy_B_AS
-# Train_Data_Strategy_B <- Train_Data_Strategy_B %>%
-#   mutate(
-#     id = Train_with_id$id) 
 
 ### Strategy C: Manual Feature engineering.
-Train_Data_Strategy_C <- Strategy_B_AS_revised
-# Train_Data_Strategy_C <- Train_Data_Strategy_C %>%
-#   mutate(
-#     id = Train_with_id$id) 
+Train_Data_Strategy_C <- Strategy_C
 
 ### Strategy D: fitting on the residuals of the base model.
-# Train_Data_Strategy_D <- Strategy_D_Soft
-
-### Strategy E: Denoising the features.
-# Train_Data_Strategy_E <- Train_Data_Strategy_E
+Train_Data_Strategy_D <- Strategy_D
 
 ##=========================================##
 ##==== First stratify by IDs.
@@ -64,11 +57,7 @@ Data_Train_CV_Split_IDs <- MVstratifiedsampling_CV_ID(data = Train_Data_Base_Mod
 ### Base Model.
 Data_Train_CV_Base_Model <- MVstratifiedsampling_CV_Split(data = Train_Data_Base_Model, 
                                                           firm_fold_indices = Data_Train_CV_Split_IDs) 
-  
-### Strategy B.
-# Data_Train_CV_Strategy_B <- MVstratifiedsampling_CV_Split(data = Train_Data_Strategy_B, 
-#                                                           firm_fold_indices = Data_Train_CV_Split_IDs)
-  
+
 ##=========================================##
 ##==== Remove the ID column once more.
 ##=========================================##
@@ -89,8 +78,8 @@ Train_Data_Base_Model <- Train_Data_Base_Model %>%
 ## General Parameters.
 ##==============================##
 
-n_init_points <- 10
-n_iter_bayes  <- 20
+n_init_points <- 2
+n_iter_bayes  <- 4
 
 #==== 01A - Base model ========================================================#
 
@@ -111,28 +100,6 @@ XGBoost_Results_BaseModel <- XGBoost_Training(Data_Train_CV_List = Data_Train_CV
                                               Train_Data = Train_Data,
                                               n_init_points = n_init_points,
                                               n_iter_bayes = n_iter_bayes)
-
-##==============================##
-## Add the predicted prob. and the brier score.
-##==============================##
-
-model <- XGBoost_Results_BaseModel$optimal_model
-
-sparse_formula <- as.formula("y ~ . - 1")
-data_matrix  <- sparse.model.matrix(sparse_formula, data = Train_Data)
-preds_prob_D   <- predict(model, data_matrix)
-
-df_results <- tibble::tibble(
-  Actual = as.numeric(as.character(Train_Data$y)), 
-  Predicted = preds_prob_D
-)
-
-brier_score <- mean((df_results$Predicted - df_results$Actual)^2)
-
-XGBoost_Results_BaseModel$Predictions <- df_results
-XGBoost_Results_BaseModel$Brier_Score <- brier_score
-
-##==============================##
 
 }, error = function(e) message(e))
 
@@ -155,26 +122,6 @@ XGBoost_Results_Strategy_A <- XGBoost_Training(Data_Train_CV_List = Data_Train_C
                                                Train_Data = Train_Data,
                                                n_init_points = n_init_points,
                                                n_iter_bayes = n_iter_bayes)
-
-##==============================##
-## Add the predicted prob. and the brier score.
-##==============================##
-
-model <- XGBoost_Results_Strategy_A$optimal_model
-
-sparse_formula <- as.formula("y ~ . - 1")
-data_matrix  <- sparse.model.matrix(sparse_formula, data = Train_Data)
-preds_prob_D   <- predict(model, data_matrix)
-
-df_results <- tibble::tibble(
-  Actual = as.numeric(as.character(Train_Data$y)), 
-  Predicted = preds_prob_D
-)
-
-brier_score <- mean((df_results$Predicted - df_results$Actual)^2)
-
-XGBoost_Results_Strategy_A$Predictions <- df_results
-XGBoost_Results_Strategy_A$Brier_Score <- brier_score
 
 ##==============================##
 
@@ -201,30 +148,10 @@ XGBoost_Results_Strategy_B <- XGBoost_Training(Data_Train_CV_List = Data_Train_C
                                                n_iter_bayes = n_iter_bayes)
 
 ##==============================##
-## Add the predicted prob. and the brier score.
-##==============================##
-
-model <- XGBoost_Results_Strategy_B$optimal_model
-
-sparse_formula <- as.formula("y ~ . - 1")
-data_matrix  <- sparse.model.matrix(sparse_formula, data = Train_Data)
-preds_prob_D   <- predict(model, data_matrix)
-
-df_results <- tibble::tibble(
-  Actual = as.numeric(as.character(Train_Data$y)), 
-  Predicted = preds_prob_D
-)
-
-brier_score <- mean((df_results$Predicted - df_results$Actual)^2)
-
-XGBoost_Results_Strategy_B$Predictions <- df_results
-XGBoost_Results_Strategy_B$Brier_Score <- brier_score
-
-##==============================##
 
 }, error = function(e) message(e))
 
-#==== 01D - Strategy C: Manual Feature Engineering ============================#
+#==== 01D - Strategy C: Feature Denoising =====================================#
 
 tryCatch({
   
@@ -245,30 +172,10 @@ XGBoost_Results_Strategy_C <- XGBoost_Training(Data_Train_CV_List = Data_Train_C
                                                n_iter_bayes = n_iter_bayes)
 
 ##==============================##
-## Add the predicted prob. and the brier score.
-##==============================##
-
-model <- XGBoost_Results_Strategy_C$optimal_model
-
-sparse_formula <- as.formula("y ~ . - 1")
-data_matrix  <- sparse.model.matrix(sparse_formula, data = Train_Data)
-preds_prob_D   <- predict(model, data_matrix)
-
-df_results <- tibble::tibble(
-  Actual = as.numeric(as.character(Train_Data$y)), 
-  Predicted = preds_prob_D
-)
-
-brier_score <- mean((df_results$Predicted - df_results$Actual)^2)
-
-XGBoost_Results_Strategy_C$Predictions <- df_results
-XGBoost_Results_Strategy_C$Brier_Score <- brier_score
-
-##==============================##
 
 }, error = function(e) message(e))
 
-#==== 01E - Strategy D: Residuals of the base model ===========================#
+#==== 01E - Strategy D: Manual Feature Engineering ============================#
 
 tryCatch({
   
@@ -278,7 +185,7 @@ tryCatch({
   
 Data_Train_CV_List <- Data_Train_CV_Base_Model[["fold_list"]]
 Train_Data <- Train_Data_Strategy_D
-  
+
 ##==============================##
 ## Code.
 ##==============================##
@@ -287,73 +194,8 @@ XGBoost_Results_Strategy_D <- XGBoost_Training(Data_Train_CV_List = Data_Train_C
                                                Train_Data = Train_Data,
                                                n_init_points = n_init_points,
                                                n_iter_bayes = n_iter_bayes)
-
-##==============================##
-## Add the predicted prob. and the brier score.
-##==============================##
-
-model <- XGBoost_Results_Strategy_D$optimal_model
-
-sparse_formula <- as.formula("y ~ . - 1")
-data_matrix  <- sparse.model.matrix(sparse_formula, data = Train_Data)
-preds_prob_D   <- predict(model, data_matrix)
-
-df_results <- tibble::tibble(
-  Actual = as.numeric(as.character(Train_Data$y)), 
-  Predicted = preds_prob_D
-)
-
-brier_score <- mean((df_results$Predicted - df_results$Actual)^2)
-
-XGBoost_Results_Strategy_D$Predictions <- df_results
-XGBoost_Results_Strategy_D$Brier_Score <- brier_score
     
-##==============================##
-
-}, error = function(e) message("Strategy 2 Error: ", e))
-
-#==== 01F - Strategy E: Denoising =============================================#
-
-tryCatch({
-  
-##==============================##
-## Parameters.
-##==============================##
-  
-Data_Train_CV_List <- Data_Train_CV_Base_Model[["fold_list"]]
-Train_Data <- Train_Data_Strategy_E
-  
-##==============================##
-## Code.
-##==============================##
-  
-XGBoost_Results_Strategy_E <- XGBoost_Training(Data_Train_CV_List = Data_Train_CV_List,
-                                               Train_Data = Train_Data,
-                                               n_init_points = n_init_points,
-                                               n_iter_bayes = n_iter_bayes)
-  
-##==============================##
-## Add the predicted prob. and the brier score.
-##==============================##
-  
-model <- XGBoost_Results_Strategy_E$optimal_model
-  
-sparse_formula <- as.formula("y ~ . - 1")
-data_matrix  <- sparse.model.matrix(sparse_formula, data = Train_Data)
-preds_prob_D   <- predict(model, data_matrix)
-  
-df_results <- tibble::tibble(
-    Actual = as.numeric(as.character(Train_Data$y)), 
-    Predicted = preds_prob_D)
-  
-brier_score <- mean((df_results$Predicted - df_results$Actual)^2)
-  
-XGBoost_Results_Strategy_E$Predictions <- df_results
-XGBoost_Results_Strategy_E$Brier_Score <- brier_score
-  
-##==============================##
-  
-}, error = function(e) message("Strategy E Error: ", e))
+}, error = function(e) message(".", e))
 
 #==============================================================================#
 #==== 02 - XGBoost Model Comparison (AUC and Parameters) ======================#
@@ -385,11 +227,10 @@ tryCatch({
   
   comparison_table <- bind_rows(
     extract_metrics(XGBoost_Results_BaseModel, "Base Model"),
-    extract_metrics(XGBoost_Results_Strategy_A,  "Strategy A (Latent Only)"),
-    extract_metrics(XGBoost_Results_Strategy_B,  "Strategy B (Anomaly Only)"),
-    extract_metrics(XGBoost_Results_Strategy_C,  "Strategy C (Regime Features)"),
-    extract_metrics(XGBoost_Results_Strategy_D,  "Strategy D (Residual Fit)"),
-    extract_metrics(XGBoost_Results_Strategy_E,  "Strategy E (Denoising)")
+    extract_metrics(XGBoost_Results_Strategy_A,  "Strategy A (Dimension Reduction)"),
+    extract_metrics(XGBoost_Results_Strategy_B,  "Strategy B (Anomaly Score)"),
+    extract_metrics(XGBoost_Results_Strategy_C,  "Strategy C (Feature Denoising)"),
+    extract_metrics(XGBoost_Results_Strategy_D,  "Strategy D (Manual Feature Eng.)")
   ) %>%
     arrange(desc(AUC)) %>% 
     mutate(
@@ -918,13 +759,10 @@ Test_Data_Strategy_A <- Final_Test_Set_A
 Test_Data_Strategy_B <- Strategy_B_AS_Test
 
 ### Strategy C: regime switching.
-Test_Data_Strategy_C <- Strategy_B_AS_Test_revised
+Test_Data_Strategy_C <- Strategy_C_Test
 
-### Strategy D: residual fit
-# Test_Data_Strategy_D <- Strategy_D_Test_Soft
-
-### Strategy E: Denoising
-# Test_Data_Strategy_E <- Test_Data_Strategy_E
+### Strategy D: Manual feature engineering.
+Test_Data_Strategy_D <- Strategy_D_Test
 
 }, error = function(e) message(e))
 
@@ -945,8 +783,6 @@ Test_Data <- Test_Data_Base_Model
 
 XGBoost_Test_Results_BaseModel <- XGBoost_Test(Model = Model, 
                                                Test_Data = Test_Data)
-
-XGBoost_Test_Results_BaseModel$Metrics
 
 }, error = function(e) message(e))
 

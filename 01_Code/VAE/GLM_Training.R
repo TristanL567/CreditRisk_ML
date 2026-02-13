@@ -155,7 +155,7 @@ df_results <- df_results %>%
     time = time_GLM_bo,
     Predictions = df_results,  
     Brier_Score = brier_score,
-    Penalized_Brier_Score = penalized_brier_score # <--- Added PBS here
+    Penalized_Brier_Score = penalized_brier_score
   )
   
 ##==============================##

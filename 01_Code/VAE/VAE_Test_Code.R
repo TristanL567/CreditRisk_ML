@@ -3,7 +3,8 @@
 #==============================================================================#
 
 ## Last changed: 2026-02-04 | Tristan Leiter
-## Looking into denoising, reconstruction error and isotonic regression to improve calibration.
+## Data leakage might be an issue since the VAE is not trained seperately for all folds
+## but on all the training data.
 
 #==============================================================================#
 #==== 1 - Working Directory & Libraries =======================================#
@@ -320,8 +321,7 @@ vae_fit <- VAE_train(
 
 #==== 04C - Strategy A: Latent features (Dimensional reduction) ===============#
 
-### Only for the train set.
-
+## Training Set.
 tryCatch({
   
 enc_weights <- Encoder_weights(
@@ -343,47 +343,7 @@ colnames(Strategy_A_LF) <- paste0("l", 1:8)
 
 }, error = function(e) message(e))
 
-#==== 04C - Strategy B: Anomaly Score =========================================#
-
-### Only for the train set.
-
-tryCatch({
-  
-  reconstructed_list <- predict(vae_fit$trained_model, as.matrix(vae_input_data))
-  
-  if(is.list(reconstructed_list)) {
-    reconstructed_data <- as.matrix(reconstructed_list[[1]])
-  } else {
-    reconstructed_data <- as.matrix(reconstructed_list)
-  }
-  
-  n_cont     <- ncol(data_cont) 
-  input_cont <- as.matrix(data_cont)
-  
-  recon_cont <- as.matrix(reconstructed_data[, 1:n_cont])
-  mse_scores <- rowSums((input_cont - recon_cont)^2) 
-  
-  cat_indices <- (n_cont + 1):ncol(vae_input_data)
-  
-  input_cat <- as.matrix(vae_input_data[, cat_indices])
-  recon_cat <- as.matrix(reconstructed_data[, cat_indices])
-  
-  epsilon   <- 1e-15
-  recon_cat <- pmax(pmin(recon_cat, 1 - epsilon), epsilon)
-  
-  bce_scores <- -rowSums(input_cat * log(recon_cat) + (1 - input_cat) * log(1 - recon_cat))
-  
-  Strategy_B_AS <- Train_Transformed %>%
-    mutate(
-      anomaly_score_fin   = mse_scores,
-      anomaly_score_cat   = bce_scores,
-      anomaly_score_total = mse_scores + anomaly_score_cat
-    )
-  
-}, error = function(e) message(e))
-
-#==== 04D - Preparation of the test set data for both strategies ==============#
-
+## Test set.
 tryCatch({
   
   test_features <- Test_Transformed %>% select(-y)
@@ -393,7 +353,7 @@ tryCatch({
   test_cat_onehot <- predict(dummies_model, newdata = test_features) %>% as.data.frame()
   test_vae_input_data <- cbind(test_cont, test_bin, test_cat_onehot)
   
-
+  
   missing_cols <- setdiff(names(vae_input_data), names(test_vae_input_data))
   
   if(length(missing_cols) > 0) {
@@ -413,50 +373,223 @@ tryCatch({
   # Use the standalone encoder we built earlier
   test_latent_raw <- predict(enc_model, test_matrix)
   
-### Strategy A:
+  ### Strategy A:
   Strategy_A_LF_Test <- as.data.frame(test_latent_raw[[1]])
   colnames(Strategy_A_LF_Test) <- paste0("l", 1:8)
-
-### Strategy B:
-  test_recon_list <- predict(vae_fit$trained_model, test_matrix)
-  
-  if(is.list(test_recon_list)) {
-    test_recon <- as.matrix(test_recon_list[[1]])
-  } else {
-    test_recon <- as.matrix(test_recon_list)
-  }
-  
-  n_cont <- ncol(test_cont)
-  
-  input_cont_test <- test_matrix[, 1:n_cont]
-  recon_cont_test <- test_recon[, 1:n_cont]
-  
-  mse_scores_test <- rowSums((input_cont_test - recon_cont_test)^2)
-  cat_indices     <- (n_cont + 1):ncol(test_matrix)
-  input_cat_test  <- test_matrix[, cat_indices]
-  recon_cat_test  <- test_recon[, cat_indices]
-  
-  epsilon <- 1e-15
-  recon_cat_test <- pmax(pmin(recon_cat_test, 1 - epsilon), epsilon)
-  
-  bce_scores_test <- -rowSums(input_cat_test * log(recon_cat_test) + (1 - input_cat_test) * log(1 - recon_cat_test))
-  
-  Strategy_B_AS_Test <- Test_Transformed %>%
-    mutate(
-      anomaly_score_fin   = mse_scores_test,
-      anomaly_score_cat   = bce_scores_test,
-      anomaly_score_total  = mse_scores_test + bce_scores_test
-    )
   
 }, error = function(e) message(e))
 
-#==== 04E - Strategy B revised: ===============================================#
+#==== 04C - Strategy B: Anomaly Score =========================================#
 
-### Only for the train set.
-
+## Training set.
 tryCatch({
   
-  Strategy_B_AS_revised <- Train_Transformed %>%
+  # 1. Get Reconstruction
+  reconstructed_list <- predict(vae_fit$trained_model, as.matrix(vae_input_data))
+  
+  if(is.list(reconstructed_list)) {
+    reconstructed_data <- as.matrix(reconstructed_list[[1]])
+  } else {
+    reconstructed_data <- as.matrix(reconstructed_list)
+  }
+  
+  # 2. Define Dimensions
+  # Ensure 'data_cont' exists from step 04A, or calculate manually based on your known continuous columns
+  n_cont_cols <- ncol(data_cont) 
+  n_cat_cols  <- ncol(vae_input_data) - n_cont_cols 
+  
+  # --- MISSING PART: Define the input and reconstruction matrices ---
+  
+  # Continuous variables (Columns 1 to n_cont)
+  input_cont <- as.matrix(vae_input_data[, 1:n_cont_cols])
+  recon_cont <- as.matrix(reconstructed_data[, 1:n_cont_cols])
+  
+  # Categorical variables (Columns n_cont+1 to End)
+  cat_indices <- (n_cont_cols + 1):ncol(vae_input_data)
+  input_cat   <- as.matrix(vae_input_data[, cat_indices])
+  recon_cat   <- as.matrix(reconstructed_data[, cat_indices])
+  
+  # ------------------------------------------------------------------
+  
+  # 3. Calculate Raw Scores
+  mse_scores <- rowSums((input_cont - recon_cont)^2) 
+  
+  # Add epsilon to prevent log(0) errors
+  epsilon   <- 1e-15
+  recon_cat <- pmax(pmin(recon_cat, 1 - epsilon), epsilon)
+  
+  bce_scores <- -rowSums(input_cat * log(recon_cat) + (1 - input_cat) * log(1 - recon_cat))
+  
+  # 4. Normalize Scores
+  mse_normalized <- mse_scores / n_cont_cols
+  bce_normalized <- bce_scores / n_cat_cols
+  
+  # 5. Weighted Combination
+  w_cont <- 1.0
+  w_cat  <- 1.0 
+  final_score <- (mse_normalized * w_cont) + (bce_normalized * w_cat)
+  
+  # 6. Apply to Dataframe
+  Strategy_B_AS <- Train_Transformed %>%
+    mutate(
+      anomaly_score_cont_avg = mse_normalized,
+      anomaly_score_cat_avg  = bce_normalized,
+      anomaly_score_balanced = final_score 
+    )
+  
+  print("Strategy B (Anomaly Scores) calculated successfully.")
+  # print(head(Strategy_B_AS %>% select(starts_with("anomaly_"))))
+  
+}, error = function(e) message("Error in Strategy B: ", e))
+
+## Test set.
+tryCatch({
+  ### Strategy B:
+  test_recon_matrix <- predict(vae_fit$trained_model, test_matrix)
+  
+  # Handle list output if the wrapper returns it (defensive coding)
+  if(is.list(test_recon_matrix)) {
+    test_recon_matrix <- as.matrix(test_recon_matrix[[1]])
+  } else {
+    test_recon_matrix <- as.matrix(test_recon_matrix)
+  }
+  
+  # 1. Define Column Counts (Must match Training Logic)
+  n_cont <- ncol(test_cont)
+  n_cat  <- ncol(test_matrix) - n_cont
+  
+  # 2. Split Matrix
+  input_cont_test <- test_matrix[, 1:n_cont]
+  recon_cont_test <- test_recon_matrix[, 1:n_cont]
+  
+  cat_indices     <- (n_cont + 1):ncol(test_matrix)
+  input_cat_test  <- test_matrix[, cat_indices]
+  recon_cat_test  <- test_recon_matrix[, cat_indices]
+  
+  # 3. Calculate Raw Scores
+  # Continuous: MSE
+  mse_scores_test <- rowSums((input_cont_test - recon_cont_test)^2)
+  
+  # Categorical: BCE (with epsilon clipping)
+  epsilon <- 1e-15
+  recon_cat_test <- pmax(pmin(recon_cat_test, 1 - epsilon), epsilon)
+  bce_scores_test <- -rowSums(input_cat_test * log(recon_cat_test) + (1 - input_cat_test) * log(1 - recon_cat_test))
+  
+  # 4. Normalize & Weight (Apply same logic as Training)
+  # Note: Adjust weights w_cont/w_cat here if you changed them in Training
+  w_cont <- 1.0 
+  w_cat  <- 1.0 
+  
+  mse_norm_test <- mse_scores_test / n_cont
+  bce_norm_test <- bce_scores_test / n_cat
+  
+  final_score_test <- (mse_norm_test * w_cont) + (bce_norm_test * w_cat)
+  
+  # 5. Append to Test Data
+  Strategy_B_AS_Test <- Test_Transformed %>%
+    mutate(
+      anomaly_score_cont_avg = mse_norm_test,
+      anomaly_score_cat_avg  = bce_norm_test,
+      anomaly_score_balanced = final_score_test
+    )
+  
+  print("Success: Strategy B Test Set Prepared.")
+  
+}, error = function(e) message(e))
+
+#==== 04D - Strategy C: Feature Denoising =====================================#
+
+## Training set.
+tryCatch({
+  
+  x_train_clean <- as.matrix(vae_input_data)
+  input_dim <- ncol(x_train_clean)
+  
+  # 2. Define the DAE Architecture
+  # We use the Functional API to insert the Noise Layer
+  input_layer <- layer_input(shape = c(input_dim))
+  
+  encoded <- input_layer %>%
+    # ADD NOISE HERE: 0.1 is standard deviation (tune between 0.05 - 0.2)
+    layer_gaussian_noise(stddev = 0.1) %>% 
+    layer_dense(units = 64, activation = "relu") %>%
+    layer_dense(units = 32, activation = "relu") %>%
+    layer_dense(units = 8, activation = "relu", name = "bottleneck") # Latent Space
+  
+  decoded <- encoded %>%
+    layer_dense(units = 32, activation = "relu") %>%
+    layer_dense(units = 64, activation = "relu") %>%
+    # Output layer must match input dimensions
+    layer_dense(units = input_dim, activation = "linear") 
+  
+  # 3. Compile
+  dae_autoencoder <- keras_model(inputs = input_layer, outputs = decoded)
+  
+  dae_autoencoder %>% compile(
+    optimizer = "adam",
+    loss = "mse" # MSE is standard for DAE reconstruction
+  )
+  
+  # 4. Train (The Critical Step)
+  # Notice: x = x_train_clean, y = x_train_clean
+  # The layer_gaussian_noise handles the corruption internally during training only.
+  history <- dae_autoencoder %>% fit(
+    x = x_train_clean, 
+    y = x_train_clean, 
+    epochs = 50, 
+    batch_size = 256,
+    shuffle = TRUE,
+    validation_split = 0.1,
+    verbose = 0
+  )
+  
+  # 5. Extract Latent Features
+  # Create a separate model that stops at the bottleneck
+  encoder_only <- keras_model(inputs = dae_autoencoder$input, 
+                              outputs = get_layer(dae_autoencoder, "bottleneck")$output)
+  
+  # Predict Latent Features
+  latent_train <- predict(encoder_only, x_train_clean)
+  colnames(latent_train) <- paste0("dae_l", 1:8)
+  
+  # Combine
+  Strategy_C <- cbind(Train_Transformed, as.data.frame(latent_train))
+  
+  message("DAE Training Complete. Latent features extracted.")
+  
+}, error = function(e) message("Strategy C: Denoising Training.", e))
+
+## Test set.
+tryCatch({
+  
+  message("--- Preparing Test Set for Strategy C ---")
+  
+  test_features <- Test_Transformed %>% select(-y)
+  test_cont     <- test_features %>% select(starts_with("f"))
+  test_bin      <- test_features %>% select(groupmember, public)
+  
+  test_cat_onehot <- predict(dummies_model, newdata = test_features) %>% as.data.frame()
+  test_vae_input_data <- cbind(test_cont, test_bin, test_cat_onehot)
+  
+  x_test_matrix <- as.matrix(test_vae_input_data)
+  
+  test_latent_dae <- predict(encoder_only, x_test_matrix)
+  
+  Strategy_C_LF_Test <- as.data.frame(test_latent_dae)
+  colnames(Strategy_C_LF_Test) <- paste0("dae_l", 1:8)
+  
+  Strategy_C_Test <- cbind(Test_Transformed, Strategy_C_LF_Test)
+  
+  print("Success: Strategy C Test Set Prepared.")
+
+}, error = function(e) message("DAE Test Set Error: ", e))
+
+#==== 04E - Strategy D: Feature engineering Cash & Profit =====================#
+
+## Training set.
+tryCatch({
+  
+  Strategy_D <- Train_Transformed %>%
     mutate(
       ##======================================================================##
       ## Strategy 2: The "Zombie" Interactions (Diagonal Decision Boundaries)
@@ -522,11 +655,10 @@ tryCatch({
 
 }, error = function(e) message(e))
 
-### Test-set.
-
+## Test set.
 tryCatch({
   
-  Strategy_B_AS_Test_revised <- Test_Transformed %>%
+  Strategy_D_Test <- Test_Transformed %>%
     mutate(
       ##======================================================================##
       ## Strategy 2: The "Zombie" Interactions (Exact Match to Train)
@@ -557,14 +689,16 @@ tryCatch({
       # Flag_Liquidity = ...
       # Red_Flag_Counter = ...
     )
-  
-  # Validation: Check that columns were created
-  print("Test Set Engineering Complete.")
-  print(glimpse(Strategy_B_AS_Test_revised %>% 
-                  select(Gap_Debt_Equity, Ratio_Cash_Profit, Feature_Stabilizer)))
-  
-  
+
 }, error = function(e) message(e))
+
+#==============================================================================#
+#==== 00 - END ================================================================#
+#==============================================================================#
+
+RunExtension <- False
+
+if(RunExtension){
   
 #==============================================================================#
 #==== 05 - VAE Evaluation =====================================================#
@@ -806,9 +940,6 @@ tryCatch({
   
 }, error = function(e) message(e))
 
-
-
-
 #==============================================================================#
 #==== 06 - VAE Improvements ===================================================#
 #==============================================================================#
@@ -877,459 +1008,8 @@ tryCatch({
   
 }, error = function(e) message(e))
 
-#==== 06C - Solvency Shield ===================================================#
-
-tryCatch({
-  
-  # Filter only the High Anomaly Zone
-  zone_3 <- segmented_data %>% filter(Anomaly_Zone == "3. High Anomaly (Weird)")
-  
-  # Create a "Profit Status" bin to see if Cash matters more for the unprofitable ones
-  # Using median split of f8 inside this zone
-  median_f8 <- median(zone_3$f8)
-  
-  zone_3_interaction <- zone_3 %>%
-    mutate(Profit_Segment = ifelse(f8 > median_f8, "High Profit", "Low Profit"))
-  
-  # Plot Cash (f5) distribution for Defaults vs Survivors, split by Profit
-  p_interaction_check <- ggplot(zone_3_interaction, aes(x = y_num , y = f5, fill = y_num )) +
-    geom_boxplot(alpha = 0.7) +
-    facet_wrap(~Profit_Segment) + # The Magic Split
-    scale_fill_manual(values = c("Survivor" = "#00BFC4", "Default" = "#F8766D")) +
-    labs(title = "Testing the Solvency Shield (Zone 3 Only)",
-         subtitle = "Does Cash (f5) separate Survivors from Defaults ONLY in the 'Low Profit' group?",
-         y = "Cash / Liquidity (f5)") +
-    theme_minimal()
-  
-  print(p_interaction_check)
-  
-}, error = function(e) message(e))
-
-#==== 06D - Incorporate the learnings: Strategy C, Regime Switching ===========#
-
-#### Train set:
-
-tryCatch({
-
-x_input_matrix <- as.matrix(vae_input_data)
-reconstructed_matrix <- predict(vae_fit$trained_model, x_input_matrix)
-  
-# 2. Calculate Signed Residuals (The "Surprise")
-# Formula: Surprise = Actual - Reconstructed
-# If Actual Profit (2.0) > Reconstructed/Expected Profit (1.0) -> Surprise = +1.0 (Good!)
-surprise_matrix <- vae_input_data - reconstructed_matrix
-
-# 3. Extract Key Drivers (f8 and f6)
-# We focus on the top features identified by XGBoost to avoid noise
-Strategy_C_Soft <- as.data.frame(surprise_matrix) %>%
-  select(f8, f6, f5) %>% # Select Profit, Leverage, Liquidity
-  rename(
-    f8_Surprise = f8,
-    f6_Surprise = f6,
-    f5_Surprise = f5
-  )
-
-Strategy_C_Soft <- cbind(Strategy_B_AS, Strategy_C_Soft)
-
-
-}, error = function(e) message(e))
-
-#### Test set:
-
-tryCatch({
-  
-  required_cols <- colnames(vae_input_data)
-  
-  missing_cols <- setdiff(required_cols, colnames(test_vae_input_data))
-  if(length(missing_cols) > 0) {
-    message(paste("Filling missing columns in test set:", paste(missing_cols, collapse=", ")))
-    for(col in missing_cols) test_vae_input_data[[col]] <- 0
-  }
-  
-  x_test_matrix <- as.matrix(test_vae_input_data[, required_cols])
-  
-  message(paste("Input Matrix Dimensions:", paste(dim(x_test_matrix), collapse=" x ")))
-  
-  reconstructed_test_raw <- predict(vae_fit$trained_model, x_test_matrix)
-  
-  # Smart Selector: Handle List vs Matrix output
-  reconstructed_test <- NULL
-  if(is.list(reconstructed_test_raw)) {
-    # Usually the last item is reconstruction, or the one matching training dims (34)
-    for(i in 1:length(reconstructed_test_raw)) {
-      mat <- as.matrix(reconstructed_test_raw[[i]])
-      # We look for the one that has the Model's output dimension (34)
-      if(ncol(mat) > ncol(x_test_matrix) || ncol(mat) == ncol(x_test_matrix)) { 
-        reconstructed_test <- mat
-        break 
-      }
-    }
-  } else {
-    reconstructed_test <- as.matrix(reconstructed_test_raw)
-  }
-  
-  message(paste("Input Dims:", paste(dim(x_test_matrix), collapse="x"), 
-                "| Output Dims:", paste(dim(reconstructed_test), collapse="x")))
-  
-  # 4. CRITICAL FIX: Match Columns by Name/Index for Subtraction
-  # We cannot do (Matrix A - Matrix B) because widths differ (22 vs 34).
-  # We ONLY need f8, f6, f5.
-  
-  features_to_calc <- c("f8", "f6", "f5")
-  
-  # Initialize empty matrix for results
-  surprise_matrix <- matrix(NA, nrow = nrow(x_test_matrix), ncol = length(features_to_calc))
-  colnames(surprise_matrix) <- paste0(features_to_calc, "_Surprise")
-  
-  for(i in 1:length(features_to_calc)) {
-    feat <- features_to_calc[i]
-    
-    # A. Get Actual Value from Input
-    # We find the column index in the Input Data
-    idx_input <- which(colnames(test_vae_input_data) == feat)
-    if(length(idx_input) == 0) stop(paste("Feature", feat, "not found in Input Data"))
-    actual_val <- x_test_matrix[, idx_input]
-    
-    # B. Get Reconstructed Value from Output
-    # ASSUMPTION: The VAE preserves column order. 
-    # Since 'f' features are continuous and come FIRST in your cbind(), 
-    # their indices (e.g., 1 to 11) should be stable even if dummies at the end change.
-    # We use the SAME index as the input.
-    recon_val <- reconstructed_test[, idx_input]
-    
-    # C. Calculate Surprise
-    surprise_matrix[, i] <- actual_val - recon_val
-  }
-  
-  # 5. Bind to Test Data
-  df_surprise_test <- as.data.frame(surprise_matrix)
-  
-  # Combine: Base Test + Strategy B Scores + New Surprises
-  Strategy_C_Test_Soft <- cbind(Strategy_B_AS_Test, df_surprise_test)
-  
-  print("Success: Directional Surprises created (Subset Method).")
-  print(glimpse(Strategy_C_Test_Soft %>% select(ends_with("Surprise"))))
-
-}, error = function(e) message("Test Set Strategy C Error: ", e))
-
-#==== 06E - Incorporate the learnings: Strategy D, Residual Fit ===============#
-
-### Add the base model here:
-
-tryCatch({
-  
-  n_init_points <- 2
-  n_iter_bayes  <- 4
-  
-  
-  #==== 01A - Base model ========================================================#
-  
-  tryCatch({
-    
-    ##==============================##
-    ## Parameters.
-    ##==============================##
-    
-    Data_Train_CV_List <- Data_Train_CV_Base_Model[["fold_list"]]
-    Train_Data <- Train_Data_Base_Model
-    N_folds <- 5
-    
-    ##=========================================##
-    ##==== Dataset preparation.
-    ##=========================================##
-    
-    ### Base Model.
-    Train_Data_Base_Model <- Train_Transformed
-    Train_Data_Base_Model <- Train_Data_Base_Model %>%
-      mutate(
-        id = Train_with_id$id) 
-    
-    ##=========================================##
-    ##==== First stratify by IDs.
-    ##=========================================##
-    
-    Data_Train_CV_Split_IDs <- MVstratifiedsampling_CV_ID(data = Train_Data_Base_Model, 
-                                                          num_folds = N_folds)
-    
-    ##=========================================##
-    ##==== Now use the stratified IDs to get the row in the train set for each fold.
-    ##=========================================##
-    
-    ## Rows remain the same.
-    ### Base Model.
-    Data_Train_CV_Base_Model <- MVstratifiedsampling_CV_Split(data = Train_Data_Base_Model, 
-                                                              firm_fold_indices = Data_Train_CV_Split_IDs) 
-    
-    ##=========================================##
-    ##==== Remove the ID column once more.
-    ##=========================================##
-    
-    ### Base Model.
-    Train_Data_Base_Model <- Train_Data_Base_Model %>%
-      select(-id)
-    
-    ##==============================##
-    ## Code.
-    ##==============================##
-    
-    XGBoost_Results_BaseModel <- XGBoost_Training(Data_Train_CV_List = Data_Train_CV_List,
-                                                  Train_Data = Train_Data,
-                                                  n_init_points = n_init_points,
-                                                  n_iter_bayes = n_iter_bayes)
-    
-  }, error = function(e) message(e))  
-  
-  
-}, error = function(e) message(e))
-
-### Execute the residual strategy:
-
-tryCatch({
-  
-  message("--- Executing Strategy 2: Identifying Hard Samples ---")
-  
-  # 1. Get Base Model Predictions & Identify Hard Samples
-  model_base <- XGBoost_Results_BaseModel$optimal_model
-  
-  # Prepare matrix for XGBoost prediction
-  sparse_formula <- as.formula("y ~ . - 1")
-  full_train_matrix <- sparse.model.matrix(sparse_formula, data = Train_Data_Base_Model)
-  
-  preds_base <- predict(model_base, full_train_matrix)
-  actuals    <- as.numeric(as.character(Train_Data_Base_Model$y))
-  
-  # Calculate Residuals (Absolute Error)
-  residuals <- abs(actuals - preds_base)
-  
-  # Select Top 25% "Hardest" cases
-  threshold <- quantile(residuals, 0.75)
-  hard_sample_indices <- which(residuals >= threshold)
-  
-  message(paste("Original Data Rows:", nrow(Train_Data_Base_Model)))
-  message(paste("Hard Sample Rows:  ", length(hard_sample_indices)))
-  message("Threshold for 'Hard' defined as absolute error > ", round(threshold, 4))
-  
-  
-  # 2. Train the Specialist VAE (Only on Hard Samples)
-  message("--- Training Specialist VAE on Hard Samples ---")
-  
-  # SENIOR TRICK: Don't re-run dummyVars. Subset the global VAE input data.
-  # This guarantees the columns (sectors/sizes) match exactly, even if the 
-  # hard subset is missing a rare category.
-  vae_input_hard <- vae_input_data[hard_sample_indices, ]
-  
-  # Update distribution params for the new subset (Crucial for VAE scaling)
-  feat_dist_hard <- extracting_distribution(vae_input_hard)
-  set_feat_dist(feat_dist_hard)
-  
-  # Train the Specialist VAE
-  # We use the same config but train ONLY on the hard/confusing samples.
-  # This forces the VAE to learn the "Structure of Failure" specifically.
-  vae_specialist_fit <- VAE_train(
-    data = vae_input_hard,
-    encoder_info = encoder_config,
-    decoder_info = decoder_config,
-    latent_dim = 8,
-    epoch = 100,      # You might lower this if N is small to avoid overfitting
-    batchsize = 256,
-    beta = 0.5,
-    lr = 0.001,
-    temperature = 0.5,
-    wait = 10,
-    kl_warm = TRUE,
-    beta_epoch = 10,
-    Lip_en = 0, pi_enc = 0, lip_dec = 0, pi_dec = 0
-  )
-  
-  
-  # 3. Score the FULL Dataset using the Specialist VAE
-  # We project ALL companies onto the "Hard Problem" latent space.
-  message("--- Scoring Full Dataset with Specialist VAE ---")
-  
-  # Predict on the FULL vae_input_data using the SPECIALIST model
-  specialist_recon_list <- predict(vae_specialist_fit$trained_model, as.matrix(vae_input_data))
-  
-  if(is.list(specialist_recon_list)) {
-    reconstructed_data <- as.matrix(specialist_recon_list[[1]])
-  } else {
-    reconstructed_data <- as.matrix(specialist_recon_list)
-  }
-  
-  # Calculate Reconstruction Error (The Specialist Score)
-  # We focus on Continuous Features (MSE) as the primary driver for "Weirdness"
-  n_cont     <- ncol(data_cont) 
-  input_cont <- as.matrix(vae_input_data[, 1:n_cont]) # First N cols are continuous
-  recon_cont <- as.matrix(reconstructed_data[, 1:n_cont])
-  
-  # This score answers: "How similar is this company to the ones we failed to predict?"
-  specialist_mse_scores <- rowSums((input_cont - recon_cont)^2) 
-  
-  
-  # 4. Create Strategy 2 Dataset & Train XGBoost
-  message("--- Training XGBoost Strategy 2 (Specialist Score) ---")
-  
-  # Add the new feature to the training set
-  Strategy_D_Soft <- Train_Data_Base_Model %>%
-    mutate(Specialist_Risk_Score = specialist_mse_scores)
-  
-}, error = function(e) message("Strategy 2 Error: ", e))
-
-### Test set.
-
-tryCatch({
-  
-  message("--- Executing Strategy D: Test Set Preparation ---")
-  
-  # 1. Prepare Input (Matrix)
-  # We use the existing test_vae_input_data which is already aligned with training columns
-  x_test_matrix <- as.matrix(test_vae_input_data)
-  
-  # 2. Generate Reconstructions using the SPECIALIST Model
-  # CRITICAL: Use 'vae_specialist_fit$trained_model' (trained on Hard Samples)
-  reconstructed_test_list <- predict(vae_specialist_fit$trained_model, x_test_matrix)
-  
-  if(is.list(reconstructed_test_list)) {
-    reconstructed_test <- as.matrix(reconstructed_test_list[[1]])
-  } else {
-    reconstructed_test <- as.matrix(reconstructed_test_list)
-  }
-  
-  # 3. Calculate Specialist Score (MSE on Continuous Features)
-  # We use the same column indices as the Training step
-  n_cont <- ncol(data_cont) 
-  
-  input_cont_test <- x_test_matrix[, 1:n_cont]
-  recon_cont_test <- reconstructed_test[, 1:n_cont]
-  
-  # The Score: "How much does this test company resemble a 'Hard Failure'?"
-  # High Error = Normal Company (Unlike the failures)
-  # Low Error = Potentially Risky (Structurally similar to failures)
-  specialist_mse_scores_test <- rowSums((input_cont_test - recon_cont_test)^2)
-  
-  # 4. Create Strategy D Test Dataset
-  # We append the score to the Base Model Test Data
-  Strategy_D_Test_Soft <- Test_Data_Base_Model %>%
-    mutate(Specialist_Risk_Score = specialist_mse_scores_test)
-  
-  print("Success: Specialist Risk Score created for Test Set.")
-  print(glimpse(Strategy_D_Test_Soft %>% select(y, Specialist_Risk_Score)))
-  
-}, error = function(e) message("Strategy D Test Set Error: ", e))
-
-#==============================================================================#
-#==== 07 - Strategy E: Feature Denoising ======================================#
-#==============================================================================#
-
-#==== 07A - Train a "fresh" VAE ===============================================#
-
-tryCatch({
-  
-  message("--- Configuring Denoising VAE (Strategy E) ---")
-  
-  # We add a dropout layer with rate 0.1 (10% corruption) at the start.
-  encoder_config_dae <- list(
-    list("dropout", 0.1),       # <--- The Denoising Component
-    list("dense", 64, "relu"),
-    list("dense", 32, "relu")
-  )
-  
-  decoder_config_dae <- list(
-    list("dense", 32, "relu"),
-    list("dense", 64, "relu")
-  )
-  
-  # We train a FRESH model. The weights must adapt to the noise.
-  vae_fit_dae <- VAE_train(
-    data = vae_input_data,      
-    encoder_info = encoder_config_dae,
-    decoder_info = decoder_config_dae,
-    latent_dim = 8,
-    epoch = 100, 
-    batchsize = 256,
-    beta = 0.5, 
-    lr = 0.0001,
-    temperature = 0.5,
-    wait = 10,
-    kl_warm = TRUE,
-    beta_epoch = 10,
-    Lip_en = 0, pi_enc = 0, lip_dec = 0, pi_dec = 0
-  )
-  
-  message("DAE Training Complete.")
-  
-}, error = function(e) message("DAE Training Error: ", e))
-
-#==== 07B - Extract Robust Latent Features ====================================#
-
-tryCatch({
-  
-  message("--- Extracting Robust Latent Features ---")
-  
-  # 1. Build the Encoder (DAE version)
-  # CRITICAL FIX: Set encoder_layers = 2.
-  # Even though we added a Dropout layer, it has no weights.
-  # We only count the 'Dense' layers (64 and 32).
-  enc_weights_dae <- Encoder_weights(
-    encoder_layers = 2,           # <--- CHANGED FROM 3 TO 2
-    trained_model = vae_fit_dae$trained_model,
-    lip_enc = 0, pi_enc = 0, BNenc_layers = 0, learn_BN = 0
-  )
-  
-  # 2. Reconstruct the Architecture
-  # We still use 'encoder_config_dae' (which HAS the dropout)
-  # so the structure matches, but we only load weights for the dense parts.
-  enc_model_dae <- encoder_latent(
-    encoder_input = vae_input_data, 
-    encoder_info = encoder_config_dae, 
-    latent_dim = 8,
-    Lip_en = 0, power_iterations = 0
-  ) %>% keras::set_weights(enc_weights_dae)
-  
-  # 3. Predict Latent Features (Training Set)
-  # Keras automatically DISABLES dropout during predict()
-  latent_output_dae <- predict(enc_model_dae, as.matrix(vae_input_data))
-  
-  # 4. Create Dataframe
-  Strategy_E_LF <- as.data.frame(latent_output_dae[[1]])
-  colnames(Strategy_E_LF) <- paste0("dae_l", 1:8) 
-  
-  # Combine with Base Features
-  Train_Data_Strategy_E <- cbind(Train_Transformed, Strategy_E_LF)
-  
-  print("Sample of Robust Features:")
-  print(glimpse(Train_Data_Strategy_E %>% select(starts_with("dae_"))))
-  
-}, error = function(e) message("DAE Extraction Error: ", e))
-
-#==== 07C - Prepare Test Set for Strategy E ===================================#
-
-tryCatch({
-  
-  message("--- Preparing Test Set for Strategy E ---")
-  
-  # 1. Ensure Test Matrix is ready (from previous steps)
-  if(!exists("test_vae_input_data")) stop("Run Block 04D first to prep test input.")
-  
-  x_test_matrix <- as.matrix(test_vae_input_data)
-  
-  # 2. Predict Latent Features (Test Set)
-  test_latent_dae <- predict(enc_model_dae, x_test_matrix)
-  
-  Strategy_E_LF_Test <- as.data.frame(test_latent_dae[[1]])
-  colnames(Strategy_E_LF_Test) <- paste0("dae_l", 1:8)
-  
-  # 3. Combine
-  Test_Data_Strategy_E <- cbind(Test_Transformed, Strategy_E_LF_Test)
-  
-  print("Success: Strategy E Test Set Prepared.")
-  
-}, error = function(e) message("DAE Test Set Error: ", e))
-
-#==============================================================================#
-#==== 08 - Model Comparison ===================================================#
-#==============================================================================#
-
-
 #==============================================================================#
 #==============================================================================#
 #==============================================================================#
+  
+}

@@ -145,14 +145,50 @@ tryCatch({
 }, error = function(e) message(e))
       
 }) # End system.time
-  
+
+##==============================##
+## Predictions & Brier Scores
+##==============================##
+
+sparse_formula <- as.formula("y ~ . - 1")
+data_matrix  <- sparse.model.matrix(sparse_formula, data = Train_Data)
+preds_prob_D   <- predict(model, data_matrix)
+
+df_results <- tibble::tibble(
+  Actual = as.numeric(as.character(Train_Data$y)), 
+  Predicted = preds_prob_D
+)
+
+brier_score <- mean((df_results$Predicted - df_results$Actual)^2)
+
+R <- 2 # Number of classes (Binary: 0 or 1)
+penalty_term <- (R - 1) / R # Penalty is 0.5
+
+df_results <- df_results %>%
+  mutate(
+    # Get the predicted class (0 or 1) using a 0.5 threshold
+    Predicted_Class = round(Predicted),
+    # Calculate the standard squared error component
+    Squared_Error = (Predicted - Actual)^2,
+    # Apply the penalty if the prediction is incorrect
+    # The penalty term is added when (argmax p != arg max y)
+    Penalty = ifelse(Predicted_Class != Actual, penalty_term, 0)
+  )
+
+# The PBS is the mean of the squared error plus the penalty term
+# PBS = (1/N) * Sum(Squared_Error + Penalty)
+penalized_brier_score <- mean(df_results$Squared_Error + df_results$Penalty)
+
 ### Results
   Results_XGBoost <- list(
     results = results_bayes,
     optimal_model = model_bayes,
     optimal_rounds = optimal_rounds,
     optimal_parameters = final_params_bayes,
-    time = time_XGBoost_bo
+    time = time_XGBoost_bo,
+    Predictions = df_results,  
+    Brier_Score = brier_score,
+    Penalized_Brier_Score = penalized_brier_score
 )
   
 ##==============================##
