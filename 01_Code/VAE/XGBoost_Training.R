@@ -152,7 +152,7 @@ tryCatch({
 
 sparse_formula <- as.formula("y ~ . - 1")
 data_matrix  <- sparse.model.matrix(sparse_formula, data = Train_Data)
-preds_prob_D   <- predict(model, data_matrix)
+preds_prob_D   <- predict(model_bayes, data_matrix)
 
 df_results <- tibble::tibble(
   Actual = as.numeric(as.character(Train_Data$y)), 
