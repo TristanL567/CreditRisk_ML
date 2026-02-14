@@ -37,7 +37,7 @@ packages <- c("dplyr", "caret", "lubridate", "purrr", "tidyr",
               "autotab", "keras",           ## VAE.
               "reticulate", "tensorflow",
               "mclust",                     ## Finding soft interaction features.
-              "pdp", "gridExtra", "hexbin"
+              "pdp", "gridExtra", "hexbin", "openxlsx"
 )
 
 for(i in 1:length(packages)){
