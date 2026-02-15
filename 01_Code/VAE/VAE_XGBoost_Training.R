@@ -280,32 +280,67 @@ tryCatch({
 #==== 02B - Settings ==========================================================#
 
 tryCatch({
+
+# Path <- file.path(here::here("")) ## You need to install the package first incase you do not have it.
+# Charts_Directory_Model <- file.path(Path, "03_Charts/VAE/XGBoost")
+# 
+# ###### Input parameters.
+# ## BaseModel, StrategyA, StrategyB or StrategyC, StrategyD
+# model_used_name <- "StrategyD"
+# 
+# ## XGBoost_Results_BaseModel, XGBoost_Results_Strategy_A,
+# ## XGBoost_Results_Strategy_B, XGBoost_Results_Strategy_C,
+# ## XGBoost_Results_Strategy_D
+# model_object <- XGBoost_Results_Strategy_D$optimal_model
+# 
+# ## Train_Data_Base_Model, Train_Data_Strategy_A,
+# ## Train_Data_Strategy_B, Train_Data_Strategy_C, Train_Data_Strategy_D
+# data_input <- Train_Data_Strategy_D
+# 
+# # Ensure directory exists
+# Directory <- file.path(Charts_Directory_Model, model_used_name)
+# if(!dir.exists(Directory)) dir.create(Directory)
+# 
+# #### Feature Names Mapping.
+# names(data_input)
+
+}, error = function(e) message(e))
+
+#==== 02B - Settings (revised set up with a loop) =============================#
+
+tryCatch({
   
 Path <- file.path(here::here("")) ## You need to install the package first incase you do not have it.
 Charts_Directory_Model <- file.path(Path, "03_Charts/VAE/XGBoost")
 
 ###### Input parameters.
-## BaseModel, StrategyA, StrategyB or StrategyC, StrategyD
-model_used_name <- "StrategyD"
+model_used_name_list <- list("BaseModel", "StrategyA", "StrategyB",
+                              "StrategyC","StrategyD")
 
-## XGBoost_Results_BaseModel, XGBoost_Results_Strategy_A, 
-## XGBoost_Results_Strategy_B, XGBoost_Results_Strategy_C, 
-## XGBoost_Results_Strategy_D
-model_object <- XGBoost_Results_Strategy_D$optimal_model
+model_object_list <- list(XGBoost_Results_BaseModel$optimal_model,
+                           XGBoost_Results_Strategy_A$optimal_model,
+                           XGBoost_Results_Strategy_B$optimal_model,
+                           XGBoost_Results_Strategy_C$optimal_model,
+                           XGBoost_Results_Strategy_D$optimal_model)
 
-## Train_Data_Base_Model, Train_Data_Strategy_A, 
-## Train_Data_Strategy_B, Train_Data_Strategy_C, Train_Data_Strategy_D
-data_input <- Train_Data_Strategy_D
+data_input_list <- list(Train_Data_Base_Model,
+                        Train_Data_Strategy_A,
+                        Train_Data_Strategy_B,
+                        Train_Data_Strategy_C,
+                        Train_Data_Strategy_D)
 
+## Run the loop:
+
+for(model_rep in 1:length(model_used_name_list)){
+
+  model_used_name <- model_used_name_list[[model_rep]]
+  model_object <- model_object_list[[model_rep]]
+  data_input <- data_input_list[[model_rep]]
+  
 # Ensure directory exists
 Directory <- file.path(Charts_Directory_Model, model_used_name)
 if(!dir.exists(Directory)) dir.create(Directory)
-
-#### Feature Names Mapping.
-names(data_input)
-
-}, error = function(e) message(e))
-
+    
 #==== 02B - Feature Importance ================================================#
 
 tryCatch({
@@ -358,7 +393,7 @@ tryCatch({
   print(p_importance)
   
   # 5. Save Plot
-  Path_plot <- file.path(Directory, "Feature_Importance.png")
+  Path_plot <- file.path(Directory, paste0(model_used_name, "_Feature_Importance.png"))
   ggsave(filename = Path_plot, 
          plot = p_importance, width = 8, height = 6)
   
@@ -511,7 +546,7 @@ tryCatch({
         # Use arrangeGrob (gridExtra)
         combined_plot <- arrangeGrob(grobs = current_batch, ncol = 2, nrow = 2)
         
-        file_name <- paste0("MarginalResponse_Batch_", i, ".png")
+        file_name <- paste0(model_used_name, "MarginalResponse_Batch_", i, ".png")
         Path_plot <- file.path(Directory, file_name)
         
         ggsave(filename = Path_plot, plot = combined_plot, width = 12, height = 8)
@@ -672,7 +707,7 @@ tryCatch({
         
         combined_plot <- arrangeGrob(grobs = current_batch, ncol = 2, nrow = 2)
         
-        file_name <- paste0("Calibration_Batch_", i, ".png")
+        file_name <- paste0(model_used_name, "Calibration_Batch_", i, ".png")
         Path_plot <- file.path(Directory, file_name)
         
         ggsave(filename = Path_plot, plot = combined_plot, width = 12, height = 8)
@@ -788,7 +823,7 @@ tryCatch({
       p <- plot_beamer_hex(f1, f2)
       
       if(!is.null(p)) {
-        file_name <- paste0("Beamer_Hex_", f1, "_", f2, ".png")
+        file_name <- paste0(model_used_name, "Beamer_Hex_", f1, "_", f2, ".png")
         Path_plot <- file.path(Directory, file_name)
         
         # Saving with slightly larger dimensions for clarity
@@ -962,7 +997,7 @@ tryCatch({
         # Add the shared legend at the bottom
         final_grid <- arrangeGrob(grid_plots, shared_legend, nrow = 2, heights = c(10, 1))
         
-        file_name <- paste0("Error_Boxplot_Batch_", i, ".png")
+        file_name <- paste0(model_used_name, "Error_Boxplot_Batch_", i, ".png")
         Path_plot <- file.path(Directory, file_name)
         
         ggsave(filename = Path_plot, plot = final_grid, width = 10, height = 8)
@@ -1043,6 +1078,12 @@ tryCatch({
              file = file.path(Directory, "Error_Summary.xlsx"))
   
 }, error = function(e) message("Error Summary Failed: ", e))
+  
+}
+
+#==============================================================================#
+  
+}, error = function(e) message(e))
 
 #==== 02F - Density Plot (NOT IN USE CURRENTLY) ===============================#
 
