@@ -1197,7 +1197,7 @@ XGBoost_Test_Results_Strategy_B <- XGBoost_Test(Model = Model,
 
 }, error = function(e) message(e))
 
-#==== 03E - Strategy C: Ferature Denoising ====================================#
+#==== 03E - Strategy C: Feature Denoising =====================================#
 
 tryCatch({
   

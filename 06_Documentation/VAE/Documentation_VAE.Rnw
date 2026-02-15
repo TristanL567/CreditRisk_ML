@@ -44,7 +44,8 @@ knit2pdf(Directory_LaTeX)
 
 % Path for charts.
 \graphicspath{
-    {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/VAE}
+    {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel}
+    {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA}
 }
 
 %==== DOCUMENT START ==========================================================%
@@ -100,6 +101,42 @@ knit2pdf(Directory_LaTeX)
 
 \tableofcontents
 \newpage
+
+%==== Chapter 1: Vae and Strategy Overview ====================================%
+
+\chapter{Agenda}
+
+\section{Agenda}
+
+\begin{itemize}
+    % First Big Point: RQ1 (XGBoost + VAE)
+    \item \textbf{Research Question 1: Develop and evaluate supervised credit scoring models for
+Austrian SMEs using raw balance-sheet data.}
+    \begin{itemize}
+        \item \textbf{VAE Integration:} Does the integration of VAEs improve the CV-AUC?
+        \item \textbf{AutoML:} Can AutoML lead to better results?
+        \item \textbf{Model Selection:} Leaderboard Results and Strategy Comparison (GLM, RF and Boosting).
+    \end{itemize}
+
+    \vspace{0.5cm} % Adds vertical space for visual separation
+
+    % Second Big Point: RQ2 (GLM Benchmark)
+    \item \textbf{Research Question 2: Does the use of financial ratios improve model performance and 
+generalization compared to the raw-data approach?}
+    \begin{itemize}
+        \item \textbf{Model Training:} Model Comparison and identifing the optimal hyperparameters.
+        \item \textbf{Model Selection:} Which model is finally selected?
+        \item \textbf{Comparative Analysis:} Raw accounting-positions versus financial ratios.
+    \end{itemize}
+    
+    %% Outlook.
+    \item \textbf{Outlook: Research Question 3 and Year specifications.}
+
+\end{itemize}
+
+
+
+
 
 %==== Chapter 1: Vae and Strategy Overview ====================================%
 
@@ -189,23 +226,239 @@ The final modeling stage aggregates the outputs of these strategies:
 \end{equation}
 This augmented dataset is fed into an XGBoost classifier. The inclusion of VAE/DAE features allows the gradient boosting model to view the data through multiple "lenses": the raw financial values, the probabilistic manifold (VAE), the robust structural view (DAE), and the financial analyst's view (Strategy D).
 
-%==== Chapter 2: XGBoost - Model Training and Insights ========================%
+%==== Chapter 2: GLM - Model Training and Insights ============================%
 
-\chapter{CV-Results and Model Insights}
+\chapter{GLM Training Results and Model Insights}
 
-\section{GLM}
+\section{Training Results}
 
-\subsection{Performance Leaderboard}
+\subsection{Performance Leaderboard (GLM)}
+
+Table \ref{tab:glm_leaderboard} displays the comparative performance for the linear models. Unlike the XGBoost results where manual engineering (Strategy D) led, the GLM results favor the deep learning strategies. Strategy A (Dimensionality Reduction) achieved the highest AUC of 0.8024, followed closely by Strategy C. Interestingly, Strategy D performed slightly worse than the Base Model in the linear context, suggesting that the manual interaction terms might require non-linear transformation to be effective in a GLM framework.
+
+\begin{table}[h]
+    \centering
+    \caption{GLM Performance Leaderboard (5-Fold CV)}
+    \label{tab:glm_leaderboard}
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{Model} & \textbf{AUC} & \textbf{Brier Score (\%)} & \textbf{Pen. Brier Score (\%)} \\
+        \hline
+        Strategy A (Dim. Reduction) & 0.8024 & 0.8413\% & 1.271\% \\
+        Strategy C (Feature Denoising) & 0.8024 & 0.8416\% & 1.271\% \\
+        Base Model & 0.8019 & 0.8421\% & 1.272\% \\
+        Strategy D (Manual Feature Eng.) & 0.8018 & 0.8423\% & 1.272\% \\
+        Strategy B (Anomaly Score) & 0.8014 & 0.8408\% & 1.271\% \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Hyperparameter Optimization (Elastic Net)}
+
+The Elastic Net mixing parameter $\alpha$ (where $\alpha=1$ is Lasso and $\alpha=0$ is Ridge) and the regularization strength $\lambda$ were optimized for each strategy. Table \ref{tab:glm_params} details the optimal configurations.
+
+\begin{table}[h]
+    \centering
+    \caption{Optimal GLM Hyperparameters per Strategy}
+    \label{tab:glm_params}
+    \begin{tabular}{lcc}
+        \hline
+        \textbf{Strategy} & \textbf{Alpha ($\alpha$)} & \textbf{Lambda ($\lambda$)} \\
+        \hline
+        Base Model & 0.990 & $2.56 \times 10^{-5}$ \\
+        Strategy A (Dim. Reduction) & 0.343 & $4.24 \times 10^{-5}$ \\
+        Strategy B (Anomaly Score) & 0.730 & $2.40 \times 10^{-5}$ \\
+        Strategy C (Feature Denoising) & 0.130 & $1.09 \times 10^{-5}$ \\
+        Strategy D (Manual Feature Eng.) & 1.000 & $1.75 \times 10^{-5}$ \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\paragraph{Parameter Analysis}
+The optimization results highlight a clear distinction in how the linear model treats different feature sets. The Base Model and Strategy D converged to an $\alpha \approx 1$ (pure Lasso), indicating that sparse selection is preferred when dealing with raw financials and manual interactions—the model actively zeros out redundant ratios. In contrast, the deep learning strategies (A and C) favored a lower $\alpha$ (0.34 and 0.13, respectively), pushing the model towards Ridge regression. This suggests that the latent features generated by the VAE and DAE are highly correlated and dense; rather than selecting one and dropping the rest (Lasso), the model prefers to shrink their coefficients collectively (Ridge) to capture the distributed signal within the manifold.
 
 %============================%
 
-\section{XGBoost}
+\subsection{Model Insights: Base Model}
 
-\subsection{Training Results}
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Base Model}
+    \label{tab:forensic_summary_new}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{Net Profit} & \textbf{Liabilities} & \textbf{Group Mem.} & \textbf{Total Assets} & \textbf{Profit C.F.} \\
+        \midrule
+        True Negative  & 121,584 & 0.3277 & -0.0291 & 0 & 0.1069 & 0.2881 \\
+        False Positive & 47,604  & -0.8391 & 0.0604 & 0 & -0.3265 & -0.6619 \\
+        False Negative & 360     & 0.0679 & 0.2898 & 0 & 0.2004 & 0.0623 \\
+        True Positive  & 1,106   & -1.1129 & 0.1245 & 0 & -0.3449 & -0.8740 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+%============================%
+
+\subsection{Model Insights: Strategy A}
+
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy A}
+    \label{tab:forensic_summary_strat_b}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{Net Profit} & \textbf{Liabilities} & \textbf{Group Mem.} & \textbf{Profit C.F.} & \textbf{Total Assets} \\
+        \midrule
+        True Negative  & 129,184 & 0.2771 & -0.0279 & 0 & 0.2447 & 0.0864 \\
+        False Positive & 40,004  & -0.9317 & 0.0759 & 0 & -0.7744 & -0.3524 \\
+        False Negative & 431     & 0.0104 & 0.2466 & 0 & 0.0189 & 0.1193 \\
+        True Positive  & 1,035   & -1.1474 & 0.1235 & 0 & -0.9317 & -0.3673 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+%============================%
+
+\subsection{Model Insights: Strategy B}
+
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy B}
+    \label{tab:forensic_summary_strat_c}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{Net Profit} & \textbf{Liabilities} & \textbf{Group Mem.} & \textbf{Total Assets} & \textbf{Profit C.F.} \\
+        \midrule
+        True Negative  & 122,090 & 0.3231 & -0.0429 & 0 & 0.0956 & 0.2848 \\
+        False Positive & 47,098  & -0.8654 & 0.0931 & 0 & -0.2850 & -0.6872 \\
+        False Negative & 366     & 0.0447 & 0.2969 & 0 & 0.2241 & 0.0413 \\
+        True Positive  & 1,100   & -1.1172 & 0.1162 & 0 & -0.3399 & -0.8766 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+%============================%
+
+\subsection{Model Insights: Strategy C}
+
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy C}
+    \label{tab:forensic_summary_strat_d}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{Liabilities} & \textbf{Net Profit} & \textbf{Group Mem.} & \textbf{Curr. Assets} & \textbf{Cash \& Equiv.} \\
+        \midrule
+        True Negative  & 126,043 & -0.0387 & 0.2999 & 0 & 0.0420 & 0.2416 \\
+        False Positive & 43,145  & 0.0909 & -0.8786 & 0 & -0.1148 & -0.6946 \\
+        False Negative & 398     & 0.2595 & 0.0375 & 0 & 0.0771 & -0.1581 \\
+        True Positive  & 1,068   & 0.1330 & -1.1304 & 0 & -0.0958 & -0.6246 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+%============================%
+
+\subsection{Model Insights: Strategy D}
+
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy D}
+    \label{tab:forensic_summary_base}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{Net Profit} & \textbf{Liabilities} & \textbf{Group Mem.} & \textbf{Total Assets} & \textbf{Profit C.F.} \\
+        \midrule
+        True Negative  & 122,229 & 0.3184 & -0.0291 & 0 & 0.1035 & 0.2780 \\
+        False Positive & 46,959  & -0.8480 & 0.0626 & 0 & -0.3218 & -0.6619 \\
+        False Negative & 366     & 0.0322 & 0.2923 & 0 & 0.2004 & 0.0290 \\
+        True Positive  & 1,100   & -1.1172 & 0.1203 & 0 & -0.3449 & -0.8740 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+%============================%
+
+\section{GLM Training Summary}
+
+The Generalized Linear Model (GLM) training phase revealed distinct behavioral patterns compared to the tree-based approaches. While XGBoost naturally identifies non-linear liquidity cliffs (e.g., "Cash Burn"), the linear models exhibited a strong \textbf{"Solvency Bias"}, primarily assessing risk through the balance sheet equation (Assets vs. Liabilities).
+
+Table \ref{tab:glm_summary_insights} summarizes the contribution and failure modes of each strategy within the linear framework.
+
+\begin{table}[h]
+    \centering
+    \caption{Summary of GLM Strategy Contributions and Failure Modes}
+    \label{tab:glm_summary_insights}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lp{4cm}p{4cm}p{4cm}}
+        \toprule
+        \textbf{Strategy} & \textbf{Primary Risk Focus} & \textbf{False Negative Profile (Missed Risks)} & \textbf{VAE/Feature Synergy} \\
+        \midrule
+        \textbf{Base Model} & Solvency Balance & \textbf{Asset-Heavy / High-Debt}: Positive Profit and High Assets mask high Liabilities. & N/A (Baseline). Relies on sparse Lasso selection ($\alpha \approx 1$). \\
+        \midrule
+        \textbf{Strategy A} \newline (Dim. Reduction) & Distributed Solvency & \textbf{Similar to Base}: High Liabilities offset by High Assets. & \textbf{Ridge Shift}: VAE latent features are dense and correlated. The model shifts to Elastic Net ($\alpha=0.34$) to capture the manifold structure rather than selecting single ratios. \\
+        \midrule
+        \textbf{Strategy B} \newline (Anomaly Score) & Structural Outliers & \textbf{Standard Failure}: Failed to alter the linear decision boundary significantly. & \textbf{Low Synergy}: Anomaly scores (scalars) were treated as just another variable, adding little distinct signal to the linear equation. \\
+        \midrule
+        \textbf{Strategy C} \newline (Denoising) & \textbf{Liquidity \& Robustness} & \textbf{Cash-Poor}: The only model where missed risks had \textit{Negative Cash} (-0.158). & \textbf{High Synergy}: Denoising forces the model to ignore "noisy" accounting assets. It breaks the "Solvency Illusion," forcing the GLM to weight \textit{Cash} heavily. \\
+        \midrule
+        \textbf{Strategy D} \newline (Manual Eng.) & Redundant Linear Terms & \textbf{Identical to Base}: Manual interactions did not improve detection. & \textbf{Linear Redundancy}: In a linear model, interaction terms like $(A-B)$ provide no new information over $A$ and $B$. Lasso correctly identified them as redundant. \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\subsection{Comparative Insights}
+
+\paragraph{The "Solvency Illusion" (Base Model \& Strategy D)}
+Both the Base Model and Strategy D converged to a Lasso penalty ($\alpha \approx 1$) and exhibited identical failure modes. The forensic analysis shows that these models miss defaulters who possess **High Total Assets** ($>0.20$) and **High Liabilities** ($>0.28$). Linearly, the model allows the assets to mathematically "cancel out" the debt, failing to recognize that in distressed firms, asset valuations are often inflated or illiquid. Notably, Strategy D failed to impact the GLM because linear interaction terms (e.g., \texttt{Gap = Debt - Equity}) are linearly dependent on the raw features; the GLM simply distributed the weights between the raw terms and the interaction, resulting in no net gain in information.
+
+\paragraph{The Manifold Effect (Strategy A)}
+Strategy A achieved the highest AUC (0.8024) by shifting the optimization landscape. Unlike the Base Model, which selected variables sparsely, Strategy A utilized a Ridge-heavy Elastic Net ($\alpha=0.343$). This indicates that the VAE's latent features ($\mu$) capture dense, correlated clusters of risk behavior. By shrinking these coefficients collectively rather than eliminating them, the GLM could leverage the "shape" of the financial data (the manifold) to marginally improve separation between healthy firms and complex defaulters.
+
+\paragraph{The Liquidity Shift (Strategy C)}
+Strategy C (Feature Denoising) stands out as the most distinct model forensically. While other strategies focused on Net Profit and Liabilities, Strategy C's top drivers included **Cash \& Equivalents**. Consequently, its False Negatives were distinct: they had deeply negative median cash (-0.158), whereas other models missed firms with positive cash. This suggests that the Denoising Autoencoder (DAE) successfully stripped away the "noise" of accounting assets (which can be manipulated), leaving the GLM to rely on the most robust signal available: hard liquidity. This ability to force a linear model to look beyond the balance sheet explains its top-tier performance.
+
+%==== Chapter 3: RF - Model Training and Insights =============================%
+
+\chapter{Random Forest Training Results and Model Insights}
+
+\section{Training Results}
+
+%==== Chapter 4: XGBoost - Model Training and Insights ========================%
+
+\chapter{Boosting Training Results and Model Insights}
+
+\section{Training Results}
 
 The model training phase evaluated the baseline XGBoost model against four augmentation strategies. The primary metrics for evaluation were the Area Under the Curve (AUC) and the Brier Score (both standard and penalized).
 
-\subsubsection{Performance Leaderboard}
+\subsection{Performance Leaderboard}
 
 Table \ref{tab:leaderboard} presents the comparative performance of each strategy. Strategy D (Manual Feature Engineering) achieved the highest predictive power with an AUC of 0.81, providing a slight uplift over the Base Model. Notably, the deep learning strategies (A, B, and C) performed comparably to the baseline but did not surpass the domain-expert features in this specific iteration.
 
@@ -226,7 +479,7 @@ Table \ref{tab:leaderboard} presents the comparative performance of each strateg
     \end{tabular}
 \end{table}
 
-\subsubsection{Hyperparameter Optimization}
+\subsection{Hyperparameter Optimization}
 
 To ensure fair comparison, Bayesian optimization was utilized to find the optimal hyperparameters for each strategy. Table \ref{tab:params} details the specific configuration that minimized the validation loss for each feature set.
 
@@ -250,126 +503,453 @@ To ensure fair comparison, Bayesian optimization was utilized to find the optima
 \paragraph{Parameter Analysis}
 The hyperparameter tuning reveals distinct structural preferences across the strategies. A strong similarity exists regarding tree complexity; nearly all models converged on a shallow \texttt{max\_depth} of 4 (with Strategy B even lower at 3), indicating that the underlying risk signals are captured best by relatively simple decision boundaries rather than deep, complex trees. However, a divergence is observed in the learning rate ($\eta$). The Base Model and Strategy B could tolerate higher learning rates ($\approx 0.03 - 0.05$), whereas Strategies A, C, and D required a much more conservative learning rate of 0.01 to converge optimally. This suggests that the introduction of high-dimensional latent features (Strategies A \& C) or interaction terms (Strategy D) increases the complexity of the loss landscape, requiring smaller gradient descent steps to avoid overfitting.
 
+\subsection{Model Insights: Base Model}
+
 \subsubsection{Feature Importance}
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{BaseModel_Feature_Importance.png}
+    \caption{Feature Importance for the XGBoost Base Model.}
+\end{figure}
 
+\subsubsection{Marginal Response}
 
-%==== Chapter 2: Model and Feature Insights ===================================%
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{BaseModelMarginalResponse_Batch_1.png}
+    \caption{Marginal Response for the XGBoost Base Model for the
+    top 4 features.}
+\end{figure}
 
-% \chapter{Model and Feature Insights}
-% 
-% \section{Cross-Validation Performance}
-% 
-% \subsection{Summary}
-% 
-% \subsection{False Positives \& False Negatives}
-% 
-% \section{Feature Importance}
-% 
-% \section{Marginal Responses}
-% 
-% \section{Dependence Structure}
+\subsubsection{Bivariate Response}
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{BaseModelBeamer_Hex_f8_f5.png}
+    \caption{Bivariate Response for the XGBoost Base Model for
+    net profit and cash.}
+\end{figure}
 
+\subsubsection{Error}
 
-%==== Chapter 3: Final Model Optimization =====================================%
-
-\chapter{Final Model Optimization: The Solvency Stabilizer}
-
-\section{The Breakthrough: Solving the ``Healthy Loser'' Panic}
-
-The primary weakness identified in previous iterations was the model's tendency to panic when observing negative profitability, resulting in a high rate of False Positives. This phenomenon, termed the ``Healthy Loser'' Panic, flagged firms that were technically unprofitable but structurally sound due to high cash reserves.
-
-By implementing \textbf{Strategy D}, which utilizes the \texttt{Feature\_Stabilizer} (switching the focus to Cash $f5$ when Profit $f8$ is negative), we achieved a ``Double Win'': the model successfully caught more defaulters while drastically reducing false alarms.
-
-\section{Quantitative Impact: Before vs. After}
-
-The implementation of the stabilizer logic produced a decisive shift in model performance. Table \ref{tab:scorecard} details the impact on the confusion matrix.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{BaseModelError_Boxplot_Batch_3.png}
+    \caption{Error rate of the XGBoost Strtategy A Model.}
+\end{figure}
 
 \begin{table}[h]
-\centering
-\caption{Impact of Strategy D (Feature Stabilizer) on Model Performance}
-\label{tab:scorecard}
-\begin{tabular}{@{}lccc@{}}
-\toprule
-\textbf{Metric} & \textbf{Previous Result} & \textbf{Strategy D Result} & \textbf{Improvement} \\ \midrule
-True Positives (Caught Risks) & 1,191 & \textbf{1,361} & +170 (Sensitivity $\uparrow$) \\
-False Negatives (Missed Risks) & 275 & \textbf{105} & -170 (Safety $\uparrow$) \\
-False Positives (False Alarms) & 39,738 & \textbf{26,077} & -13,661 (Precision $\uparrow$) \\
-True Negatives (Correct Safe) & 129,450 & \textbf{143,111} & +13,661 (Efficiency $\uparrow$) \\ \bottomrule
-\end{tabular}
+    \centering
+    \caption{Forensic Feature Summary: Base Model.}
+    \label{tab:forensic_summary}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{Net Profit} & \textbf{Equity} & \textbf{Cash \& Equiv.} & \textbf{Profit C.F.} & \textbf{Liabilities} \\
+        \midrule
+        True Negative  & 124,608 & 0.2695 & 0.2488 & 0.2497 & 0.2305 & -0.0501 \\
+        False Positive & 44,580  & -0.8437 & -0.8389 & -0.6246 & -0.7605 & 0.1031 \\
+        False Negative & 175     & 0.0104 & -0.0401 & 0.0774 & 0.0290 & 0.0215 \\
+        True Positive  & 1,291   & -0.9920 & -1.0082 & -0.5679 & -0.8003 & 0.1630 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns (Net Profit through Liabilities) reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
 \end{table}
 
-\paragraph{Key Outcomes:}
+%============================%
+
+\subsection{Model Insights: Strategy A}
+
+\subsubsection{Feature Importance}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{StrategyA_Feature_Importance.png}
+    \caption{Feature Importance for the XGBoost Strategy A Model (without feature engineering).}
+\end{figure}
+
+\subsubsection{Marginal Response}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{StrategyAMarginalResponse_Batch_1.png}
+    \caption{Marginal Response for the XGBoost Strategy A Model (without feature engineering) for the
+    top 4 features.}
+\end{figure}
+
+\subsubsection{Bivariate Response}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{StrategyABeamer_Hex_f8_f5.png}
+    \caption{Bivariate Response for the XGBoost Strategy A Model (without feature engineering) for
+    net profit and cash.}
+\end{figure}
+
+\subsubsection{Error}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{StrategyAError_Boxplot_Batch_2.png}
+    \caption{Error rate of the XGBoost Base Model (without feature engineering).}
+\end{figure}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy A.}
+    \label{tab:forensic_summary_glm}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{Net Profit} & \textbf{Equity} & \textbf{Profit C.F.} & \textbf{Cash \& Equiv.} & \textbf{Curr. Assets} \\
+        \midrule
+        True Negative  & 132,930 & 0.2382 & 0.2154 & 0.2040 & 0.1946 & 0.0335 \\
+        False Positive & 36,258  & -0.9745 & -0.9848 & -0.9039 & -0.6246 & -0.1346 \\
+        False Negative & 244     & 0.0322 & -0.0224 & 0.0858 & -0.0712 & -0.1075 \\
+        True Positive  & 1,222   & -1.0563 & -1.0352 & -0.8372 & -0.5679 & -0.0556 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+%============================%
+
+\subsection{Model Insights: Strategy B}
+
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy B}
+    \label{tab:forensic_summary_glm_final}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{Net Profit} & \textbf{Equity} & \textbf{Cash \& Equiv.} & \textbf{Profit C.F.} & \textbf{Curr. Assets} \\
+        \midrule
+        True Negative  & 127,957 & 0.2569 & 0.2338 & 0.2264 & 0.2231 & 0.0301 \\
+        False Positive & 41,231  & -0.9109 & -0.9078 & -0.6246 & -0.8132 & -0.1107 \\
+        False Negative & 259     & 0.0032 & -0.1304 & -0.0784 & 0.0189 & -0.2006 \\
+        True Positive  & 1,207   & -1.0751 & -1.0524 & -0.6246 & -0.8480 & -0.0384 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+%============================%
+
+\subsection{Model Insights: Strategy C}
+
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy C}
+    \label{tab:forensic_summary_strat_c}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{Net Profit} & \textbf{Equity} & \textbf{Cash \& Equiv.} & \textbf{Profit C.F.} & \textbf{Robust Latent 5} \\
+        \midrule
+        True Negative  & 123,943 & 0.2894 & 0.2664 & 0.2497 & 0.2585 & 3.4105 \\
+        False Positive & 45,245  & -0.8827 & -0.8968 & -0.6246 & -0.8066 & 2.4265 \\
+        False Negative & 195     & 0.0644 & -0.0286 & 0.1355 & 0.1407 & 3.2656 \\
+        True Positive  & 1,271   & -1.0154 & -1.0174 & -0.6246 & -0.8066 & 2.4156 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+%============================%
+
+\subsection{Model Insights: Strategy D}
+
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy D}
+    \label{tab:forensic_summary_strat_d}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{Net Profit} & \textbf{Solvency Gap} & \textbf{Equity} & \textbf{Profit C.F.} & \textbf{Curr. Assets} \\
+        \midrule
+        True Negative  & 128,220 & 0.2594 & -0.4610 & 0.2415 & 0.2231 & 0.0287 \\
+        False Positive & 40,968  & -0.9109 & 0.7596 & -0.9298 & -0.8197 & -0.1044 \\
+        False Negative & 231     & 0.0286 & -0.2345 & -0.0372 & 0.0341 & -0.1277 \\
+        True Positive  & 1,235   & -1.0446 & 0.9123 & -1.0352 & -0.8197 & -0.0523 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+\section{XGBoost Training Summary}
+
+The XGBoost training phase demonstrated the strong capability of gradient boosting to handle raw non-linearities, setting a high baseline for performance. Unlike the linear models, XGBoost naturally incorporated liquidity signals (Cash \& Equivalents) alongside solvency metrics.
+
+Table \ref{tab:xgb_summary_insights} summarizes the specific behavioral shifts introduced by each augmentation strategy.
+
+\begin{table}[h]
+    \centering
+    \caption{Summary of XGBoost Strategy Contributions and Failure Modes}
+    \label{tab:xgb_summary_insights}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lp{4cm}p{4cm}p{4cm}}
+        \toprule
+        \textbf{Strategy} & \textbf{Primary Risk Focus} & \textbf{False Negative Profile (Missed Risks)} & \textbf{Methodological Insight} \\
+        \midrule
+        \textbf{Base Model} & \textbf{Liquidity} (Cash) \& Profit & \textbf{The "Profit Illusion"}: Firms with Positive Profit and Positive Cash, but negative Equity. & The trees rely heavily on "Cash Burn." It misses firms that manipulate accounting profit to mask structural insolvency. \\
+        \midrule
+        \textbf{Strategy A} \newline (Dim. Reduction) & Smooth Manifold & \textbf{Liquidity Blindness}: Missed firms with \textit{Negative Cash} (-0.071), which the Base Model caught. & \textbf{Over-Smoothing}: The VAE's KL-divergence constraint forces a smooth Gaussian latent space. This likely blurred the sharp, discrete "cliff" where low liquidity leads to default. \\
+        \midrule
+        \textbf{Strategy C} \newline (Denoising) & Robust Structure & \textbf{The "Deceptive Solid"}: Missed firms with High Profit (0.064) and High Cash (0.135). & \textbf{Noise Filtering}: The DAE successfully filtered out noisy financial ratios, allowing the model to focus on structural integrity. It only failed on firms that looked "perfect" on paper. \\
+        \midrule
+        \textbf{Strategy D} \newline (Manual Eng.) & \textbf{Solvency Interaction} & \textbf{Strategic Misses}: Accepted slightly more misses (FN) in exchange for massive FP reduction. & \textbf{The "Zombie" Filter}: The explicit "Solvency Gap" feature ($Liabilities - Equity$) allowed the model to slash False Positives by $\sim$4,000, distinguishing "distressed survivors" from actual defaulters. \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\subsection{Comparative Insights}
+
+\paragraph{The "Zombie Hunter" (Strategy D)}
+Strategy D achieved the highest AUC (0.8138) not by catching the most defaulters, but by drastically reducing False Positives. The forensic analysis shows that Strategy D had $\sim$4,000 fewer False Positives than the Base Model (40,968 vs 44,580).
 \begin{itemize}
-    \item \textbf{Efficiency:} 13,661 healthy firms were rescued from being wrongly flagged as risky.
-    \item \textbf{Sensitivity:} Simultaneously, an additional 170 defaulters were caught that were previously missed.
-    \item \textbf{Total Capture Rate:} The model now captures \textbf{92.8\%} of all defaults ($1,361 / 1,466$), a figure considered exceptional for credit risk modeling.
+    \item \textbf{Why it works:} Gradient boosting trees approximate diagonal decision boundaries using step-functions. A feature like \texttt{Solvency Gap} ($Liabilities - Equity$) provides an explicit diagonal cut that is difficult for a shallow tree to learn from raw $Liabilities$ and $Equity$ features alone. This interaction term allowed the model to correctly classify "Zombie Companies"—firms with bad ratios that survive—thereby cleaning up the confusion matrix.
 \end{itemize}
 
-\section{Mechanism of Action: Why the Stabilizer Worked}
-
-The significant drop in False Positives (from 39k to 26k) confirms the hypothesis regarding ``Healthy Losers.''
-
+\paragraph{The Robustness of Noise (Strategy C)}
+Among the deep learning strategies, Strategy C (Feature Denoising) was the most effective forensic tool. While Strategy A (Standard VAE) degraded performance by "smoothing" over liquidity risks (missing firms with negative cash), Strategy C's "Robust Latent 5" feature helped the model identify imposters.
 \begin{itemize}
-    \item \textbf{The Old Logic:} The model observed $f8$ (Profit) at values like $-2.0$ and immediately classified the firm as high risk based on income statement bleeding.
-    \item \textbf{The New Logic:} The \texttt{Feature\_Stabilizer} intervened: \textit{``Profit is negative; therefore, evaluate Cash ($f5$) instead.''}
-    \item \textbf{The Result:} For the 13,661 rescued firms, the model recognized the ``Cash Cushion'' ($f5 > 0$) as a sufficient buffer against the ``Profit Bleed,'' correctly reclassifying them as Survivors (True Negatives).
+    \item \textbf{Why it works:} By training on corrupted inputs, the Denoising Autoencoder learns to ignore transient fluctuations in accounting ratios. When fed into XGBoost, these robust features acted as a "validity check" on the raw financial data, preventing the model from overfitting to noise.
 \end{itemize}
 
-\section{Forensic Analysis of Remaining Errors}
-
-Despite optimization, specific error groups remain. A forensic analysis reveals the distinct profiles of these residual errors.
-
-\subsection{The Remaining False Negatives (105 Firms)}
-These are the \textbf{``Stealth Defaulters.''}
+\paragraph{The VAE Limitation (Strategy A)}
+Strategy A underperformed the Base Model. The forensic data reveals that it missed 244 risks (compared to 175 for Base), specifically failing to detect firms with negative cash flow.
 \begin{itemize}
-    \item \textbf{Profile:} Median Profit ($f8$) $\approx -0.157$; Median Solvency Gap $\approx -0.235$.
-    \item \textbf{Diagnosis:} These firms exhibit ``safe'' balance sheets (Equity $>$ Debt) and are barely losing money.
-    \item \textbf{Root Cause:} Financially, they appear identical to safe firms. Their default is likely driven by non-financial factors—such as fraud, lawsuits, or sudden management exits—or extreme short-term liquidity shocks not captured in annual reports. This represents the likely ``irreducible error'' floor for a model based solely on annual financial statements.
+    \item \textbf{Why it failed:} The standard VAE optimizes for a continuous, smooth latent manifold (via the KL-Divergence loss). However, corporate default is often a discontinuous, "tail risk" event. By forcing the data into a smooth normal distribution, the VAE likely compressed the "dangerous outliers" into the "safe cluster," stripping away the sharp signal needed for crisis detection.
 \end{itemize}
 
-\subsection{The Remaining False Positives (26,077 Firms)}
-These are the \textbf{``Hardcore Zombies.''}
+%==== Chapter 5: Comparison of all models =====================================%
+
+\chapter{Training Results}
+
+\section{Overall Insights: GLM vs. XGBoost}
+
+Comparing the forensic error profiles of the Generalized Linear Models (GLM) and the Gradient Boosting Machines (XGBoost) reveals a fundamental divergence in risk perception. While both models achieved comparable AUC scores ($\approx 0.81$), they arrived at these predictions through entirely different "financial philosophies."
+
+\subsection{Comparative Strengths and Weaknesses}
+
+\paragraph{GLM: The Solvency Architect}
+The GLM excels at assessing \textbf{structural solvency}. By weighing \textit{Total Assets} against \textit{Liabilities}, it effectively identifies firms that are fundamentally underwater.
 \begin{itemize}
-    \item \textbf{Profile:} Massive Losses (Median $f8 \approx -1.05$); Massive Debt (Median Gap $\approx +0.90$).
-    \item \textbf{Diagnosis:} By all standard financial logic, these firms should be insolvent.
-    \item \textbf{Root Cause:} Their survival is likely due to external factors such as government bailouts, parent company guarantees, or extreme asset liquidation.
-    \item \textbf{Interpretation:} Flagging these firms is the \textit{correct behavior} for a risk model. They represent high risk; they simply survived against the odds.
+    \item \textbf{Where it struggles:} The GLM suffers from a "Linear Cancellation" effect. It systematically misses \textbf{Asset-Heavy / High-Debt} firms (False Negatives). Because the model is a linear equation ($w_1 \cdot Assets - w_2 \cdot Liabilities$), a massive pile of assets can mathematically "cancel out" massive debt, leading the model to classify a highly leveraged firm as safe. It lacks the ability to detect the "tipping point" where leverage becomes fatal regardless of asset book value.
 \end{itemize}
 
-\section{Future Improvements and Limitations}
-
-While the current model is production-ready, further reduction of the remaining error types requires data beyond the current scope.
-
-\subsection{Addressing False Positives (The ``Zombie'' Survivor)}
-The model fails to exclude these firms because their survival is mathematically improbable based on their financials alone.
+\paragraph{XGBoost: The Liquidity Hawk}
+XGBoost focuses intensely on \textbf{operational liquidity}. Its decision trees naturally prioritize "cliffs"—sharp thresholds in \textit{Cash} and \textit{Net Profit} where survival becomes impossible.
 \begin{itemize}
-    \item \textbf{Limitation:} The model cannot see ``external support.''
-    \item \textbf{Solution path:} To reduce these False Positives, we would need to integrate:
-    \begin{enumerate}
-        \item \textbf{Ownership Structure Data:} Identifying parent companies with deep pockets.
-        \item \textbf{State Aid/Subsidy Data:} Identifying firms receiving government support.
-        \item \textbf{News Sentiment:} Detecting announcements of restructuring or bailouts.
-    \end{enumerate}
-    \item \textbf{Recommendation:} Treat these 26,077 firms as a ``High Risk Watchlist.'' They are not defaults yet, but they are living on borrowed time.
+    \item \textbf{Where it struggles:} XGBoost is vulnerable to the "Profit Illusion." Its False Negatives are often firms with \textbf{Positive Accounting Profit} but negative equity. The trees see the positive profit and high cash flow and assume safety, failing to recognize that the firm is technically insolvent (Negative Equity). It misses the "Zombie" firms that GLM catches easily.
 \end{itemize}
 
-\subsection{Addressing False Negatives (The ``Stealth'' Defaulter)}
-The model fails to catch these firms because their annual reports look healthy right up until the moment of collapse.
+\subsection{The Role of VAE and Deep Learning}
+
+The impact of the VAE architectures was diametrically opposed for the two model classes, highlighting the importance of alignment between feature engineering and model structure.
+
 \begin{itemize}
-    \item \textbf{Limitation:} The latency of annual reporting masks sudden liquidity crises or fraud.
-    \item \textbf{Solution path:} To capture these Stealth Defaulters, we would need:
-    \begin{enumerate}
-        \item \textbf{Higher Frequency Data:} Monthly cash flow or bank transaction data to catch sudden liquidity drying.
-        \item \textbf{Fraud Detection Models:} Applying Benford’s Law or forensic accounting ratios to detect manipulated financial statements.
-        \item \textbf{Legal Filings:} Monitoring court dockets for sudden litigation which often precedes ``healthy'' defaults.
-    \end{enumerate}
+    \item \textbf{For GLM (High Impact):} The VAE (Strategy A) was highly beneficial. The GLM struggles with sparse, noisy ratios. The VAE compressed these into dense, correlated latent features, allowing the GLM to shift from a sparse Lasso selection to a dense Ridge penalization ($\alpha \approx 0.3$), effectively capturing the "shape" of the data that a simple linear line could not.
+    \item \textbf{For XGBoost (Mixed Impact):} The standard VAE (Strategy A) was detrimental. The VAE's Gaussian constraint smoothed over the sharp "tail risks" that XGBoost needs to split on. However, the Denoising Autoencoder (Strategy C) was successful because it acted as a noise filter rather than a smoother, allowing XGBoost to ignore accounting noise and focus on robust structural signals.
 \end{itemize}
 
-\section{Final Recommendation}
+\subsection{Path Forward: The Ensemble Hypothesis}
 
-We have reached the point of diminishing returns for feature engineering on this specific dataset. The recommendation is to \textbf{Stop Engineering} and accept the model. Capturing $\sim$93\% of defaults with a drastically reduced False Positive rate is a robust result. The pipeline (Strategy D + Threshold Optimization) should now be applied to the final Holdout Test Set to confirm these metrics on unseen data.
+The most critical discovery is that \textbf{GLM and XGBoost are making different mistakes.}
+\begin{itemize}
+    \item GLM misses the \textit{High Asset/High Debt} firms.
+    \item XGBoost misses the \textit{Profitable/Insolvent} firms.
+\end{itemize}
+
+Since their error profiles are uncorrelated (orthogonal), they are ideal candidates for an \textbf{Ensemble Approach}. A simple mean average of their predicted default probabilities would likely "cancel out" these specific blind spots—the GLM would catch the insolvent zombies that fool XGBoost, and XGBoost would catch the liquidity crises that slip past the GLM's linear equation. This suggests that a hybrid "Expert Voting" system would yield higher robustness than any single model strategy alone.
+
+
+\section{Performance Leaderboard}
+
+%==== Chapter 6: Model Selection ==============================================%
+
+\chapter{Model Selection}
+
+\section{Performance in the Test-set}
+
+\subsection{GLM}
+
+\begin{table}[h]
+    \centering
+    \caption{GLM Model Performance Leaderboard (Test Set)}
+    \label{tab:glm_leaderboard_test}
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{Model} & \textbf{AUC} & \textbf{Brier Score (\%)} & \textbf{Pen. Brier Score (\%)} \\
+        \hline
+        Strategy A (Latent) & 0.8171 & 0.8317\% & 1.257\% \\
+        Strategy D (Residual Fit) & 0.8163 & 0.8323\% & 1.258\% \\
+        Base Model & 0.8161 & 0.8322\% & 1.258\% \\
+        Strategy B (Anomaly) & 0.8160 & 0.8316\% & 1.257\% \\
+        Strategy C (Regime) & 0.8139 & 0.8320\% & 1.258\% \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Random Forest}
+
+\subsection{Boosting}
+
+\begin{table}[h]
+    \centering
+    \caption{XGBoost Model Performance Leaderboard (Test Set)}
+    \label{tab:xgb_leaderboard_test}
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{Model} & \textbf{AUC} & \textbf{Brier Score (\%)} & \textbf{Pen. Brier Score (\%)} \\
+        \hline
+        Strategy B (Anomaly Score) & 0.8205 & 0.8288\% & 1.254\% \\
+        Base Model & 0.8203 & 0.8286\% & 1.254\% \\
+        Strategy A (Dim. Reduction) & 0.8192 & 0.8287\% & 1.254\% \\
+        Strategy D (Manual Feature Eng.) & 0.8185 & 0.8279\% & 1.254\% \\
+        Strategy C (Feature Denoising) & 0.8034 & 0.8309\% & 1.257\% \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\section{Ensemble Approach}
+
+\begin{table}[h]
+    \centering
+    \caption{Final Ensemble Performance Leaderboard (Test Set)}
+    \label{tab:final_ensemble_leaderboard}
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{Model Strategy} & \textbf{AUC} & \textbf{Brier Score (\%)} & \textbf{Pen. Brier Score (\%)} \\
+        \hline
+        \textbf{Ensemble C (Selected Top)} & \textbf{0.8268} & \textbf{0.8278\%} & \textbf{1.253\%} \\
+        Ensemble B (All Model Avg) & 0.8265 & 0.8287\% & 1.254\% \\
+        Ensemble A (Base Avg) & 0.8265 & 0.8281\% & 1.254\% \\
+        \textit{Single Best (XGB Strat B)} & \textit{0.8205} & \textit{0.8288\%} & \textit{1.254\%} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\section{Model Selection \& Summary}
+
+
+
+
+
+
+%==== Chapter 6: Final Model Optimization =====================================%
+
+% \chapter{Final Model Optimization: The Solvency Stabilizer}
+% 
+% \section{The Breakthrough: Solving the ``Healthy Loser'' Panic}
+% 
+% The primary weakness identified in previous iterations was the model's tendency to panic when observing negative profitability, resulting in a high rate of False Positives. This phenomenon, termed the ``Healthy Loser'' Panic, flagged firms that were technically unprofitable but structurally sound due to high cash reserves.
+% 
+% By implementing \textbf{Strategy D}, which utilizes the \texttt{Feature\_Stabilizer} (switching the focus to Cash $f5$ when Profit $f8$ is negative), we achieved a ``Double Win'': the model successfully caught more defaulters while drastically reducing false alarms.
+% 
+% \section{Quantitative Impact: Before vs. After}
+% 
+% The implementation of the stabilizer logic produced a decisive shift in model performance. Table \ref{tab:scorecard} details the impact on the confusion matrix.
+% 
+% \begin{table}[h]
+% \centering
+% \caption{Impact of Strategy D (Feature Stabilizer) on Model Performance}
+% \label{tab:scorecard}
+% \begin{tabular}{@{}lccc@{}}
+% \toprule
+% \textbf{Metric} & \textbf{Previous Result} & \textbf{Strategy D Result} & \textbf{Improvement} \\ \midrule
+% True Positives (Caught Risks) & 1,191 & \textbf{1,361} & +170 (Sensitivity $\uparrow$) \\
+% False Negatives (Missed Risks) & 275 & \textbf{105} & -170 (Safety $\uparrow$) \\
+% False Positives (False Alarms) & 39,738 & \textbf{26,077} & -13,661 (Precision $\uparrow$) \\
+% True Negatives (Correct Safe) & 129,450 & \textbf{143,111} & +13,661 (Efficiency $\uparrow$) \\ \bottomrule
+% \end{tabular}
+% \end{table}
+% 
+% \paragraph{Key Outcomes:}
+% \begin{itemize}
+%     \item \textbf{Efficiency:} 13,661 healthy firms were rescued from being wrongly flagged as risky.
+%     \item \textbf{Sensitivity:} Simultaneously, an additional 170 defaulters were caught that were previously missed.
+%     \item \textbf{Total Capture Rate:} The model now captures \textbf{92.8\%} of all defaults ($1,361 / 1,466$), a figure considered exceptional for credit risk modeling.
+% \end{itemize}
+% 
+% \section{Mechanism of Action: Why the Stabilizer Worked}
+% 
+% The significant drop in False Positives (from 39k to 26k) confirms the hypothesis regarding ``Healthy Losers.''
+% 
+% \begin{itemize}
+%     \item \textbf{The Old Logic:} The model observed $f8$ (Profit) at values like $-2.0$ and immediately classified the firm as high risk based on income statement bleeding.
+%     \item \textbf{The New Logic:} The \texttt{Feature\_Stabilizer} intervened: \textit{``Profit is negative; therefore, evaluate Cash ($f5$) instead.''}
+%     \item \textbf{The Result:} For the 13,661 rescued firms, the model recognized the ``Cash Cushion'' ($f5 > 0$) as a sufficient buffer against the ``Profit Bleed,'' correctly reclassifying them as Survivors (True Negatives).
+% \end{itemize}
+% 
+% \section{Forensic Analysis of Remaining Errors}
+% 
+% Despite optimization, specific error groups remain. A forensic analysis reveals the distinct profiles of these residual errors.
+% 
+% \subsection{The Remaining False Negatives (105 Firms)}
+% These are the \textbf{``Stealth Defaulters.''}
+% \begin{itemize}
+%     \item \textbf{Profile:} Median Profit ($f8$) $\approx -0.157$; Median Solvency Gap $\approx -0.235$.
+%     \item \textbf{Diagnosis:} These firms exhibit ``safe'' balance sheets (Equity $>$ Debt) and are barely losing money.
+%     \item \textbf{Root Cause:} Financially, they appear identical to safe firms. Their default is likely driven by non-financial factors—such as fraud, lawsuits, or sudden management exits—or extreme short-term liquidity shocks not captured in annual reports. This represents the likely ``irreducible error'' floor for a model based solely on annual financial statements.
+% \end{itemize}
+% 
+% \subsection{The Remaining False Positives (26,077 Firms)}
+% These are the \textbf{``Hardcore Zombies.''}
+% \begin{itemize}
+%     \item \textbf{Profile:} Massive Losses (Median $f8 \approx -1.05$); Massive Debt (Median Gap $\approx +0.90$).
+%     \item \textbf{Diagnosis:} By all standard financial logic, these firms should be insolvent.
+%     \item \textbf{Root Cause:} Their survival is likely due to external factors such as government bailouts, parent company guarantees, or extreme asset liquidation.
+%     \item \textbf{Interpretation:} Flagging these firms is the \textit{correct behavior} for a risk model. They represent high risk; they simply survived against the odds.
+% \end{itemize}
+% 
+% \section{Future Improvements and Limitations}
+% 
+% While the current model is production-ready, further reduction of the remaining error types requires data beyond the current scope.
+% 
+% \subsection{Addressing False Positives (The ``Zombie'' Survivor)}
+% The model fails to exclude these firms because their survival is mathematically improbable based on their financials alone.
+% \begin{itemize}
+%     \item \textbf{Limitation:} The model cannot see ``external support.''
+%     \item \textbf{Solution path:} To reduce these False Positives, we would need to integrate:
+%     \begin{enumerate}
+%         \item \textbf{Ownership Structure Data:} Identifying parent companies with deep pockets.
+%         \item \textbf{State Aid/Subsidy Data:} Identifying firms receiving government support.
+%         \item \textbf{News Sentiment:} Detecting announcements of restructuring or bailouts.
+%     \end{enumerate}
+%     \item \textbf{Recommendation:} Treat these 26,077 firms as a ``High Risk Watchlist.'' They are not defaults yet, but they are living on borrowed time.
+% \end{itemize}
+% 
+% \subsection{Addressing False Negatives (The ``Stealth'' Defaulter)}
+% The model fails to catch these firms because their annual reports look healthy right up until the moment of collapse.
+% \begin{itemize}
+%     \item \textbf{Limitation:} The latency of annual reporting masks sudden liquidity crises or fraud.
+%     \item \textbf{Solution path:} To capture these Stealth Defaulters, we would need:
+%     \begin{enumerate}
+%         \item \textbf{Higher Frequency Data:} Monthly cash flow or bank transaction data to catch sudden liquidity drying.
+%         \item \textbf{Fraud Detection Models:} Applying Benford’s Law or forensic accounting ratios to detect manipulated financial statements.
+%         \item \textbf{Legal Filings:} Monitoring court dockets for sudden litigation which often precedes ``healthy'' defaults.
+%     \end{enumerate}
+% \end{itemize}
+% 
+% \section{Final Recommendation}
+% 
+% We have reached the point of diminishing returns for feature engineering on this specific dataset. The recommendation is to \textbf{Stop Engineering} and accept the model. Capturing $\sim$93\% of defaults with a drastically reduced False Positive rate is a robust result. The pipeline (Strategy D + Threshold Optimization) should now be applied to the final Holdout Test Set to confirm these metrics on unseen data.
 
 %==== Chapter 4: References ===================================================%
 
