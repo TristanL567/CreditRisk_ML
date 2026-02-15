@@ -42,10 +42,10 @@ knit2pdf(Directory_LaTeX)
 % Chart placement.
 \usepackage{float}
 
-% Grafik-Pfad.
-% \graphicspath{
-%     {O:/00_Procedures&Tasks/Anleitungen/05_Research/PerformanceMandate/Grafiken/}
-% }
+% Path for charts.
+\graphicspath{
+    {C:/Users/TristanLeiter/Documents/Privat/ILAB/CreditRisk_ML/03_Charts/VAE}
+}
 
 %==== DOCUMENT START ==========================================================%
 
@@ -101,9 +101,7 @@ knit2pdf(Directory_LaTeX)
 \tableofcontents
 \newpage
 
-%==== Chapter 1: Allgemein ====================================================%
-
-%==== Chapter: VAE Integration and Diagnostics ================================%
+%==== Chapter 1: Vae and Strategy Overview ====================================%
 
 \chapter{Hybrid VAE-XGBoost Architecture \& Implementation}
 
@@ -191,21 +189,86 @@ The final modeling stage aggregates the outputs of these strategies:
 \end{equation}
 This augmented dataset is fed into an XGBoost classifier. The inclusion of VAE/DAE features allows the gradient boosting model to view the data through multiple "lenses": the raw financial values, the probabilistic manifold (VAE), the robust structural view (DAE), and the financial analyst's view (Strategy D).
 
+%==== Chapter 2: XGBoost - Model Training and Insights ========================%
+
+\chapter{CV-Results and Model Insights}
+
+\section{GLM}
+
+\subsection{Performance Leaderboard}
+
+%============================%
+
+\section{XGBoost}
+
+\subsection{Training Results}
+
+The model training phase evaluated the baseline XGBoost model against four augmentation strategies. The primary metrics for evaluation were the Area Under the Curve (AUC) and the Brier Score (both standard and penalized).
+
+\subsubsection{Performance Leaderboard}
+
+Table \ref{tab:leaderboard} presents the comparative performance of each strategy. Strategy D (Manual Feature Engineering) achieved the highest predictive power with an AUC of 0.81, providing a slight uplift over the Base Model. Notably, the deep learning strategies (A, B, and C) performed comparably to the baseline but did not surpass the domain-expert features in this specific iteration.
+
+\begin{table}[h]
+    \centering
+    \caption{Model Performance Leaderboard (5-Fold CV)}
+    \label{tab:leaderboard}
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{Model} & \textbf{AUC} & \textbf{Brier Score (\%)} & \textbf{Pen. Brier Score (\%)} \\
+        \hline
+        Strategy D (Manual Feature Eng.) & 0.8138 & 0.8166\% & 1.246\% \\
+        Base Model & 0.8132 & 0.8093\% & 1.239\% \\
+        Strategy B (Anomaly Score) & 0.8131 & 0.8185\% & 1.248\% \\
+        Strategy A (Dim. Reduction) & 0.8127 & 0.8096\% & 1.239\% \\
+        Strategy C (Feature Denoising) & 0.8106 & 0.8183\% & 1.248\% \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsubsection{Hyperparameter Optimization}
+
+To ensure fair comparison, Bayesian optimization was utilized to find the optimal hyperparameters for each strategy. Table \ref{tab:params} details the specific configuration that minimized the validation loss for each feature set.
+
+\begin{table}[h]
+    \centering
+    \caption{Optimal XGBoost Hyperparameters per Strategy}
+    \label{tab:params}
+    \begin{tabular}{lcccc}
+        \hline
+        \textbf{Strategy} & \textbf{Eta ($\eta$)} & \textbf{Max Depth} & \textbf{Subsample} & \textbf{Colsample} \\
+        \hline
+        Base Model & 0.049 & 4 & 0.613 & 0.906 \\
+        Strategy A (Anomaly Score) & 0.010 & 4 & 0.500 & 0.696 \\
+        Strategy B (Dim. Reduction) & 0.034 & 3 & 0.636 & 1.000 \\
+        Strategy C (Feature Denoising) & 0.010 & 4 & 0.822 & 0.561 \\
+        Strategy D (Manual Feature Eng.) & 0.010 & 4 & 0.561 & 0.660 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\paragraph{Parameter Analysis}
+The hyperparameter tuning reveals distinct structural preferences across the strategies. A strong similarity exists regarding tree complexity; nearly all models converged on a shallow \texttt{max\_depth} of 4 (with Strategy B even lower at 3), indicating that the underlying risk signals are captured best by relatively simple decision boundaries rather than deep, complex trees. However, a divergence is observed in the learning rate ($\eta$). The Base Model and Strategy B could tolerate higher learning rates ($\approx 0.03 - 0.05$), whereas Strategies A, C, and D required a much more conservative learning rate of 0.01 to converge optimally. This suggests that the introduction of high-dimensional latent features (Strategies A \& C) or interaction terms (Strategy D) increases the complexity of the loss landscape, requiring smaller gradient descent steps to avoid overfitting.
+
+\subsubsection{Feature Importance}
+
+
+
 %==== Chapter 2: Model and Feature Insights ===================================%
 
-\chapter{Model and Feature Insights}
-
-\section{Cross-Validation Performance}
-
-\subsection{Summary}
-
-\subsection{False Positives \& False Negatives}
-
-\section{Feature Importance}
-
-\section{Marginal Responses}
-
-\section{Dependence Structure}
+% \chapter{Model and Feature Insights}
+% 
+% \section{Cross-Validation Performance}
+% 
+% \subsection{Summary}
+% 
+% \subsection{False Positives \& False Negatives}
+% 
+% \section{Feature Importance}
+% 
+% \section{Marginal Responses}
+% 
+% \section{Dependence Structure}
 
 
 
