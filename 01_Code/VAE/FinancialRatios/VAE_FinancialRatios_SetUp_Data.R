@@ -3,7 +3,7 @@
 #==============================================================================#
 
 ## Last changed: 2026-02-04 | Tristan Leiter
-## Data leakage might be an issue since the VAE is not trained seperately for all folds
+## Data leakage might be an issue since the VAE is not trained separately for all folds
 ## but on all the training data.
 
 #==============================================================================#
@@ -129,9 +129,13 @@ Data <- d
 
 Data <- DataPreprocessing(Data, Tolerance = 2)
 
-## Drop all ratios for now.
-Exclude <- c(paste("r", seq(1:18), sep = "")) ## Drop all ratios for now.
+## Drop all raw data for now.
+Exclude <- c(paste("f", seq(1:18), sep = "")) ## Drop all ratios for now.
 Data <- Data[, -which(names(Data) %in% Exclude)]
+
+Data <- Data %>%
+  mutate(across(where(is.numeric), ~ifelse(is.infinite(.), NA, .))) %>%
+  drop_na()
 
 #==== 02C - Data Sampling =====================================================#
 
@@ -175,6 +179,7 @@ Test_Backup <- Test
 #==============================================================================#
 
 DivideByTotalAssets <- FALSE
+Quantile_Transform <- FALSE
 
 #==== 03A - Standardization ===================================================#
 
@@ -218,6 +223,8 @@ if(DivideByTotalAssets){
 
 tryCatch({
   
+  if(Quantile_Transform){
+    
 num_cols <- c("f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11")
 
 Train_Transformed <- Train
@@ -230,6 +237,11 @@ for (col in num_cols) {
 }
 
 summary(Train_Transformed$f1)
+
+  } else {
+    Train_Transformed <- Train
+    Test_Transformed <- Test
+}
 
 }, error = function(e) message(e))
 
@@ -589,105 +601,105 @@ tryCatch({
 ## Training set.
 tryCatch({
   
-  Strategy_D <- Train_Transformed %>%
-    mutate(
-      ##======================================================================##
-      ## Strategy 2: The "Zombie" Interactions (Diagonal Decision Boundaries)
-      ##======================================================================##
-      
-      # 1. Support Structure Ratio
-      # Logic: How much Debt (f11) is piled on top of the Equity position?
-      # Interpretation: High Value = High Debt relative to Equity size.
-      # Note: Added +0.1 to denominator to prevent division by zero near the median.
-      # Ratio_Support_Structure = f11 / (abs(f6) + 0.0001),
-      
-      # 2. The "Distress Gap"
-      # Logic: Difference between Liabilities and Equity. 
-      # Zombies have High f11 (+0.36) and Low f6 (-1.2). Result: 0.36 - (-1.2) = 1.56 (High Score)
-      # Healthy firms have Low f11 (-0.2) and High f6 (+0.5). Result: -0.7 (Low Score)
-      Gap_Debt_Equity = f11 - f6,
-      
-      # 3. Cash Burn Ratio
-      # Logic: Relates Cash (f5) to Profit (f8). 
-      # Captures "Profitable but Illiquid" scenarios (The False Negatives).
-      # If f8 is high (positive) but f5 is low (negative), this ratio drops.
-      Ratio_Cash_Profit = f5 / (abs(f8) + 0.0001),
-      Interaction_Cash_Profit = f5 * f8,
-      Feature_Stabilizer = ifelse(f8 < 0, f5, f8)
-      ##======================================================================##
-      ## Strategy 3: The "Red Flag" Counter (Aggregating Risk)
-      ##======================================================================##
-      
-      # Thresholds derived from your Density Cluster Analysis (Median values)
-      
-      # Flag 1: Liquidity Crisis (The "Silent Killer")
-      # Analysis: Defaulters had median f5 = -0.175.
-      # Flag_Liquidity = ifelse(f5 < -0.2, 1, 0),
-      
-      # Flag 2: Solvency Crisis
-      # Analysis: Cluster 2 Defaulters had f6 = -0.488.
-      # Flag_Solvency = ifelse(f6 < -0.5, 1, 0),
-      
-      # Flag 3: Profitability Crisis
-      # Analysis: Cluster 3 Defaulters had f8 = -1.09.
-      # Flag_Profit = ifelse(f8 < -0.5, 1, 0),
-      
-      # Analysis: Cluster 4 (Zombies) had f4 = -0.923.
-      # Flag_Inventory = ifelse(f4 < -0.8, 1, 0),
-      
-      # Flag 5: The "Zombie" Profile
-      # Analysis: The False Positive group had Low Equity (<-1.2) but Positive Liabilities (>0.3).
-      # This captures the "Protected" status.
-      # Flag_Zombie_Type = ifelse(f6 < -0.5 & f11 > 0.2, 1, 0),
-      
-      ##======================================================================##
-      ## Aggregation
-      ##======================================================================##
-      
-      # Sum of Flags (0 to 5)
-      # XGBoost can split on this integer: "If Flags > 3, then High Risk"
-      # Red_Flag_Counter = Flag_Liquidity + Flag_Solvency + Flag_Profit + Flag_Inventory + Flag_Zombie_Type
-    )
-  
-  # Check the new features
-  # print("--- New Engineering Summary ---")
-  # print(glimpse(Strategy_B_AS_revised %>% select(starts_with("Ratio"), starts_with("Flag"), Red_Flag_Counter)))
+  # Strategy_D <- Train_Transformed %>%
+  #   mutate(
+  #     ##======================================================================##
+  #     ## Strategy 2: The "Zombie" Interactions (Diagonal Decision Boundaries)
+  #     ##======================================================================##
+  #     
+  #     # 1. Support Structure Ratio
+  #     # Logic: How much Debt (f11) is piled on top of the Equity position?
+  #     # Interpretation: High Value = High Debt relative to Equity size.
+  #     # Note: Added +0.1 to denominator to prevent division by zero near the median.
+  #     # Ratio_Support_Structure = f11 / (abs(f6) + 0.0001),
+  #     
+  #     # 2. The "Distress Gap"
+  #     # Logic: Difference between Liabilities and Equity. 
+  #     # Zombies have High f11 (+0.36) and Low f6 (-1.2). Result: 0.36 - (-1.2) = 1.56 (High Score)
+  #     # Healthy firms have Low f11 (-0.2) and High f6 (+0.5). Result: -0.7 (Low Score)
+  #     Gap_Debt_Equity = f11 - f6,
+  #     
+  #     # 3. Cash Burn Ratio
+  #     # Logic: Relates Cash (f5) to Profit (f8). 
+  #     # Captures "Profitable but Illiquid" scenarios (The False Negatives).
+  #     # If f8 is high (positive) but f5 is low (negative), this ratio drops.
+  #     Ratio_Cash_Profit = f5 / (abs(f8) + 0.0001),
+  #     Interaction_Cash_Profit = f5 * f8,
+  #     Feature_Stabilizer = ifelse(f8 < 0, f5, f8)
+  #     ##======================================================================##
+  #     ## Strategy 3: The "Red Flag" Counter (Aggregating Risk)
+  #     ##======================================================================##
+  #     
+  #     # Thresholds derived from your Density Cluster Analysis (Median values)
+  #     
+  #     # Flag 1: Liquidity Crisis (The "Silent Killer")
+  #     # Analysis: Defaulters had median f5 = -0.175.
+  #     # Flag_Liquidity = ifelse(f5 < -0.2, 1, 0),
+  #     
+  #     # Flag 2: Solvency Crisis
+  #     # Analysis: Cluster 2 Defaulters had f6 = -0.488.
+  #     # Flag_Solvency = ifelse(f6 < -0.5, 1, 0),
+  #     
+  #     # Flag 3: Profitability Crisis
+  #     # Analysis: Cluster 3 Defaulters had f8 = -1.09.
+  #     # Flag_Profit = ifelse(f8 < -0.5, 1, 0),
+  #     
+  #     # Analysis: Cluster 4 (Zombies) had f4 = -0.923.
+  #     # Flag_Inventory = ifelse(f4 < -0.8, 1, 0),
+  #     
+  #     # Flag 5: The "Zombie" Profile
+  #     # Analysis: The False Positive group had Low Equity (<-1.2) but Positive Liabilities (>0.3).
+  #     # This captures the "Protected" status.
+  #     # Flag_Zombie_Type = ifelse(f6 < -0.5 & f11 > 0.2, 1, 0),
+  #     
+  #     ##======================================================================##
+  #     ## Aggregation
+  #     ##======================================================================##
+  #     
+  #     # Sum of Flags (0 to 5)
+  #     # XGBoost can split on this integer: "If Flags > 3, then High Risk"
+  #     # Red_Flag_Counter = Flag_Liquidity + Flag_Solvency + Flag_Profit + Flag_Inventory + Flag_Zombie_Type
+  #   )
+  # 
+  # # Check the new features
+  # # print("--- New Engineering Summary ---")
+  # # print(glimpse(Strategy_B_AS_revised %>% select(starts_with("Ratio"), starts_with("Flag"), Red_Flag_Counter)))
 
 }, error = function(e) message(e))
 
 ## Test set.
 tryCatch({
   
-  Strategy_D_Test <- Test_Transformed %>%
-    mutate(
-      ##======================================================================##
-      ## Strategy 2: The "Zombie" Interactions (Exact Match to Train)
-      ##======================================================================##
-      
-      # 1. Support Structure Ratio (Commented out in Train, so commented out here)
-      # Ratio_Support_Structure = f11 / (abs(f6) + 0.0001),
-      
-      # 2. The "Distress Gap"
-      # Logic: Difference between Liabilities (f11) and Equity (f6). 
-      Gap_Debt_Equity = f11 - f6,
-      
-      # 3. Cash Burn Ratio
-      # Logic: Relates Cash (f5) to Profit (f8). 
-      # Added +0.0001 to denominator as per training set to handle zeros.
-      Ratio_Cash_Profit = f5 / (abs(f8) + 0.0001),
-      
-      # 4. Interaction Term
-      Interaction_Cash_Profit = f5 * f8,
-      
-      # 5. Feature Stabilizer (The Strategy D Breakthrough)
-      # Logic: If Profit is negative, look at Cash.
-      Feature_Stabilizer = ifelse(f8 < 0, f5, f8)
-      
-      ##======================================================================##
-      ## Strategy 3: Flags (Commented out to match Train)
-      ##======================================================================##
-      # Flag_Liquidity = ...
-      # Red_Flag_Counter = ...
+  # Strategy_D_Test <- Test_Transformed %>%
+  #   mutate(
+  #     ##======================================================================##
+  #     ## Strategy 2: The "Zombie" Interactions (Exact Match to Train)
+  #     ##======================================================================##
+  #     
+  #     # 1. Support Structure Ratio (Commented out in Train, so commented out here)
+  #     # Ratio_Support_Structure = f11 / (abs(f6) + 0.0001),
+  #     
+  #     # 2. The "Distress Gap"
+  #     # Logic: Difference between Liabilities (f11) and Equity (f6). 
+  #     Gap_Debt_Equity = f11 - f6,
+  #     
+  #     # 3. Cash Burn Ratio
+  #     # Logic: Relates Cash (f5) to Profit (f8). 
+  #     # Added +0.0001 to denominator as per training set to handle zeros.
+  #     Ratio_Cash_Profit = f5 / (abs(f8) + 0.0001),
+  #     
+  #     # 4. Interaction Term
+  #     Interaction_Cash_Profit = f5 * f8,
+  #     
+  #     # 5. Feature Stabilizer (The Strategy D Breakthrough)
+  #     # Logic: If Profit is negative, look at Cash.
+  #     Feature_Stabilizer = ifelse(f8 < 0, f5, f8)
+  #     
+  #     ##======================================================================##
+  #     ## Strategy 3: Flags (Commented out to match Train)
+  #     ##======================================================================##
+  #     # Flag_Liquidity = ...
+  #     # Red_Flag_Counter = ...
     )
 
 }, error = function(e) message(e))

@@ -6,12 +6,16 @@ library(dplyr)
 library(glmnet)
 library(pROC)
 library(corrplot)
+library(tibble)
+library(RColorBrewer)
 
 Path <- dirname(this.path::this.path())
 setwd(Path)
 
-Data_Directory_Ensemble <- file.path(Path, "02_Data/VAE/Ensemble")
-Data_Directory_Ensemble <- gsub("/01_Code/VAE", "", Data_Directory_Ensemble)
+# Data_Directory_Ensemble <- file.path(Path, "02_Data/VAE/Ensemble")
+# Data_Directory_Ensemble <- gsub("/01_Code/VAE", "", Data_Directory_Ensemble)
+
+Data_Directory_Ensemble <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/Data/VAE/Ensemble"
 
 ##==============================##
 ## General Parameters.
@@ -53,10 +57,6 @@ xgb_objects <- readRDS(file = SavePath)
 #==== 01 - Building the Ensemble model ========================================#
 #==============================================================================#
 
-library(pROC)
-library(dplyr)
-library(tibble)
-
 # =============================================================================#
 # 1. SETUP: LOAD DATA & PREDICTIONS
 # =============================================================================#
@@ -78,14 +78,14 @@ get_pred <- function(model_obj, data, is_glm=TRUE) {
 # --- Extract Predictions for Key Models ---
 
 # Base Models
-p_glm_base <- get_pred(GLM_Results_BaseModel$optimal_model, Test_Data_Base_Model, TRUE)
-p_xgb_base <- get_pred(XGBoost_Results_BaseModel$optimal_model, Test_Data_Base_Model, FALSE)
+p_glm_base <- get_pred(glm_objects[[1]]$optimal_model, Test_Data_Base_Model, TRUE)
+p_xgb_base <- get_pred(xgb_objects[[1]]$optimal_model, Test_Data_Base_Model, FALSE)
 
 # Strategy C (GLM)
-p_glm_stratC <- get_pred(GLM_Results_Strategy_C$optimal_model, Test_Data_Strategy_C, TRUE)
+p_glm_stratC <- get_pred(glm_objects[[4]]$optimal_model, Test_Data_Strategy_C, TRUE)
 
 # Strategy D (XGBoost)
-p_xgb_stratD <- get_pred(XGBoost_Results_Strategy_D$optimal_model, Test_Data_Strategy_D, FALSE)
+p_xgb_stratD <- get_pred(xgb_objects[[5]]$optimal_model, Test_Data_Strategy_D, FALSE)
 
 # All Models (For Ensemble B)
 # (Assuming you can loop through them or just grab the ones needed if lists are ready)
@@ -166,10 +166,6 @@ final_leaderboard <- rbind(res_A, res_B, res_C, res_XGB_B) %>%
 
 print(final_leaderboard)
 
-library(dplyr)
-library(corrplot)
-library(RColorBrewer)
-
 # =============================================================================#
 # VISUALIZE MODEL CORRELATION (ORTHOGONALITY CHECK)
 # =============================================================================#
@@ -180,14 +176,14 @@ library(RColorBrewer)
 
 ensemble_df <- data.frame(
   # GLM Predictions
-  GLM_Base   = GLM_Results_BaseModel$Predictions$Predicted,
-  GLM_StratA = GLM_Results_Strategy_A$Predictions$Predicted,
-  GLM_StratC = GLM_Results_Strategy_C$Predictions$Predicted,
+  GLM_Base   = glm_objects[[1]]$Predictions$Predicted,
+  GLM_StratA = glm_objects[[2]]$Predictions$Predicted,
+  GLM_StratC = glm_objects[[4]]$Predictions$Predicted,
   
   # XGBoost Predictions
-  XGB_Base   = XGBoost_Results_BaseModel$Predictions$Predicted,
-  XGB_StratB = XGBoost_Results_Strategy_B$Predictions$Predicted,
-  XGB_StratD = XGBoost_Results_Strategy_D$Predictions$Predicted
+  XGB_Base   = xgb_objects[[1]]$Predictions$Predicted,
+  XGB_StratB = xgb_objects[[3]]$Predictions$Predicted,
+  XGB_StratD = xgb_objects[[5]]$Predictions$Predicted
 )
 
 # 2. Calculate Correlation Matrix
