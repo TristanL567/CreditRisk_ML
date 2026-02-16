@@ -311,7 +311,7 @@ tryCatch({
 tryCatch({
   
 Path <- file.path(here::here("")) ## You need to install the package first incase you do not have it.
-Charts_Directory_Model <- file.path(Path, "03_Charts/VAE/XGBoost")
+Charts_Directory_Model <- file.path(Path, "03_Charts/VAE/FinancialRatios/XGBoost")
 
 ###### Input parameters.
 model_used_name_list <- list("BaseModel", "StrategyA", "StrategyB",
@@ -351,21 +351,30 @@ tryCatch({
   print(paste("Original columns:", ncol(data_input) - 1)) 
   print(paste("Expanded features:", length(real_feature_names)))
   
+  real_feature_names <- real_feature_names[real_feature_names != "id"]
   imp_matrix <- xgb.importance(feature_names = real_feature_names, model = model_object)
   
   p_imp <- xgb.plot.importance(imp_matrix, top_n = 15, measure = "Gain", plot = FALSE)
+  
   feature_map <- c(
-    "f1"  = "Total Assets",
-    "f2"  = "Fixed Assets",
-    "f3"  = "Current Assets",
-    "f4"  = "Inventories",
-    "f5"  = "Cash & Equivalents",
-    "f6"  = "Equity",
-    "f7"  = "Retained Earnings",
-    "f8"  = "Net Profit",
-    "f9"  = "Profit Carried Forward",
-    "f10" = "Provisions",
-    "f11" = "Liabilities"
+    "r1"  = "Total Assets",                 # Bilanzsumme
+    "r2"  = "Total Equity",                 # Eigenkapital
+    "r3"  = "Total Liabilities",            # Verbindlichkeiten
+    "r4"  = "Total Debt",                   # Fremdkapital (Calculated)
+    "r5"  = "Asset Coverage Ratio (I)",     # Anlagendeckungsgrad I (Equity/Fixed Assets)
+    "r6"  = "Equity Ratio",                 # Eigenmittelquote
+    "r7"  = "Debt Ratio",                   # Gesamtverschuldungsgrad
+    "r8"  = "Net Debt Ratio",               # Netto-Gesamtverschuldungsgrad
+    "r9"  = "Self-Financing Ratio",         # Selbstfinanzierungsgrad
+    "r10" = "Short-term Asset Structure",   # Kurzfr. Vermögensstruktur
+    "r11" = "Inventory Intensity",          # Vorratsquote
+    "r12" = "Cash to Current Assets",       # Liquiditätsquote (Umlauf)
+    "r13" = "Cash to Total Assets",         # Liquiditätsquote (Gesamt)
+    "r14" = "Return on Assets (ROA)",       # Gesamtkapitalrentabilität
+    "r15" = "Return on Equity (ROE)",       # Eigenkapitalrentabilität
+    "r16" = "Return on Fixed Assets",       # Anlagenrentabilität
+    "r17" = "Debt Service Coverage",        # Schuldendeckungsfähigkeit
+    "r18" = "Net Debt Service Coverage"     # Netto-Entschuldungsfähigkeit
   )
   
   # Apply the mapping safely
@@ -406,54 +415,67 @@ tryCatch({
 
 tryCatch({
   
-  # --- 0. Robust Feature Map (Financials + Latent Features) ---
+  # --- 0. Robust Feature Map ---
   feature_map <- c(
     # Standard Financials
-    "f1"  = "Total Assets",
-    "f2"  = "Fixed Assets",
-    "f3"  = "Current Assets",
-    "f4"  = "Inventories",
-    "f5"  = "Cash & Equivalents",
-    "f6"  = "Equity",
-    "f7"  = "Retained Earnings",
-    "f8"  = "Net Profit",
-    "f9"  = "Profit Carried Forward",
-    "f10" = "Provisions",
-    "f11" = "Liabilities",
+    "r1"  = "Total Assets",
+    "r2"  = "Total Equity",
+    "r3"  = "Total Liabilities",
+    "r4"  = "Total Debt",
+    "r5"  = "Asset Coverage Ratio (I)",
+    "r6"  = "Equity Ratio",
+    "r7"  = "Debt Ratio",
+    "r8"  = "Net Debt Ratio",
+    "r9"  = "Self-Financing Ratio",
+    "r10" = "Short-term Asset Structure",
+    "r11" = "Inventory Intensity",
+    "r12" = "Cash to Current Assets",
+    "r13" = "Cash to Total Assets",
+    "r14" = "Return on Assets (ROA)",
+    "r15" = "Return on Equity (ROE)",
+    "r16" = "Return on Fixed Assets",
+    "r17" = "Debt Service Coverage",
+    "r18" = "Net Debt Service Coverage",
     
-    # Strategy D: Interactions
+    # Interactions / Other Strategies
     "Gap_Debt_Equity"   = "Solvency Gap",
     "Ratio_Cash_Profit" = "Cash Burn Ratio",
     
-    # Strategy A: Latent Features (l1 - l8)
+    # Latent Features
     "l1" = "Latent Dim 1", "l2" = "Latent Dim 2", 
     "l3" = "Latent Dim 3", "l4" = "Latent Dim 4",
     "l5" = "Latent Dim 5", "l6" = "Latent Dim 6", 
     "l7" = "Latent Dim 7", "l8" = "Latent Dim 8",
     
-    # Strategy C: Robust Latent Features (dae_l1 - dae_l8)
+    # DAE Latent Features
     "dae_l1" = "Robust Latent 1", "dae_l2" = "Robust Latent 2",
     "dae_l3" = "Robust Latent 3", "dae_l4" = "Robust Latent 4",
     "dae_l5" = "Robust Latent 5", "dae_l6" = "Robust Latent 6",
     "dae_l7" = "Robust Latent 7", "dae_l8" = "Robust Latent 8"
   )
   
-  # --- 1. Prepare Data Matrix ---
-  # Re-build matrix to ensure it matches the current data_input structure (which might have l1..l8)
+  # --- 1. Prepare Data Matrix (THE FIX IS HERE) ---
+  
+  # create a temporary dataset without the ID column
+  # This prevents the "29 vs 28" error
+  data_for_matrix <- data_input
+  if("id" %in% names(data_for_matrix)) {
+    data_for_matrix$id <- NULL
+  }
+  
   sparse_formula <- as.formula("y ~ . - 1")
-  full_train_matrix <- sparse.model.matrix(sparse_formula, data = data_input)
+  full_train_matrix <- sparse.model.matrix(sparse_formula, data = data_for_matrix)
   
   # Sample for speed (PDP is slow on full data)
-  set.seed(42)
+  set.seed(123)
   n_sample <- min(nrow(full_train_matrix), 1000)
   calc_sample_indices <- sample(nrow(full_train_matrix), n_sample) 
   train_matrix_calc <- full_train_matrix[calc_sample_indices, ]
   
   # --- 2. Define Feature List Dynamically ---
-  # If we switched models, the old 'all_features_list' might be stale. Re-calculate.
   if(exists("model_object")) {
     imp <- xgb.importance(model = model_object)
-    # Use top 20 features to avoid generating hundreds of plots for latent models
+    # Use top 20 features to avoid generating hundreds of plots
     all_features_list <- head(imp$Feature, 20) 
   } else {
     all_features_list <- colnames(train_matrix_calc)
@@ -466,13 +488,13 @@ tryCatch({
   
   plot_pdp_bars <- function(feature_name) {
     
-    # A. Display Name Lookup (Safe Fallback)
+    # A. Display Name Lookup 
     display_name <- feature_name
     if(feature_name %in% names(feature_map)) {
       display_name <- feature_map[[feature_name]]
     }
     
-    # B. Safety Check (Crucial for Strategy A vs Base mismatches)
+    # B. Safety Check
     if(!feature_name %in% colnames(train_matrix_calc)) {
       return(NULL)
     }
@@ -494,7 +516,7 @@ tryCatch({
       geom_col(fill = "steelblue", width = 0.8) + 
       labs(title = display_name,
            subtitle = NULL,
-           y = "Pred. Default Prob.", # (%) removed to avoid confusion if scale is 0-1
+           y = "Pred. Default Prob.", 
            x = NULL) +
       theme_minimal() +
       theme(
@@ -510,15 +532,13 @@ tryCatch({
   # --- 4. Execution Loop ---
   message("--- Generating PDP Batches ---")
   
-  # Intersect ensures we only plot features that actually exist in the matrix
   valid_features <- intersect(all_features_list, colnames(train_matrix_calc))
   
   plot_list <- list()
   
   for(feat in valid_features) {
-    # Skip one-hot encoded categorical dummies if desired (e.g., "sectorconstruction") 
-    # as they make messy PDPs. Optional check:
-    # if(grepl("sector|size", feat)) next 
+    # Optional: Skip One-Hot dummies if they clutter the report
+    # if(grepl("size|sector", feat)) next 
     
     p <- plot_pdp_bars(feat)
     if(!is.null(p)) {
@@ -528,6 +548,8 @@ tryCatch({
   
   # --- 5. Save in Groups of 4 ---
   if(length(plot_list) > 0) {
+    library(gridExtra) # Make sure this is loaded
+    
     num_plots <- length(plot_list)
     plots_per_page <- 4
     num_pages <- ceiling(num_plots / plots_per_page)
@@ -537,14 +559,15 @@ tryCatch({
       start_idx <- (i - 1) * plots_per_page + 1
       end_idx   <- min(i * plots_per_page, num_plots)
       
+      # Extract batch and remove NULLs
       current_batch <- plot_list[start_idx:end_idx]
       current_batch <- current_batch[!sapply(current_batch, is.null)]
       
       if(length(current_batch) > 0) {
-        # Use arrangeGrob (gridExtra)
+        # Arrange and Save
         combined_plot <- arrangeGrob(grobs = current_batch, ncol = 2, nrow = 2)
         
-        file_name <- paste0(model_used_name, "MarginalResponse_Batch_", i, ".png")
+        file_name <- paste0(model_used_name, "_MarginalResponse_Batch_", i, ".png")
         Path_plot <- file.path(Directory, file_name)
         
         ggsave(filename = Path_plot, plot = combined_plot, width = 12, height = 8)
@@ -566,17 +589,24 @@ tryCatch({
   col_observed  <- "#7F7F7F" # Dark Grey
   
   feature_map <- c(
-    "f1"  = "Total Assets",
-    "f2"  = "Fixed Assets",
-    "f3"  = "Current Assets",
-    "f4"  = "Inventories",
-    "f5"  = "Cash & Equivalents",
-    "f6"  = "Equity",
-    "f7"  = "Retained Earnings",
-    "f8"  = "Net Profit",
-    "f9"  = "Profit Carried Forward",
-    "f10" = "Provisions",
-    "f11" = "Liabilities"
+    "r1"  = "Total Assets",                 # Bilanzsumme
+    "r2"  = "Total Equity",                 # Eigenkapital
+    "r3"  = "Total Liabilities",            # Verbindlichkeiten
+    "r4"  = "Total Debt",                   # Fremdkapital (Calculated)
+    "r5"  = "Asset Coverage Ratio (I)",     # Anlagendeckungsgrad I (Equity/Fixed Assets)
+    "r6"  = "Equity Ratio",                 # Eigenmittelquote
+    "r7"  = "Debt Ratio",                   # Gesamtverschuldungsgrad
+    "r8"  = "Net Debt Ratio",               # Netto-Gesamtverschuldungsgrad
+    "r9"  = "Self-Financing Ratio",         # Selbstfinanzierungsgrad
+    "r10" = "Short-term Asset Structure",   # Kurzfr. Vermögensstruktur
+    "r11" = "Inventory Intensity",          # Vorratsquote
+    "r12" = "Cash to Current Assets",       # Liquiditätsquote (Umlauf)
+    "r13" = "Cash to Total Assets",         # Liquiditätsquote (Gesamt)
+    "r14" = "Return on Assets (ROA)",       # Gesamtkapitalrentabilität
+    "r15" = "Return on Equity (ROE)",       # Eigenkapitalrentabilität
+    "r16" = "Return on Fixed Assets",       # Anlagenrentabilität
+    "r17" = "Debt Service Coverage",        # Schuldendeckungsfähigkeit
+    "r18" = "Net Debt Service Coverage"     # Netto-Entschuldungsfähigkeit
   )
   
   # --- 1. Preparation: Generate Global Predictions ---
@@ -724,17 +754,24 @@ tryCatch({
   
   # --- 0. Setup ---
   feature_map <- c(
-    "f1"  = "Total Assets",
-    "f2"  = "Fixed Assets",
-    "f3"  = "Current Assets",
-    "f4"  = "Inventories",
-    "f5"  = "Cash & Equivalents",
-    "f6"  = "Equity",
-    "f7"  = "Retained Earnings",
-    "f8"  = "Net Profit",
-    "f9"  = "Profit Carried Forward",
-    "f10" = "Provisions",
-    "f11" = "Liabilities"
+    "r1"  = "Total Assets",                 # Bilanzsumme
+    "r2"  = "Total Equity",                 # Eigenkapital
+    "r3"  = "Total Liabilities",            # Verbindlichkeiten
+    "r4"  = "Total Debt",                   # Fremdkapital (Calculated)
+    "r5"  = "Asset Coverage Ratio (I)",     # Anlagendeckungsgrad I (Equity/Fixed Assets)
+    "r6"  = "Equity Ratio",                 # Eigenmittelquote
+    "r7"  = "Debt Ratio",                   # Gesamtverschuldungsgrad
+    "r8"  = "Net Debt Ratio",               # Netto-Gesamtverschuldungsgrad
+    "r9"  = "Self-Financing Ratio",         # Selbstfinanzierungsgrad
+    "r10" = "Short-term Asset Structure",   # Kurzfr. Vermögensstruktur
+    "r11" = "Inventory Intensity",          # Vorratsquote
+    "r12" = "Cash to Current Assets",       # Liquiditätsquote (Umlauf)
+    "r13" = "Cash to Total Assets",         # Liquiditätsquote (Gesamt)
+    "r14" = "Return on Assets (ROA)",       # Gesamtkapitalrentabilität
+    "r15" = "Return on Equity (ROE)",       # Eigenkapitalrentabilität
+    "r16" = "Return on Fixed Assets",       # Anlagenrentabilität
+    "r17" = "Debt Service Coverage",        # Schuldendeckungsfähigkeit
+    "r18" = "Net Debt Service Coverage"     # Netto-Entschuldungsfähigkeit
   )
   
   if(!exists("full_train_matrix")) {
@@ -844,34 +881,49 @@ tryCatch({
   col_tp <- "#7F7F7F" # Grey (True Positive/Caught Risk)
   
   feature_map <- c(
-    "f1"  = "Total Assets",
-    "f2"  = "Fixed Assets",
-    "f3"  = "Current Assets",
-    "f4"  = "Inventories",
-    "f5"  = "Cash & Equivalents",
-    "f6"  = "Equity",
-    "f7"  = "Retained Earnings",
-    "f8"  = "Net Profit",
-    "f9"  = "Profit Carried Forward",
-    "f10" = "Provisions",
-    "f11" = "Liabilities",
-    "Gap_Debt_Equity"   = "Solvency Gap",
-    "Ratio_Cash_Profit" = "Cash Burn Ratio"
+    "r1"  = "Total Assets",                 
+    "r2"  = "Total Equity",                 
+    "r3"  = "Total Liabilities",            
+    "r4"  = "Total Debt",                   
+    "r5"  = "Asset Coverage Ratio (I)",     
+    "r6"  = "Equity Ratio",                 
+    "r7"  = "Debt Ratio",                   
+    "r8"  = "Net Debt Ratio",               
+    "r9"  = "Self-Financing Ratio",         
+    "r10" = "Short-term Asset Structure",   
+    "r11" = "Inventory Intensity",          
+    "r12" = "Cash to Current Assets",       
+    "r13" = "Cash to Total Assets",         
+    "r14" = "Return on Assets (ROA)",       
+    "r15" = "Return on Equity (ROE)",       
+    "r16" = "Return on Fixed Assets",       
+    "r17" = "Debt Service Coverage",        
+    "r18" = "Net Debt Service Coverage"     
   )
   
-  # --- 1. Prepare Data & Predictions ---
-  sparse_formula <- as.formula("y ~ . - 1")
-  X_matrix <- sparse.model.matrix(sparse_formula, data = data_input)
-  label_vec <- as.numeric(as.character(data_input$y))
+  # --- 1. Prepare Data & Predictions (FIXED) ---
   
+  # 1.A Remove ID to prevent "29 vs 28" column mismatch error
+  data_for_pred <- data_input
+  if("id" %in% names(data_for_pred)) {
+    data_for_pred$id <- NULL
+  }
+  
+  # 1.B Create Matrix
+  sparse_formula <- as.formula("y ~ . - 1")
+  X_matrix <- sparse.model.matrix(sparse_formula, data = data_for_pred)
+  
+  # 1.C Get Labels and Predictions
+  # Ensure we grab labels from the original input to match rows
+  label_vec <- as.numeric(as.character(data_input$y)) 
   pred_probs <- predict(model_object, X_matrix)
   
-  # Determine Optimal Threshold
+  # 1.D Determine Optimal Threshold
   roc_obj <- roc(label_vec, pred_probs, quiet = TRUE)
   best_threshold_obj <- coords(roc_obj, "best", ret = "threshold", transpose = TRUE)
   best_cutoff <- as.numeric(best_threshold_obj[1])
   
-  # Create Diagnosis DataFrame
+  # 1.E Create Diagnosis DataFrame
   Diagnosis_DF <- data_input %>%
     mutate(
       y_num = label_vec,
@@ -912,20 +964,21 @@ tryCatch({
         "True Positive"  = col_tp
       )) +
       
-      # Zoom to remove extreme outliers (Adjust limits as needed, e.g., -3 to 3 Z-score)
-      coord_cartesian(ylim = c(-3, 3)) + 
+      # Zoom to remove extreme outliers (Z-score approach approx -3 to 3)
+      # Using coord_cartesian so points aren't removed from calc, just zoomed out
+      coord_cartesian(ylim = quantile(Diagnosis_DF[[feature_name]], c(0.01, 0.99), na.rm=TRUE)) + 
       
       labs(
         title = display_name,
         x = NULL,
-        y = NULL # "Normalized Value" implies Y-axis, removed for cleaner batch view
+        y = NULL 
       ) +
       
       theme_minimal() +
       theme(
-        legend.position = "none", # Legend will be shared or implied by color
+        legend.position = "none", 
         plot.title = element_text(face = "bold", size = 14),
-        axis.text.x = element_blank(), # Remove X labels to save space (rely on color)
+        axis.text.x = element_blank(), 
         axis.text.y = element_text(size = 10, color = "black")
       )
     
@@ -937,8 +990,9 @@ tryCatch({
   
   # Select ALL numeric features
   all_numeric_feats <- names(select(Diagnosis_DF, where(is.numeric)))
-  # Exclude the metadata columns we created
-  exclude_cols <- c("y_num", "xgb_prob", "Prediction_Class", "y")
+  
+  # Exclude metadata columns AND "id"
+  exclude_cols <- c("y_num", "xgb_prob", "Prediction_Class", "y", "id")
   valid_features <- setdiff(all_numeric_feats, exclude_cols)
   
   plot_list <- list()
@@ -954,24 +1008,26 @@ tryCatch({
   if(length(plot_list) > 0) {
     
     # Create a shared legend for the batch (Dummy Plot)
-    dummy_df <- data.frame(Error_Type = factor(c("True Negative", "False Positive", "False Negative", "True Positive"), 
-                                               levels = c("True Negative", "False Positive", "False Negative", "True Positive")), 
-                           Value = 1)
+    dummy_df <- data.frame(
+      Error_Type = factor(c("True Negative", "False Positive", "False Negative", "True Positive"), 
+                          levels = c("True Negative", "False Positive", "False Negative", "True Positive")), 
+      Value = 1
+    )
     
     legend_plot <- ggplot(dummy_df, aes(x=Error_Type, y=Value, fill=Error_Type)) +
       geom_bar(stat="identity") +
       scale_fill_manual(values = c("True Negative" = col_tn, "False Positive" = col_fp, 
                                    "False Negative" = col_fn, "True Positive" = col_tp),
-                        name = "") +
+                        name = "Prediction Outcome") +
       theme_minimal() +
       theme(legend.position = "bottom", legend.text = element_text(size = 12))
     
-    # Extract Legend
+    # Extract Legend (Robust Method)
     get_legend <- function(myggplot){
       tmp <- ggplot_gtable(ggplot_build(myggplot))
       leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
-      legend <- tmp$grobs[[leg]]
-      return(legend)
+      if(length(leg) > 0) return(tmp$grobs[[leg]])
+      return(NULL)
     }
     shared_legend <- get_legend(legend_plot)
     
@@ -992,10 +1048,14 @@ tryCatch({
         # Combine plots into grid
         grid_plots <- arrangeGrob(grobs = current_batch, ncol = 2, nrow = 2)
         
-        # Add the shared legend at the bottom
-        final_grid <- arrangeGrob(grid_plots, shared_legend, nrow = 2, heights = c(10, 1))
+        # Add the shared legend at the bottom (only if legend extraction worked)
+        if(!is.null(shared_legend)) {
+          final_grid <- arrangeGrob(grid_plots, shared_legend, nrow = 2, heights = c(10, 1))
+        } else {
+          final_grid <- grid_plots
+        }
         
-        file_name <- paste0(model_used_name, "Error_Boxplot_Batch_", i, ".png")
+        file_name <- paste0(model_used_name, "_Error_Boxplot_Batch_", i, ".png")
         Path_plot <- file.path(Directory, file_name)
         
         ggsave(filename = Path_plot, plot = final_grid, width = 10, height = 8)
@@ -1013,19 +1073,24 @@ tryCatch({
   
   # --- 0. Setup: Feature Map for Readability ---
   feature_map <- c(
-    "f1"  = "Total Assets",
-    "f2"  = "Fixed Assets",
-    "f3"  = "Current Assets",
-    "f4"  = "Inventories",
-    "f5"  = "Cash & Equivalents",
-    "f6"  = "Equity",
-    "f7"  = "Retained Earnings",
-    "f8"  = "Net Profit",
-    "f9"  = "Profit Carried Forward",
-    "f10" = "Provisions",
-    "f11" = "Liabilities",
-    "Gap_Debt_Equity"   = "Solvency Gap",
-    "Ratio_Cash_Profit" = "Cash Burn Ratio"
+    "r1"  = "Total Assets",                 # Bilanzsumme
+    "r2"  = "Total Equity",                 # Eigenkapital
+    "r3"  = "Total Liabilities",            # Verbindlichkeiten
+    "r4"  = "Total Debt",                   # Fremdkapital (Calculated)
+    "r5"  = "Asset Coverage Ratio (I)",     # Anlagendeckungsgrad I (Equity/Fixed Assets)
+    "r6"  = "Equity Ratio",                 # Eigenmittelquote
+    "r7"  = "Debt Ratio",                   # Gesamtverschuldungsgrad
+    "r8"  = "Net Debt Ratio",               # Netto-Gesamtverschuldungsgrad
+    "r9"  = "Self-Financing Ratio",         # Selbstfinanzierungsgrad
+    "r10" = "Short-term Asset Structure",   # Kurzfr. Vermögensstruktur
+    "r11" = "Inventory Intensity",          # Vorratsquote
+    "r12" = "Cash to Current Assets",       # Liquiditätsquote (Umlauf)
+    "r13" = "Cash to Total Assets",         # Liquiditätsquote (Gesamt)
+    "r14" = "Return on Assets (ROA)",       # Gesamtkapitalrentabilität
+    "r15" = "Return on Equity (ROE)",       # Eigenkapitalrentabilität
+    "r16" = "Return on Fixed Assets",       # Anlagenrentabilität
+    "r17" = "Debt Service Coverage",        # Schuldendeckungsfähigkeit
+    "r18" = "Net Debt Service Coverage"     # Netto-Entschuldungsfähigkeit
   )
   
   # --- 1. Identify Top 5 Features Dynamically ---
