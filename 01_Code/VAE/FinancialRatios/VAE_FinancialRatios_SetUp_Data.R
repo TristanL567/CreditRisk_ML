@@ -37,7 +37,8 @@ packages <- c("dplyr", "caret", "lubridate", "purrr", "tidyr",
               "autotab", "keras",           ## VAE.
               "reticulate", "tensorflow",
               "mclust",                     ## Finding soft interaction features.
-              "pdp", "gridExtra", "hexbin", "openxlsx"
+              "pdp", "gridExtra", "hexbin", "openxlsx",
+              "tensorflow"
 )
 
 for(i in 1:length(packages)){
@@ -78,7 +79,7 @@ sourceFunctions <- function (functionDirectory)  {
 #==== 1C - Parameters =========================================================#
 
 ## Directories.
-Data_Path <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/Data/WS2025" ## Needs to be set manually.
+Data_Path <- "C:/Users/Tristan Leiter/Documents/Privat/ILAB/Data/WS2025" ## Needs to be set manually.
 Data_Directory <- file.path(Data_Path, "data.rda")
 Data_Directory_write <- file.path(Path, "02_Data")
 Charts_Directory <- file.path(Path, "03_Charts")
@@ -179,7 +180,7 @@ Test_Backup <- Test
 #==============================================================================#
 
 DivideByTotalAssets <- FALSE
-Quantile_Transform <- FALSE
+Quantile_Transform <- TRUE
 
 #==== 03A - Standardization ===================================================#
 
@@ -405,41 +406,80 @@ tryCatch({
     reconstructed_data <- as.matrix(reconstructed_list)
   }
   
-  # 2. Define Dimensions
-  # Ensure 'data_cont' exists from step 04A, or calculate manually based on your known continuous columns
-  n_cont_cols <- ncol(data_cont) 
-  n_cat_cols  <- ncol(vae_input_data) - n_cont_cols 
+  # --- SENIOR FIX 1: Fix Dimensions & Indexing ---
+  # Check if data_cont exists; if not, assume all numeric columns are continuous
+  if (exists("data_cont") && !is.null(data_cont)) {
+    n_cont_cols <- ncol(data_cont)
+  } else {
+    # Fallback: Count numeric columns in input
+    n_cont_cols <- sum(sapply(vae_input_data, is.numeric))
+    message(paste("Note: 'data_cont' object not found. Detected", n_cont_cols, "continuous columns."))
+  }
   
-  # --- MISSING PART: Define the input and reconstruction matrices ---
+  # Handle edge case where NO continuous columns exist to prevent index errors
+  if (n_cont_cols == 0) {
+    n_cat_cols <- ncol(vae_input_data)
+    cont_indices <- integer(0) # Empty vector
+  } else {
+    n_cat_cols <- ncol(vae_input_data) - n_cont_cols 
+    cont_indices <- 1:n_cont_cols
+  }
   
-  # Continuous variables (Columns 1 to n_cont)
-  input_cont <- as.matrix(vae_input_data[, 1:n_cont_cols])
-  recon_cont <- as.matrix(reconstructed_data[, 1:n_cont_cols])
+  # 2. Extract Matrices Safely
+  if (length(cont_indices) > 0) {
+    input_cont <- as.matrix(vae_input_data[, cont_indices, drop = FALSE])
+    recon_cont <- as.matrix(reconstructed_data[, cont_indices, drop = FALSE])
+  } else {
+    input_cont <- matrix(0, nrow = nrow(vae_input_data), ncol = 0)
+    recon_cont <- matrix(0, nrow = nrow(vae_input_data), ncol = 0)
+  }
   
-  # Categorical variables (Columns n_cont+1 to End)
-  cat_indices <- (n_cont_cols + 1):ncol(vae_input_data)
-  input_cat   <- as.matrix(vae_input_data[, cat_indices])
-  recon_cat   <- as.matrix(reconstructed_data[, cat_indices])
+  if (n_cat_cols > 0) {
+    cat_indices <- (n_cont_cols + 1):ncol(vae_input_data)
+    input_cat   <- as.matrix(vae_input_data[, cat_indices, drop = FALSE])
+    recon_cat   <- as.matrix(reconstructed_data[, cat_indices, drop = FALSE])
+  } else {
+    input_cat <- matrix(0, nrow = nrow(vae_input_data), ncol = 0)
+    recon_cat <- matrix(0, nrow = nrow(vae_input_data), ncol = 0)
+  }
   
-  # ------------------------------------------------------------------
+  # 3. Calculate Scores (MSE & BCE)
   
-  # 3. Calculate Raw Scores
-  mse_scores <- rowSums((input_cont - recon_cont)^2) 
+  # Continuous Score
+  if (n_cont_cols > 0) {
+    mse_raw <- (input_cont - recon_cont)^2
+    # Clip extreme overflows just in case
+    mse_raw[is.infinite(mse_raw)] <- 1e9 
+    mse_scores <- rowSums(mse_raw, na.rm = TRUE)
+  } else {
+    mse_scores <- numeric(nrow(vae_input_data))
+  }
   
-  # Add epsilon to prevent log(0) errors
-  epsilon   <- 1e-15
-  recon_cat <- pmax(pmin(recon_cat, 1 - epsilon), epsilon)
+  # Categorical Score
+  if (n_cat_cols > 0) {
+    epsilon   <- 1e-15
+    recon_cat <- pmax(pmin(recon_cat, 1 - epsilon), epsilon)
+    bce_scores <- -rowSums(input_cat * log(recon_cat) + (1 - input_cat) * log(1 - recon_cat), na.rm = TRUE)
+  } else {
+    bce_scores <- numeric(nrow(vae_input_data))
+  }
   
-  bce_scores <- -rowSums(input_cat * log(recon_cat) + (1 - input_cat) * log(1 - recon_cat))
+  # --- SENIOR FIX 2: Safe Normalization (Prevent Div/0) ---
   
-  # 4. Normalize Scores
-  mse_normalized <- mse_scores / n_cont_cols
-  bce_normalized <- bce_scores / n_cat_cols
+  if (n_cont_cols > 0) {
+    mse_normalized <- mse_scores / n_cont_cols
+  } else {
+    mse_normalized <- 0 
+  }
+  
+  if (n_cat_cols > 0) {
+    bce_normalized <- bce_scores / n_cat_cols
+  } else {
+    bce_normalized <- 0
+  }
   
   # 5. Weighted Combination
-  w_cont <- 1.0
-  w_cat  <- 1.0 
-  final_score <- (mse_normalized * w_cont) + (bce_normalized * w_cat)
+  final_score <- mse_normalized + bce_normalized
   
   # 6. Apply to Dataframe
   Strategy_B_AS <- Train_Transformed %>%
@@ -449,51 +489,90 @@ tryCatch({
       anomaly_score_balanced = final_score 
     )
   
-  print("Strategy B (Anomaly Scores) calculated successfully.")
-  # print(head(Strategy_B_AS %>% select(starts_with("anomaly_"))))
+  print("Strategy B calculated successfully. Summary:")
+  print(summary(Strategy_B_AS$anomaly_score_balanced))
   
 }, error = function(e) message("Error in Strategy B: ", e))
 
 ## Test set.
 tryCatch({
-  ### Strategy B:
-  test_recon_matrix <- predict(vae_fit$trained_model, test_matrix)
   
-  # Handle list output if the wrapper returns it (defensive coding)
-  if(is.list(test_recon_matrix)) {
-    test_recon_matrix <- as.matrix(test_recon_matrix[[1]])
+  ### Strategy B: Test Set Anomaly Detection
+  
+  # 1. Get Reconstruction & Handle Output Format
+  reconstructed_list <- predict(vae_fit$trained_model, as.matrix(test_matrix))
+  
+  if(is.list(reconstructed_list)) {
+    test_recon_matrix <- as.matrix(reconstructed_list[[1]])
   } else {
-    test_recon_matrix <- as.matrix(test_recon_matrix)
+    test_recon_matrix <- as.matrix(reconstructed_list)
   }
   
-  # 1. Define Column Counts (Must match Training Logic)
-  n_cont <- ncol(test_cont)
-  n_cat  <- ncol(test_matrix) - n_cont
+  # SAFETY CHECK: Clip Infinite Model Outputs
+  test_recon_matrix[is.infinite(test_recon_matrix) & test_recon_matrix > 0] <- 1e9
+  test_recon_matrix[is.infinite(test_recon_matrix) & test_recon_matrix < 0] <- -1e9
+  test_recon_matrix[is.na(test_recon_matrix)] <- 0 
   
-  # 2. Split Matrix
-  input_cont_test <- test_matrix[, 1:n_cont]
-  recon_cont_test <- test_recon_matrix[, 1:n_cont]
+  # 2. Define Dimensions Safely
+  # Detect n_cont based on actual data if possible, or fall back to column count
+  if (exists("test_cont") && !is.null(test_cont)) {
+    n_cont <- ncol(test_cont)
+  } else {
+    # Fallback: assume first N columns are numeric if test_cont isn't explicitly defined
+    # You might need to hardcode this if you know the exact number, e.g., n_cont <- 12
+    n_cont <- sum(sapply(test_matrix, is.numeric))
+    message(paste("Note: 'test_cont' not found. Using detected count:", n_cont))
+  }
   
-  cat_indices     <- (n_cont + 1):ncol(test_matrix)
-  input_cat_test  <- test_matrix[, cat_indices]
-  recon_cat_test  <- test_recon_matrix[, cat_indices]
+  # Define Categorical count
+  n_cat <- ncol(test_matrix) - n_cont
   
-  # 3. Calculate Raw Scores
-  # Continuous: MSE
-  mse_scores_test <- rowSums((input_cont_test - recon_cont_test)^2)
+  # 3. Calculate Scores (with conditional logic for 0 columns)
   
-  # Categorical: BCE (with epsilon clipping)
-  epsilon <- 1e-15
-  recon_cat_test <- pmax(pmin(recon_cat_test, 1 - epsilon), epsilon)
-  bce_scores_test <- -rowSums(input_cat_test * log(recon_cat_test) + (1 - input_cat_test) * log(1 - recon_cat_test))
+  # --- Continuous Scores (MSE) ---
+  if (n_cont > 0) {
+    # Slice matrices
+    input_cont_test <- as.matrix(test_matrix[, 1:n_cont, drop = FALSE])
+    recon_cont_test <- as.matrix(test_recon_matrix[, 1:n_cont, drop = FALSE])
+    
+    # Sanitize Input (Handle potential Infs in input data)
+    input_cont_test[is.infinite(input_cont_test)] <- 1e9 
+    
+    # Calculate Squared Error
+    sq_error <- (input_cont_test - recon_cont_test)^2
+    sq_error[is.infinite(sq_error)] <- 1e9 # Clip overflows
+    
+    # Normalize immediately (Sum / Count)
+    mse_norm_test <- rowSums(sq_error, na.rm = TRUE) / n_cont
+    
+  } else {
+    mse_norm_test <- numeric(nrow(test_matrix)) # Zeros if no cont columns
+  }
   
-  # 4. Normalize & Weight (Apply same logic as Training)
-  # Note: Adjust weights w_cont/w_cat here if you changed them in Training
+  # --- Categorical Scores (BCE) ---
+  if (n_cat > 0) {
+    # Slice matrices
+    cat_indices      <- (n_cont + 1):ncol(test_matrix)
+    input_cat_test   <- as.matrix(test_matrix[, cat_indices, drop = FALSE])
+    recon_cat_test   <- as.matrix(test_recon_matrix[, cat_indices, drop = FALSE])
+    
+    # Epsilon Clipping for log stability
+    epsilon <- 1e-15
+    recon_cat_test <- pmax(pmin(recon_cat_test, 1 - epsilon), epsilon)
+    
+    # Calculate BCE
+    bce_raw <- -(input_cat_test * log(recon_cat_test) + (1 - input_cat_test) * log(1 - recon_cat_test))
+    
+    # Normalize immediately
+    bce_norm_test <- rowSums(bce_raw, na.rm = TRUE) / n_cat
+    
+  } else {
+    bce_norm_test <- numeric(nrow(test_matrix)) # Zeros if no cat columns
+  }
+  
+  # 4. Weighted Combination
   w_cont <- 1.0 
   w_cat  <- 1.0 
-  
-  mse_norm_test <- mse_scores_test / n_cont
-  bce_norm_test <- bce_scores_test / n_cat
   
   final_score_test <- (mse_norm_test * w_cont) + (bce_norm_test * w_cat)
   
@@ -505,9 +584,10 @@ tryCatch({
       anomaly_score_balanced = final_score_test
     )
   
-  print("Success: Strategy B Test Set Prepared.")
+  print("Success: Strategy B Test Set calculated.")
+  print(summary(Strategy_B_AS_Test$anomaly_score_balanced))
   
-}, error = function(e) message(e))
+}, error = function(e) message("Error in Test Strategy B: ", e))
 
 #==== 04D - Strategy C: Feature Denoising =====================================#
 

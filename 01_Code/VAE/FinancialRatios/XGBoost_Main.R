@@ -78,8 +78,8 @@ Train_Data_Base_Model <- Train_Data_Base_Model %>%
 ## General Parameters.
 ##==============================##
 
-n_init_points <- 10
-n_iter_bayes  <- 20
+n_init_points <- 2
+n_iter_bayes  <- 4
 
 #==== 01A - Base model ========================================================#
 
@@ -238,7 +238,7 @@ tryCatch({
   comparison_table <- bind_rows(
     extract_metrics(XGBoost_Results_BaseModel,  "Base Model"),
     extract_metrics(XGBoost_Results_Strategy_A, "Strategy A (Dim. Reduction)"),
-    # extract_metrics(XGBoost_Results_Strategy_B, "Strategy B (Anomaly Score)"),
+    extract_metrics(XGBoost_Results_Strategy_B, "Strategy B (Anomaly Score)"),
     extract_metrics(XGBoost_Results_Strategy_C, "Strategy C (Feature Denoising)")
     # extract_metrics(XGBoost_Results_Strategy_D, "Strategy D (Manual Feature Eng.)")
   ) %>%
@@ -320,14 +320,12 @@ model_used_name_list <- list("BaseModel", "StrategyA", "StrategyB",
 model_object_list <- list(XGBoost_Results_BaseModel$optimal_model,
                            XGBoost_Results_Strategy_A$optimal_model,
                            XGBoost_Results_Strategy_B$optimal_model,
-                           XGBoost_Results_Strategy_C$optimal_model,
-                           XGBoost_Results_Strategy_D$optimal_model)
+                           XGBoost_Results_Strategy_C$optimal_model)
 
 data_input_list <- list(Train_Data_Base_Model,
                         Train_Data_Strategy_A,
                         Train_Data_Strategy_B,
-                        Train_Data_Strategy_C,
-                        Train_Data_Strategy_D)
+                        Train_Data_Strategy_C)
 
 ## Run the loop:
 
@@ -1127,7 +1125,7 @@ Final_Test_Set_A <- cbind(Test_Transformed, Strategy_A_LF_Test)
 Test_Data_Strategy_A <- Final_Test_Set_A
 
 ### Strategy B: anomaly score.
-# Test_Data_Strategy_B <- Strategy_B_AS_Test
+Test_Data_Strategy_B <- Strategy_B_AS_Test
 
 ### Strategy C: regime switching.
 Test_Data_Strategy_C <- Strategy_C_Test
@@ -1185,15 +1183,15 @@ tryCatch({
 ## Parameters.
 ##==============================##
 
-# Model <- XGBoost_Results_Strategy_B$optimal_model
-# Test_Data <- Test_Data_Strategy_B
+Model <- XGBoost_Results_Strategy_B$optimal_model
+Test_Data <- Test_Data_Strategy_B
 
 ##==============================##
 ## Code.
 ##==============================##
 
-# XGBoost_Test_Results_Strategy_B <- XGBoost_Test(Model = Model, 
-#                                                 Test_Data = Test_Data)
+XGBoost_Test_Results_Strategy_B <- XGBoost_Test(Model = Model,
+                                                Test_Data = Test_Data)
 
 }, error = function(e) message(e))
 
@@ -1248,7 +1246,7 @@ tryCatch({
 Final_Leaderboard <- bind_rows(
   XGBoost_Test_Results_BaseModel$Metrics %>% mutate(Strategy = "Base Model"),
   XGBoost_Test_Results_Strategy_A$Metrics %>% mutate(Strategy = "Strategy A (Dim. Reduction)"),
-  # XGBoost_Test_Results_Strategy_B$Metrics %>% mutate(Strategy = "Strategy B (Anomaly Score)"),
+  XGBoost_Test_Results_Strategy_B$Metrics %>% mutate(Strategy = "Strategy B (Anomaly Score)"),
   XGBoost_Test_Results_Strategy_C$Metrics %>% mutate(Strategy = "Strategy C (Feature Denoising)")
   # XGBoost_Test_Results_Strategy_D$Metrics %>% mutate(Strategy = "Strategy D (Manual Feature Eng.)")
 ) %>%
