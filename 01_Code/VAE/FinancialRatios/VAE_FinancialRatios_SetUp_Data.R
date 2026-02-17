@@ -454,60 +454,106 @@ colnames(Strategy_A_LF) <- paste0("l", 1:8)
 ## Test set.
 tryCatch({
   
-  # 1. Separate Features from Metadata
-  # We reuse the same logic as training
-  test_features <- Test_Final %>% select(-y)
+  message("--- Starting Strategy A Test Preparation (Robust) ---")
   
-  # 2. Select Columns using the SAME lists from Training
-  # (Assumes 'cont_cols' and 'bin_cols' exist from the previous step)
+  # ===========================================================================
+  # 1. SETUP & ALIGNMENT (Follow Training Methodology)
+  # ===========================================================================
   
-  # Continuous (Ratios, Z-Scores, Deltas)
-  test_cont <- test_features[, cont_cols]
+  # A. Separate Features (Drop Y)
+  test_features_all <- Test_Final %>% select(-y)
   
-  # Binary (Flags)
-  test_bin  <- test_features[, bin_cols]
+  # B. Re-Verify Column Definitions (Use Training definitions)
+  # (These should exist from the VAE Training step)
+  if(!exists("cont_cols") || !exists("bin_cols") || !exists("cat_cols")) {
+    stop("Critical: Feature lists (cont_cols, bin_cols, cat_cols) missing from environment.")
+  }
   
-  # 3. One-Hot Encoding
-  # Use the SAME dummies_model from training to ensure levels match
-  test_cat_onehot <- predict(dummies_model, newdata = test_features) %>% as.data.frame()
+  # C. Extract Subsets (Exactly as done in Training)
+  test_cont_data <- test_features_all[, cont_cols]
+  test_bin_data  <- test_features_all[, bin_cols]
+  test_cat_data  <- test_features_all[, cat_cols]
   
-  # 4. Combine
-  test_vae_input_data <- cbind(test_cont, test_bin, test_cat_onehot)
+  # ===========================================================================
+  # 2. FEATURE PROCESSING
+  # ===========================================================================
   
-  # 5. Alignment (Defensive Programming)
-  # This section ensures the column ORDER and COUNT match exactly
+  # A. One-Hot Encoding
+  # strictly apply the 'dummies_model' trained on training set
+  test_cat_onehot <- predict(dummies_model, newdata = test_cat_data) %>% as.data.frame()
   
-  # A. Add missing columns (e.g. if Test set is missing a specific sector)
-  missing_cols <- setdiff(names(vae_input_data), names(test_vae_input_data))
+  # B. Combine to Raw VAE Input
+  test_vae_input_raw <- cbind(test_cont_data, test_bin_data, test_cat_onehot)
+  
+  # ===========================================================================
+  # 3. MATRIX ALIGNMENT (Crucial for Keras)
+  # ===========================================================================
+  
+  # The test set might have missing or extra columns compared to training 
+  # (e.g., missing a specific sector dummy). We must align it to 'vae_input_data'.
+  
+  # Target columns (from Training VAE input)
+  target_cols <- colnames(vae_input_data)
+  
+  # Add Missing Columns (Fill with 0)
+  missing_cols <- setdiff(target_cols, colnames(test_vae_input_raw))
   if(length(missing_cols) > 0) {
-    # Create a zero-filled dataframe for missing cols
-    missing_df <- as.data.frame(matrix(0, nrow = nrow(test_vae_input_data), ncol = length(missing_cols)))
-    colnames(missing_df) <- missing_cols
-    test_vae_input_data <- cbind(test_vae_input_data, missing_df)
-    message(paste("Filled missing columns in Test:", paste(missing_cols, collapse=", ")))
+    missing_mat <- matrix(0, nrow = nrow(test_vae_input_raw), ncol = length(missing_cols))
+    colnames(missing_mat) <- missing_cols
+    test_vae_input_raw <- cbind(test_vae_input_raw, as.data.frame(missing_mat))
   }
   
-  # B. Remove extra columns (e.g. if Test has a level not seen in Train)
-  extra_cols <- setdiff(names(test_vae_input_data), names(vae_input_data))
+  # Remove Extra Columns
+  extra_cols <- setdiff(colnames(test_vae_input_raw), target_cols)
   if(length(extra_cols) > 0) {
-    test_vae_input_data <- test_vae_input_data %>% select(-all_of(extra_cols))
+    test_vae_input_raw <- test_vae_input_raw[, !colnames(test_vae_input_raw) %in% extra_cols]
   }
   
-  # C. Reorder columns to match Train EXACTLY
-  test_vae_input_data <- test_vae_input_data[, names(vae_input_data)]
-  test_matrix <- as.matrix(test_vae_input_data)
+  # Reorder to match Training EXACTLY
+  test_vae_input_final <- test_vae_input_raw[, target_cols]
   
-  # 6. Prediction
-  # Use the standalone encoder
-  test_latent_raw <- predict(enc_model, test_matrix)
+  # Convert to standard Matrix (Keras requires this)
+  x_test_matrix <- as.matrix(test_vae_input_final)
   
-  ### Strategy A Output:
-  Strategy_A_LF_Test <- as.data.frame(test_latent_raw[[1]])
+  # ===========================================================================
+  # 4. PREDICT LATENT FEATURES
+  # ===========================================================================
+  
+  message(paste("Generating Latent Features for", nrow(x_test_matrix), "rows..."))
+  
+  # Use Keras predict
+  latent_output_raw <- predict(enc_model, x_test_matrix)
+  
+  # If output is a list (common in some Keras models), take the first element
+  if(is.list(latent_output_raw)) {
+    latent_values <- latent_output_raw[[1]]
+  } else {
+    latent_values <- latent_output_raw
+  }
+  
+  # Create DataFrame
+  Strategy_A_LF_Test <- as.data.frame(latent_values)
   colnames(Strategy_A_LF_Test) <- paste0("l", 1:8)
   
-  message("Test Set Latent Features extracted successfully.")
+  # ===========================================================================
+  # 5. CREATE FINAL DATASET FOR XGBOOST
+  # ===========================================================================
   
-}, error = function(e) message("Test Prep Error: ", e))
+  # Identify Metadata to drop
+  cols_to_drop <- c("id", "refdate", "time_index", "year", "row_id", "company_id")
+  
+  # Clean Base Features (Keep predictors + y, drop metadata)
+  # We use Test_Final (which includes y) so we have targets for evaluation later if needed
+  Test_Clean_Base <- Test_Final[, !names(Test_Final) %in% cols_to_drop]
+  
+  # Combine Base Predictors + Latent Features
+  # Note: Test_Clean_Base includes 'y'. Latent features are predictors.
+  Strategy_A_Test <- cbind(Test_Clean_Base, Strategy_A_LF_Test)
+  
+  message("Success: Strategy_A_Test created.")
+  print(dim(Strategy_A_Test))
+  
+}, error = function(e) message("Strategy A Prep Error: ", e))
 
 #==== 04C - Strategy B: Anomaly Score =========================================#
 

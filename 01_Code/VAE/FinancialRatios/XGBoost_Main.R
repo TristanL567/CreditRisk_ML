@@ -1187,8 +1187,10 @@ tryCatch({
 Test_Data_Base_Model <- Test_Final
 
 ### Strategy A: latent features.
-Final_Test_Set_A <- cbind(Test_Transformed, Strategy_A_LF_Test)
-Test_Data_Strategy_A <- Final_Test_Set_A
+Final_Test_Set_A <- cbind(Test_Final, Strategy_A_LF_Test)
+
+# Remove them from the specific dataset
+Test_Data <- Test_Data_Strategy_A[, !names(Test_Data_Strategy_A) %in% cols_to_remove]
 
 ### Strategy B: anomaly score.
 Test_Data_Strategy_B <- Strategy_B_AS_Test
