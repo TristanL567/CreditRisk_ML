@@ -816,6 +816,76 @@ To ensure fair comparison, Bayesian optimization was utilized to find the optima
     \end{tabular}
 \end{table}
 
+\subsection{Base Model}
+
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy [Name]} % Update Strategy Name as needed
+    \label{tab:forensic_summary_new}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{RoA} & \textbf{Net Debt Ratio} & \textbf{Self-Financing Ratio} & \textbf{Return Fixed Assets} & \textbf{Cash to Current Assets} \\
+        \midrule
+        True Negative  & 125,115 & 0.2043 & -0.2681 & 0.2577 & 0.1566 & 0.2197 \\
+        False Positive & 34,915  & -0.9443 & 0.9210 & -1.0014 & -0.9687 & -0.6707 \\
+        False Negative & 208     & -0.0856 & 0.0819 & -0.0080 & -0.1060 & -0.0034 \\
+        True Positive  & 1,166   & -1.1825 & 1.0523 & -1.1682 & -1.1846 & -0.6429 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+\subsection{Strategy B}
+
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy [Name]}
+    \label{tab:forensic_summary_strat_updated_3}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{RoA} & \textbf{Net Debt Ratio} & \textbf{Self-Financing Ratio} & \textbf{Return Fixed Assets} & \textbf{Cash to Current Assets} \\
+        \midrule
+        True Negative  & 129,267 & 0.1815 & -0.2355 & 0.2258 & 0.1430 & 0.1904 \\
+        False Positive & 30,763  & -0.9860 & 0.9710 & -1.0549 & -1.0131 & -0.6643 \\
+        False Negative & 153     & -0.0718 & 0.1221 & 0.0031 & -0.0457 & 0.0265 \\
+        True Positive  & 1,221   & -1.1454 & 1.0019 & -1.1390 & -1.1341 & -0.6204 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+\subsection{Strategy C}
+
+\subsubsection{Error}
+
+\begin{table}[h]
+    \centering
+    \caption{Forensic Feature Summary: Strategy [Name]}
+    \label{tab:forensic_summary_updated}
+    \resizebox{\textwidth}{!}{% Resize table to fit page width if necessary
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        \textbf{Error Type} & \textbf{Count} & \textbf{RoA} & \textbf{Net Debt Ratio} & \textbf{Self-Financing Ratio} & \textbf{Return Fixed Assets} & \textbf{Cash to Current Assets} \\
+        \midrule
+        True Negative  & 125,303 & 0.2042 & -0.2674 & 0.2570 & 0.1594 & 0.2161 \\
+        False Positive & 34,727  & -0.9529 & 0.9217 & -1.0125 & -0.9753 & -0.6646 \\
+        False Negative & 232     & -0.0523 & 0.0819 & -0.0165 & -0.0292 & -0.0660 \\
+        True Positive  & 1,142   & -1.2016 & 1.0798 & -1.1781 & -1.2037 & -0.6395 \\
+        \bottomrule
+        \multicolumn{7}{l}{\footnotesize \textit{Note: All financial feature columns reflect the median values for that group.}} \\
+    \end{tabular}%
+    }
+\end{table}
+
+
 \section{Financial Ratios (Feature Eng.)}
 
 \subsection{Training Results}

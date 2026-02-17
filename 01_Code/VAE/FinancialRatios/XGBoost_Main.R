@@ -1513,11 +1513,12 @@ tryCatch({
   
   ## Setup:
   Path <- file.path(here::here("")) ## You need to install the package first incase you do not have it.
-  Charts_Directory_Model <- file.path(Path, "03_Charts/VAE/XGBoost")
+  Charts_Directory_Model <- file.path(Path, "03_Charts/VAE/FinancialRatios/XGBoost")
   
-  model_used_name <- "BaseModel"
-  model_object <- XGBoost_Results_BaseModel$optimal_model
-  data_input <- Test_Data_Base_Model
+  model_used_name <- "StrategyC"
+  model_object <- XGBoost_Results_Strategy_C$optimal_model
+  data_input <- Train_Data_Strategy_C
+  # data_input <- Test_Data_Strategy_C
   
   # Ensure directory exists
   Directory <- file.path(Charts_Directory_Model, model_used_name)
@@ -1580,7 +1581,7 @@ tryCatch({
       panel.grid.major.x = element_blank()
     )
   # D. Save Plot
-  file_name <- paste0(model_used_name, "_Global_Calibration_Test.png")
+  file_name <- paste0(model_used_name, "_Global_Calibration_Train.png")
   ggsave(filename = file.path(Directory, file_name), plot = p, width = 10, height = 6)
   
   message(paste("Saved:", file_name))
@@ -1589,14 +1590,14 @@ tryCatch({
   ##==== Default Interactions.
   ##===============================##
   
-  save_directory <- file.path(Path, "03_Charts/VAE/XGBoost/BaseModel")
+  save_directory <- file.path(Path, "03_Charts/VAE/FinancialRatios/XGBoost/BaseModel")
   
   Scatterplot_Interaction_Faceted(
     data_input = Train_Data_Base_Model,
     model = XGBoost_Results_BaseModel$optimal_model,
-    save_dir = file.path(Path, "03_Charts/VAE/XGBoost/BaseModel"),
-    file_name = "Interaction_Defaults_Profit_Cash.png",
-    x_feature = "f8", y_feature = "f5", 
+    save_dir = save_directory,
+    file_name = "Interaction_Defaults_RoA_NetDebt.png",
+    x_feature = "r14", y_feature = "r8", 
     analysis_target = "defaults"
   )
   
@@ -1605,39 +1606,39 @@ tryCatch({
   ##==== Defaulter gap.
   ##===============================##
   
-  save_directory <- file.path(Path, "03_Charts/VAE/XGBoost/BaseModel")
+  save_directory <- file.path(Path, "03_Charts/VAE/FinancialRatios/XGBoost/BaseModel")
   
-  Rich_Subset <- Train_Data_Base_Model %>% filter(f8 > 0, f6 > 0)
-  Chart_Analyze_Gap(
+  Rich_Subset <- Train_Data_Base_Model %>% filter(r8 > 0, r14 < 0)
+  Chart_Analyze_Gap_Ratios(
     data_subset = Rich_Subset,
     model = XGBoost_Results_BaseModel$optimal_model,
-    save_dir = file.path(Path, "03_Charts/VAE/XGBoost/BaseModel"),
-    file_suffix = "Rich_Defaults",
-    title_suffix = "Rich Companies (High Profit/Equity)",
+    save_dir = save_directory,
+    file_suffix = "HighRet_HighDebt",
+    title_suffix = "HighRet_HighDebt (High Profit/Equity)",
     analysis_target = "defaults")
   
   Poor_Subset <- Train_Data_Base_Model %>%
-    filter(f8 < 0, f6 < 0)
-  Chart_Analyze_Defaulter_Gap(
+    filter(r8 < 0, r14 < 0)
+  Chart_Analyze_Gap_Ratios(
     data_subset  = Poor_Subset,
     model        = XGBoost_Results_BaseModel$optimal_model,
     save_dir     = save_directory,
-    file_suffix  = "Poor_Companies",
-    title_suffix = "Poor Companies (Negative Profit & Equity)",
+    file_suffix  = "LowRet_LowDebt",
+    title_suffix = "LowRet_LowDebt (Negative Profit & Equity)",
     analysis_target = "defaults")
   
   ##===============================##
   ##==== Survivor Interactions.
   ##===============================##
   
-  save_directory <- file.path(Path, "03_Charts/VAE/XGBoost/BaseModel")
+  save_directory <- file.path(Path, "03_Charts/VAE/FinancialRatios/XGBoost/BaseModel")
   
   Scatterplot_Interaction_Faceted(
     data_input = Train_Data_Base_Model,
     model = XGBoost_Results_BaseModel$optimal_model,
-    save_dir = file.path(Path, "03_Charts/VAE/XGBoost/BaseModel"),
-    file_name = "Interaction_Defaults_Profit_Equity.png",
-    x_feature = "f8", y_feature = "f6", 
+    save_dir = save_directory,
+    file_name = "Interaction_Defaults_RoA_NetDebt.png",
+    x_feature = "r14", y_feature = "r8", 
     analysis_target = "survivors"
   )
   
@@ -1645,25 +1646,34 @@ tryCatch({
   ##==== Survivor gap.
   ##===============================##
   
-  save_directory <- file.path(Path, "03_Charts/VAE/XGBoost/BaseModel")
+  save_directory <- file.path(Path, "03_Charts/VAE/FinancialRatios/XGBoost/BaseModel")
   
-  Rich_Subset <- Train_Data_Base_Model %>% filter(f8 > 0, f6 > 0)
-  Chart_Analyze_Gap(
+  Rich_Subset <- Train_Data_Base_Model %>% filter(r8 > 0, r14 < 0)
+  Chart_Analyze_Gap_Ratios(
     data_subset = Rich_Subset,
     model = XGBoost_Results_BaseModel$optimal_model,
-    save_dir = file.path(Path, "03_Charts/VAE/XGBoost/BaseModel"),
-    file_suffix = "Rich_Defaults",
-    title_suffix = "Rich Companies (High Profit/Equity)",
+    save_dir = save_directory,
+    file_suffix = "Quadrant_1_topleft",
+    title_suffix = "Quadrant_3_botleft (High Profit/Equity)",
     analysis_target = "survivors")
   
   Poor_Subset <- Train_Data_Base_Model %>%
-    filter(f8 < 0, f6 < 0)
-  Chart_Analyze_Gap(
+    filter(r8 < 0, r14 < 0)
+  Chart_Analyze_Gap_Ratios(
     data_subset  = Poor_Subset,
     model        = XGBoost_Results_BaseModel$optimal_model,
     save_dir     = save_directory,
-    file_suffix  = "Poor_Companies",
-    title_suffix = "Poor Companies (Negative Profit & Equity)",
+    file_suffix  = "Quadrant_3_botleft",
+    title_suffix = "LowRet_LowDebt (Negative Profit & Equity)",
+    analysis_target = "survivors")
+  
+  Rich_Subset <- Train_Data_Base_Model %>% filter(r8 > 0, r14 > 0)
+  Chart_Analyze_Gap_Ratios(
+    data_subset = Rich_Subset,
+    model = XGBoost_Results_BaseModel$optimal_model,
+    save_dir = save_directory,
+    file_suffix = "Quadrant_2_righttop",
+    title_suffix = "HighRet_HighDebt (High Profit/Equity)",
     analysis_target = "survivors")
   
   
