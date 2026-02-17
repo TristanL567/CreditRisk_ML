@@ -131,13 +131,13 @@ Data <- d
 Data <- DataPreprocessing(Data, Tolerance = 2)
 
 ## Incorporate 4 more ratios.
-Data <- Data %>%
-  mutate(
-    ratio_True_Equity = f6 / (f1 + 1e-6),
-    ratio_Receivables = (f3 - f4 - f5) / (f1 + 1e-6),
-    ratio_Cash_Coverage = f5 / (f11 + 1e-6),
-    ratio_Provisions = f10 / (f1 + 1e-6)
-  )
+# Data <- Data %>%
+#   mutate(
+#     ratio_True_Equity = f6 / (f1 + 1e-6),
+#     ratio_Receivables = (f3 - f4 - f5) / (f1 + 1e-6),
+#     ratio_Cash_Coverage = f5 / (f11 + 1e-6),
+#     ratio_Provisions = f10 / (f1 + 1e-6)
+#   )
 
 ## Drop all raw data for now.
 Exclude <- c(paste("f", seq(1:18), sep = "")) ## Drop all ratios for now.
@@ -192,92 +192,6 @@ Test_Backup <- Test
 
 DivideByTotalAssets <- FALSE
 Quantile_Transform <- TRUE
-
-#==== 03A - Incorporate deviations from sector means and time dependency ======#
-
-#### Training Set.
-tryCatch({
-
-##==== Setup:
-  
-  Train <- Train %>%
-    mutate(
-      row_id = row_number(),
-      new_company_flag = c(1, diff(as.numeric(factor(sector))) != 0 | abs(diff(r1))/r1[-length(r1)] > 0.5),
-      company_id = cumsum(new_company_flag)
-    ) %>%
-    group_by(company_id) %>%
-    arrange(refdate) %>% # CRITICAL: Sort chronologically within company
-    mutate(
-      time_index = row_number(), # 1 = Oldest available date, 2 = Next, etc.
-      year = year(refdate)
-    ) %>%
-    ungroup()
-
-  ##==== Define the ratios to be benchmarked:
-  target_ratios <- c("r6", "r14", "r7", "ratio_True_Equity", "ratio_Cash_Coverage")
-  
-  Train <- Train %>%
-    group_by(sector, year) %>%
-    mutate(
-      across(all_of(target_ratios), 
-             list(
-               sec_med = ~ median(., na.rm = TRUE),
-               sec_mad = ~ mad(., constant = 1.4826, na.rm = TRUE) # Median Absolute Deviation (Robust SD)
-             ),
-             .names = "{.col}_{.fn}")
-    ) %>%
-    ungroup() %>%
-    mutate(
-      r6_Sector_Zscore = (r6 - r6_sec_med) / ifelse(r6_sec_mad == 0, 1, r6_sec_mad),
-      r14_Sector_Zscore = (r14 - r14_sec_med) / ifelse(r14_sec_mad == 0, 1, r14_sec_mad),
-      r7_Sector_Zscore = (r7 - r7_sec_med) / ifelse(r7_sec_mad == 0, 1, r7_sec_mad),
-      r14_Rel_Dev = r14 - r14_sec_med
-    ) %>%
-    select(-ends_with("_sec_med"), -ends_with("_sec_mad"))
-  
-  ##==== Time dependency:
-  Train <- Train %>%
-    group_by(company_id) %>%
-    mutate(
-      r14_Delta = r14 - lag(r14, 1),
-      r7_Delta = r7 - lag(r7, 1),
-      r12_Delta = r12 - lag(r12, 1),
-      Asset_Growth_Pct = (r1 - lag(r1, 1)) / (lag(r1, 1) + 1),
-      r14_Volatility_Exp = sqrt(
-        cummean((r14 - cummean(r14))^2) # Manual calculation for expanding SD
-      ),
-      
-      r14_Mean_Exp = cummean(r14),
-      Profit_Trend_Consistent = ifelse(sign(r14_Delta) == sign(lag(r14_Delta)), 1, 0)
-    ) %>%
-    ungroup() %>%
-    mutate(across(ends_with("_Delta"), ~ replace_na(., 0)),
-           across(ends_with("_Growth_Pct"), ~ replace_na(., 0)),
-           across(ends_with("_Volatility_Exp"), ~ replace_na(., 0)),
-           across(ends_with("_Mean_Exp"), ~ ifelse(is.na(.), r14, .)) 
-    )
-  
-  Train <- Train %>%
-    mutate(
-      is_new_company = ifelse(time_index == 1, 1, 0),
-      Profit_Trend_Consistent = replace_na(Profit_Trend_Consistent, 0),
-      risk_New_HighDebt = is_new_company * r7
-    )
-  
-  # Preview the Augmented Data
-  glimpse(Train %>% select(company_id, refdate, sector, r14, r14_Sector_Zscore, r14_Delta, r14_Volatility_Exp)) 
-  glimpse(Train)
-  
-}, error = function(e) message(e))
-
-#### Test set.
-tryCatch({
-  
-  
-  
-  
-}, error = function(e) message(e))
 
 #==== 03A - Standardization ===================================================#
 

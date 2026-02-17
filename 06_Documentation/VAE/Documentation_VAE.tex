@@ -788,10 +788,10 @@ Strategy A underperformed the Base Model. The forensic data reveals that it miss
         \hline
         \textbf{Model} & \textbf{AUC} & \textbf{Brier Score (\%)} & \textbf{Pen. Brier Score (\%)} \\
         \hline
-        Strategy C (Feature Denoising) & 0.8278 & 0.8100\% & 1.2357\% \\
-        Strategy B (Anomaly Score) & 0.8268 & 0.7663\% & 1.1919\% \\
-        Base Model & 0.8264 & 0.8136\% & 1.2392\% \\
-        Strategy A (Dim. Reduction) & 0.8247 & 0.7490\% & 1.1746\% \\
+        Strategy C (Feature Denoising) & 0.8302 & 0.8031\% & 1.2287\% \\
+        Strategy B (Anomaly Score) & 0.8291 & 0.7869\% & 1.2125\% \\
+        Base Model & 0.8279 & 0.8031\% & 1.2287\% \\
+        Strategy A (Dim. Reduction) & 0.8276 & 0.8041\% & 1.2297\% \\
         \hline
     \end{tabular}
 \end{table}
@@ -808,13 +808,65 @@ To ensure fair comparison, Bayesian optimization was utilized to find the optima
         \hline
         \textbf{Strategy} & \textbf{Eta ($\eta$)} & \textbf{Max Depth} & \textbf{Subsample} & \textbf{Colsample} \\
         \hline
-        Base Model & 0.01 & 3 & 0.504 & 1.000 \\
-        Strategy A (Dim. Reduction) & 0.01 & 8 & 0.843 & 0.500 \\
-        Strategy B (Anomaly Score) & 0.01 & 8 & 0.500 & 1.000 \\
-        Strategy C (Feature Denoising) & 0.01 & 4 & 0.500 & 0.996 \\
+        Base Model & 0.01 & 5 & 0.619 & 1.000 \\
+        Strategy A (Dim. Reduction) & 0.01 & 5 & 0.685 & 0.500 \\
+        Strategy B (Anomaly Score) & 0.01 & 6 & 0.860 & 0.838 \\
+        Strategy C (Feature Denoising) & 0.01 & 5 & 0.594 & 0.877 \\
         \hline
     \end{tabular}
 \end{table}
+
+\section{Financial Ratios (Feature Eng.)}
+
+\subsection{Training Results}
+
+The leaderboard below summarizes the predictive accuracy of each strategy. Strategy B (Anomaly Score) achieves the highest discrimination, while Strategy A (Dimensionality Reduction) provides the most accurately calibrated risk probabilities[cite: 1, 2].
+
+\begin{table}[H]
+\centering
+\caption{Model Performance Leaderboard (5-Fold CV)}
+\label{tab:leaderboard}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Model Strategy} & \textbf{AUC} & \textbf{Uplift (\%)} & \textbf{Brier Score} & \textbf{Pen. Brier} \\ 
+\hline
+Strategy B (Anomaly Score)      & 0.8304 & +0.116\% & 0.7917\% & 1.2173\% \\
+Strategy A (Dim. Reduction)     & 0.8295 & +0.016\% & 0.7790\% & 1.2046\% \\
+Base Model                      & 0.8294 & ---      & 0.7999\% & 1.2255\% \\
+Strategy C (Feature Denoising)  & 0.8289 & -0.059\% & 0.8035\% & 1.2292\% \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Hyperparameter Optimization}
+
+To ensure a fair comparison across different feature spaces, we employed Bayesian Optimization to identify the specific hyperparameter configurations that minimize validation loss for each strategy[cite: 3, 5].
+
+
+
+\begin{table}[H]
+\centering
+\caption{Optimal XGBoost Configurations per Strategy}
+\label{tab:params}
+\begin{tabular}{lccccc}
+\hline
+\textbf{Strategy} & \textbf{Eta ($\eta$)} & \textbf{Depth} & \textbf{Subsample} & \textbf{Colsample} & \textbf{Rounds} \\ 
+\hline
+Base Model                     & 0.0100 & 4 & 0.746 & 0.500 & 804 \\
+Strategy A (Dim. Reduction)    & 0.0100 & 6 & 0.683 & 0.603 & 428 \\
+Strategy B (Anomaly Score)     & 0.0100 & 5 & 0.500 & 0.500 & 548 \\
+Strategy C (Feature Denoising) & 0.0132 & 4 & 0.816 & 0.805 & 470 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Key Forensic Takeaways}
+
+\begin{itemize}
+    \item \textbf{Efficiency Gain:} While the Base Model remains highly competitive, it requires significantly more boosting rounds (804) to reach optimal convergence compared to the engineered strategies.
+    \item \textbf{Discriminatory Power:} Strategy B proves that explicitly modeling "weirdness" via Anomaly Scores provides the best ranking of high-risk defaults[cite: 1].
+    \item \textbf{Calibration:} Strategy A excels in calibration, as evidenced by the lowest Brier Score, making it the preferred choice for applications requiring precise probability estimates rather than just binary classification[cite: 2].
+\end{itemize}
 
 %==== Chapter 5: Comparison of all models =====================================%
 
@@ -930,23 +982,41 @@ Since their error profiles are uncorrelated (orthogonal), they are ideal candida
 
 \section{Financial Ratios}
 
+\subsection{Standard Ratios}
+
 \begin{table}[h]
     \centering
-    \caption{Final Model Performance Leaderboard}
-    \label{tab:final_leaderboard}
-    \begin{tabular}{lccccc}
+    \caption{Model Performance Leaderboard (Final Results)}
+    \label{tab:leaderboard_final}
+    \begin{tabular}{lccc}
         \hline
-        \textbf{Model} & \textbf{AUC} & \textbf{Brier (\%)} & \textbf{Pen. Brier (\%)} & \textbf{Log Loss} & \textbf{Time (s)} \\
+        \textbf{Model} & \textbf{AUC} & \textbf{Brier Score (\%)} & \textbf{Pen. Brier Score (\%)} \\
         \hline
-        Base Model & 0.8310 & 0.8058\% & 1.2217\% & 0.0413 & 0.19 \\
-        Strategy B (Anomaly Score) & 0.8263 & 0.8061\% & 1.2220\% & 0.0415 & 0.15 \\
-        Strategy C (Feature Denoising) & 0.8234 & 0.8080\% & 1.2239\% & 0.0417 & 0.13 \\
-        Strategy A (Dim. Reduction) & 0.8177 & 0.8099\% & 1.2258\% & 0.0422 & 0.14 \\
+        \textbf{Base Model (Winner)} & \textbf{0.8321} & 0.8053\% & 1.2212\% \\
+        Strategy B (Anomaly Score) & 0.8318 & 0.8034\% & 1.2193\% \\
+        Strategy C (Feature Denoising) & 0.8318 & \textbf{0.8033\%} & \textbf{1.2192\%} \\
+        Strategy A (Dim. Reduction) & 0.8304 & 0.8051\% & 1.2210\% \\
         \hline
     \end{tabular}
 \end{table}
-\subsection{Boosting}
 
+\subsection{Feature engineered Ratios}
+
+\begin{table}[H]
+\centering
+\caption{Model Performance Leaderboard (5-Fold CV)}
+\label{tab:leaderboard}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model Strategy} & \textbf{AUC} & \textbf{Brier Score (\%)} & \textbf{Pen. Brier (\%)} & \textbf{Log Loss} \\ 
+\midrule
+Base Model \textbf{(Winner)}    & 0.8306 & 0.8055\% & 1.2214\% & 0.0413 \\
+Strategy A (Dim. Reduction)     & 0.8303 & 0.8054\% & 1.2213\% & 0.0413 \\
+Strategy B (Anomaly Score)      & 0.8301 & 0.8054\% & 1.2213\% & 0.0413 \\
+Strategy C (Feature Denoising)  & 0.8289 & 0.8059\% & 1.2218\% & 0.0413 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 
 \section{Model Selection \& Summary}

@@ -78,8 +78,8 @@ Train_Data_Base_Model <- Train_Data_Base_Model %>%
 ## General Parameters.
 ##==============================##
 
-n_init_points <- 10
-n_iter_bayes  <- 20
+n_init_points <- 5
+n_iter_bayes  <- 10
 
 #==== 01A - Base model ========================================================#
 
@@ -200,6 +200,7 @@ tryCatch({
 #==============================================================================#
 #==== 02 - XGBoost Model Comparison (AUC and Parameters) ======================#
 #==============================================================================#
+
 
 tryCatch({
     
@@ -1187,10 +1188,10 @@ tryCatch({
 Test_Data_Base_Model <- Test_Final
 
 ### Strategy A: latent features.
-Final_Test_Set_A <- cbind(Test_Final, Strategy_A_LF_Test)
+Test_Data_Strategy_A <- cbind(Test_Final, Strategy_A_LF_Test)
 
 # Remove them from the specific dataset
-Test_Data <- Test_Data_Strategy_A[, !names(Test_Data_Strategy_A) %in% cols_to_remove]
+# Test_Data <- Test_Data_Strategy_A[, !names(Test_Data_Strategy_A) %in% cols_to_remove]
 
 ### Strategy B: anomaly score.
 Test_Data_Strategy_B <- Strategy_B_AS_Test

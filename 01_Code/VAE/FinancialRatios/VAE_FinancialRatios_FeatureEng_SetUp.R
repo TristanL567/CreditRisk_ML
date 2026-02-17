@@ -230,6 +230,12 @@ tryCatch({
   
 }, error = function(e) message("Error in Feature Engineering: ", e))  
 
+### Without feature eng.
+Data_Eng <- Data
+cols_to_remove <- paste0("f", 1:18)
+cols_present   <- intersect(names(Data_Eng), cols_to_remove)
+Data_Eng <- Data_Eng %>% select(-all_of(cols_present))
+
 #==== 03B - Data Sampling =====================================================#
 
 tryCatch({
