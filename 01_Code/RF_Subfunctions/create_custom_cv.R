@@ -26,5 +26,7 @@ create_custom_cv <- function(task, fold_ids) {
   res <- rsmp("custom")
   res$instantiate(task, train_sets, test_sets)
   
+  cat(sprintf("Custom CV created: %d folds, %d observations\n", n_folds, task$nrow))
+  
   return(res)
 }

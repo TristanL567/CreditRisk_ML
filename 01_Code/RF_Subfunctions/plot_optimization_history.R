@@ -7,7 +7,7 @@ plot_optimization_history <- function(results) {
   hist_data[, phase := fifelse(iter <= n_initial_design,
                                "Warmup (Random)", "Bayesian Optimization")]
   hist_data[, phase := factor(phase, levels = c("Warmup (Random)",
-                                                "Bayesian Optimization"))]
+                                                 "Bayesian Optimization"))]
   
   # Calculate cumulative best
   hist_data[, cummax_auc := cummax(auc)]
@@ -32,9 +32,9 @@ plot_optimization_history <- function(results) {
              y = min(hist_data$auc),
              label = "BO", color = "gray40", size = 4, vjust = -0.5) +
     scale_color_manual(values = c("Warmup (Random)" = "#E69F00",
-                                  "Bayesian Optimization" = "#0072B2")) +
+                                   "Bayesian Optimization" = "#0072B2")) +
     scale_shape_manual(values = c("Warmup (Random)" = 16,
-                                  "Bayesian Optimization" = 17)) +
+                                   "Bayesian Optimization" = 17)) +
     labs(title = "MBO Optimization History: Warmup vs BO Phase",
          subtitle = paste0("Initial design: ", n_initial_design, " points | ",
                            "Best AUC: ", round(max(hist_data$auc), 4),

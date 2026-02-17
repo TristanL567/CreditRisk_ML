@@ -6,9 +6,8 @@ train_and_eval <- function(best_params, train_task, test_task) {
   # Set optimal parameters
   learner$param_set$values <- c(learner$param_set$values, best_params)
   
-  #learner$param_set$values$num.trees <- 500L
-  
   # Update thread count for final training (use all cores)
+  n_cores <- parallel::detectCores()
   if ("num.threads" %in% learner$param_set$ids()) {
     learner$param_set$values$num.threads <- n_cores
   } else if ("num_threads" %in% learner$param_set$ids()) {
