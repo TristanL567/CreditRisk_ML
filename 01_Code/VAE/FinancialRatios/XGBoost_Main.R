@@ -1507,6 +1507,172 @@ tryCatch({
   
 }, error = function(e) message(e))
 
+#==== 04C - Additional Charts =================================================#
+
+tryCatch({
+  
+  ## Setup:
+  Path <- file.path(here::here("")) ## You need to install the package first incase you do not have it.
+  Charts_Directory_Model <- file.path(Path, "03_Charts/VAE/XGBoost")
+  
+  model_used_name <- "BaseModel"
+  model_object <- XGBoost_Results_BaseModel$optimal_model
+  data_input <- Test_Data_Base_Model
+  
+  # Ensure directory exists
+  Directory <- file.path(Charts_Directory_Model, model_used_name)
+  if(!dir.exists(Directory)) dir.create(Directory)
+  
+  #### Feature Names Mapping.
+  names(data_input)
+  
+  # Colors
+  col_predicted <- "#377EB8" # Steel Blue
+  col_observed  <- "#7F7F7F" # Dark Grey
+  
+  ##===============================##
+  ##==== Calibration chart for the whole model
+  ##===============================##
+  
+  message("--- Generating Global Calibration Plot ---")
+  
+  sparse_matrix <- sparse.model.matrix(y ~ . - 1, data = data_input)
+  preds <- predict(model_object, sparse_matrix)
+  
+  calib_df <- data.frame(
+    y_true = as.numeric(as.character(data_input$y)), # Actual (0 or 1)
+    y_pred = preds                                   # Probability
+  ) %>%
+    # Bin by Predicted Probability (Risk Deciles)
+    mutate(bin = ntile(y_pred, 10)) %>%
+    group_by(bin) %>%
+    summarise(
+      Predicted = mean(y_pred),
+      Observed  = mean(y_true),
+      .groups   = "drop"
+    ) %>%
+    # Reshape for ggplot
+    pivot_longer(cols = c("Predicted", "Observed"), 
+                 names_to = "Type", values_to = "Rate") %>%
+    mutate(Type = factor(Type, levels = c("Predicted", "Observed")))
+  
+  # C. Create Plot
+  p <- ggplot(calib_df, aes(x = factor(bin), y = Rate, fill = Type)) +
+    geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+    # Styling
+    scale_fill_manual(values = c("Predicted" = col_predicted, "Observed" = col_observed)) +
+    scale_y_continuous(labels = scales::percent, expand = expansion(mult = c(0, 0.15))) +
+    labs(
+      title = NULL,
+      x = "Risk Decile (1=Low Risk; 10=High Risk)",
+      y = "Default Rate",
+      fill = ""
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 16, face = "bold"),
+      axis.text.x = element_text(size = 14, color = "black"),
+      axis.text.y = element_text(size = 14, color = "black"),
+      axis.title.y = element_text(size = 14, color = "black"),
+      axis.title.x = element_text(size = 14, color = "black"),
+      axis.text  = element_text(size = 14, color = "black"),
+      legend.position = "bottom",
+      panel.grid.major.x = element_blank()
+    )
+  # D. Save Plot
+  file_name <- paste0(model_used_name, "_Global_Calibration_Test.png")
+  ggsave(filename = file.path(Directory, file_name), plot = p, width = 10, height = 6)
+  
+  message(paste("Saved:", file_name))
+  
+  ##===============================##
+  ##==== Default Interactions.
+  ##===============================##
+  
+  save_directory <- file.path(Path, "03_Charts/VAE/XGBoost/BaseModel")
+  
+  Scatterplot_Interaction_Faceted(
+    data_input = Train_Data_Base_Model,
+    model = XGBoost_Results_BaseModel$optimal_model,
+    save_dir = file.path(Path, "03_Charts/VAE/XGBoost/BaseModel"),
+    file_name = "Interaction_Defaults_Profit_Cash.png",
+    x_feature = "f8", y_feature = "f5", 
+    analysis_target = "defaults"
+  )
+  
+  
+  ##===============================##
+  ##==== Defaulter gap.
+  ##===============================##
+  
+  save_directory <- file.path(Path, "03_Charts/VAE/XGBoost/BaseModel")
+  
+  Rich_Subset <- Train_Data_Base_Model %>% filter(f8 > 0, f6 > 0)
+  Chart_Analyze_Gap(
+    data_subset = Rich_Subset,
+    model = XGBoost_Results_BaseModel$optimal_model,
+    save_dir = file.path(Path, "03_Charts/VAE/XGBoost/BaseModel"),
+    file_suffix = "Rich_Defaults",
+    title_suffix = "Rich Companies (High Profit/Equity)",
+    analysis_target = "defaults")
+  
+  Poor_Subset <- Train_Data_Base_Model %>%
+    filter(f8 < 0, f6 < 0)
+  Chart_Analyze_Defaulter_Gap(
+    data_subset  = Poor_Subset,
+    model        = XGBoost_Results_BaseModel$optimal_model,
+    save_dir     = save_directory,
+    file_suffix  = "Poor_Companies",
+    title_suffix = "Poor Companies (Negative Profit & Equity)",
+    analysis_target = "defaults")
+  
+  ##===============================##
+  ##==== Survivor Interactions.
+  ##===============================##
+  
+  save_directory <- file.path(Path, "03_Charts/VAE/XGBoost/BaseModel")
+  
+  Scatterplot_Interaction_Faceted(
+    data_input = Train_Data_Base_Model,
+    model = XGBoost_Results_BaseModel$optimal_model,
+    save_dir = file.path(Path, "03_Charts/VAE/XGBoost/BaseModel"),
+    file_name = "Interaction_Defaults_Profit_Equity.png",
+    x_feature = "f8", y_feature = "f6", 
+    analysis_target = "survivors"
+  )
+  
+  ##===============================##
+  ##==== Survivor gap.
+  ##===============================##
+  
+  save_directory <- file.path(Path, "03_Charts/VAE/XGBoost/BaseModel")
+  
+  Rich_Subset <- Train_Data_Base_Model %>% filter(f8 > 0, f6 > 0)
+  Chart_Analyze_Gap(
+    data_subset = Rich_Subset,
+    model = XGBoost_Results_BaseModel$optimal_model,
+    save_dir = file.path(Path, "03_Charts/VAE/XGBoost/BaseModel"),
+    file_suffix = "Rich_Defaults",
+    title_suffix = "Rich Companies (High Profit/Equity)",
+    analysis_target = "survivors")
+  
+  Poor_Subset <- Train_Data_Base_Model %>%
+    filter(f8 < 0, f6 < 0)
+  Chart_Analyze_Gap(
+    data_subset  = Poor_Subset,
+    model        = XGBoost_Results_BaseModel$optimal_model,
+    save_dir     = save_directory,
+    file_suffix  = "Poor_Companies",
+    title_suffix = "Poor Companies (Negative Profit & Equity)",
+    analysis_target = "survivors")
+  
+  
+  
+  
+  
+  
+}, error = function(e) message(e))
+
 #==============================================================================#
 #==============================================================================#
 #==============================================================================#
