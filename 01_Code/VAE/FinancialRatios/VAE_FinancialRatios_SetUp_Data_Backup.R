@@ -130,9 +130,61 @@ Data <- d
 
 Data <- DataPreprocessing(Data, Tolerance = 2)
 
+## Incorporate 4 more ratios.
+Data <- Data %>%
+  mutate(
+    ratio_True_Equity = f6 / (f1 + 1e-6),
+    ratio_Receivables = (f3 - f4 - f5) / (f1 + 1e-6),
+    ratio_Cash_Coverage = f5 / (f11 + 1e-6),
+    ratio_Provisions = f10 / (f1 + 1e-6)
+  )
+
+## Drop all raw data for now.
+Exclude <- c(paste("f", seq(1:18), sep = "")) ## Drop all ratios for now.
+Data <- Data[, -which(names(Data) %in% Exclude)]
+
 Data <- Data %>%
   mutate(across(where(is.numeric), ~ifelse(is.infinite(.), NA, .))) %>%
   drop_na()
+
+#==== 02C - Data Sampling =====================================================#
+
+tryCatch({
+  
+set.seed(123)
+Data_Sampled <- MVstratifiedsampling(Data,
+                                     strat_vars = c("sector", "y"),
+                                     Train_size = 0.7)
+
+Train <- Data_Sampled[["Train"]]
+Test <- Data_Sampled[["Test"]]
+
+## Quick validation.
+# Analyze the Training Set
+analyse_MVstratifiedsampling(Train, "TRAIN SET", 
+                             target_col = "y", 
+                             sector_col = "sector", 
+                             date_col = "refdate")
+
+# Analyze the Test Set
+analyse_MVstratifiedsampling(Test, "TEST SET", 
+                             target_col = "y", 
+                             sector_col = "sector", 
+                             date_col = "refdate")
+
+## Exclude id and refdate.
+# Exclude <- c("id", "refdate") ## Drop the id and ref_date (year) for now.$
+Exclude <- c("id") ## Drop the id and ref_date (year) for now.
+
+Train_with_id <- Train
+Test_with_id <- Test
+
+Train <- Train[, -which(names(Train) %in% Exclude)]
+Train_Backup <- Train
+Test <- Test[, -which(names(Test) %in% Exclude)]
+Test_Backup <- Test
+
+}, error = function(e) message(e))
 
 #==============================================================================#
 #==== 03 - Feature Engineering ================================================#
@@ -143,128 +195,143 @@ Quantile_Transform <- TRUE
 
 #==== 03A - Incorporate deviations from sector means and time dependency ======#
 
+#### Training Set.
 tryCatch({
+
+##==== Setup:
   
-  message("--- Starting Feature Engineering ---")
-  
-  # A. Setup & Ratio Calculation
-  Data_Eng <- Data %>%
-    group_by(id) %>%
-    arrange(refdate) %>% 
+  Train <- Train %>%
     mutate(
-      time_index = row_number(),
-      year = year(refdate),
-      is_new_company = ifelse(time_index == 1, 1, 0),
-      
-      # --- 1. Corrected Definitions ---
-      r7_Corrected = (f10 + f11) / (f1 + 1e-6),
-      r8_Corrected = (f10 + f11 - f5) / (f1 + 1e-6),
-      r10_Structure = (f3 - f5) / (f1 + 1e-6),
-      
-      # Growth Calculation
-      # Added 1e-6 to denominator to prevent division by zero
-      Asset_Growth_Pct = (r1 - lag(r1, 1)) / (lag(r1, 1) + 1e-6)
+      row_id = row_number(),
+      new_company_flag = c(1, diff(as.numeric(factor(sector))) != 0 | abs(diff(r1))/r1[-length(r1)] > 0.5),
+      company_id = cumsum(new_company_flag)
+    ) %>%
+    group_by(company_id) %>%
+    arrange(refdate) %>% # CRITICAL: Sort chronologically within company
+    mutate(
+      time_index = row_number(), # 1 = Oldest available date, 2 = Next, etc.
+      year = year(refdate)
     ) %>%
     ungroup()
+
+  ##==== Define the ratios to be benchmarked:
+  target_ratios <- c("r6", "r14", "r7", "ratio_True_Equity", "ratio_Cash_Coverage")
   
-  # B. Sector Benchmarks (Z-Scores)
-  target_ratios <- c("r9", "r14", "r8_Corrected", "r16", "r12", 
-                     "r10_Structure", "r7_Corrected", "r11", "r5", "r17")
-  
-  message(paste("Benchmarking", length(target_ratios), "features..."))
-  
-  Data_Eng <- Data_Eng %>%
+  Train <- Train %>%
     group_by(sector, year) %>%
     mutate(
       across(all_of(target_ratios), 
              list(
                sec_med = ~ median(., na.rm = TRUE),
-               sec_mad = ~ mad(., constant = 1.4826, na.rm = TRUE)
+               sec_mad = ~ mad(., constant = 1.4826, na.rm = TRUE) # Median Absolute Deviation (Robust SD)
              ),
              .names = "{.col}_{.fn}")
     ) %>%
-    ungroup()
+    ungroup() %>%
+    mutate(
+      r6_Sector_Zscore = (r6 - r6_sec_med) / ifelse(r6_sec_mad == 0, 1, r6_sec_mad),
+      r14_Sector_Zscore = (r14 - r14_sec_med) / ifelse(r14_sec_mad == 0, 1, r14_sec_mad),
+      r7_Sector_Zscore = (r7 - r7_sec_med) / ifelse(r7_sec_mad == 0, 1, r7_sec_mad),
+      r14_Rel_Dev = r14 - r14_sec_med
+    ) %>%
+    select(-ends_with("_sec_med"), -ends_with("_sec_mad"))
   
-  # C. Calculate Z-Scores Loop
-  for(ratio in target_ratios) {
-    z_name   <- paste0(ratio, "_Sector_Zscore")
-    med_name <- paste0(ratio, "_sec_med")
-    mad_name <- paste0(ratio, "_sec_mad")
-    
-    Data_Eng[[z_name]] <- (Data_Eng[[ratio]] - Data_Eng[[med_name]]) / 
-      ifelse(Data_Eng[[mad_name]] == 0, 1, Data_Eng[[mad_name]])
-  }
-  
-  # Remove temp columns
-  Data_Eng <- Data_Eng %>% select(-ends_with("_sec_med"), -ends_with("_sec_mad"))
-  
-  # D. Time Dependency
-  Data_Eng <- Data_Eng %>%
-    group_by(id) %>%
+  ##==== Time dependency:
+  Train <- Train %>%
+    group_by(company_id) %>%
     mutate(
       r14_Delta = r14 - lag(r14, 1),
-      r9_Delta  = r9 - lag(r9, 1),
-      r14_Volatility_Exp = sqrt(cummean((r14 - cummean(r14))^2)),
+      r7_Delta = r7 - lag(r7, 1),
+      r12_Delta = r12 - lag(r12, 1),
+      Asset_Growth_Pct = (r1 - lag(r1, 1)) / (lag(r1, 1) + 1),
+      r14_Volatility_Exp = sqrt(
+        cummean((r14 - cummean(r14))^2) # Manual calculation for expanding SD
+      ),
+      
+      r14_Mean_Exp = cummean(r14),
       Profit_Trend_Consistent = ifelse(sign(r14_Delta) == sign(lag(r14_Delta)), 1, 0)
     ) %>%
     ungroup() %>%
-    mutate(
-      across(ends_with("_Delta"), ~ replace_na(., 0)),
-      across(ends_with("_Volatility_Exp"), ~ replace_na(., 0)),
-      Asset_Growth_Pct = replace_na(Asset_Growth_Pct, 0),
-      Profit_Trend_Consistent = replace_na(Profit_Trend_Consistent, 0),
-      risk_New_HighDebt = is_new_company * r7_Corrected
+    mutate(across(ends_with("_Delta"), ~ replace_na(., 0)),
+           across(ends_with("_Growth_Pct"), ~ replace_na(., 0)),
+           across(ends_with("_Volatility_Exp"), ~ replace_na(., 0)),
+           across(ends_with("_Mean_Exp"), ~ ifelse(is.na(.), r14, .)) 
     )
   
-  message("Feature Engineering Complete.")
+  Train <- Train %>%
+    mutate(
+      is_new_company = ifelse(time_index == 1, 1, 0),
+      Profit_Trend_Consistent = replace_na(Profit_Trend_Consistent, 0),
+      risk_New_HighDebt = is_new_company * r7
+    )
   
-  # E. Drop Raw Financial Positions (f1..f18)
-  # We use 'intersect' to avoid errors if some columns are missing
-  cols_to_remove <- paste0("f", 1:18)
-  cols_present   <- intersect(names(Data_Eng), cols_to_remove)
+  # Preview the Augmented Data
+  glimpse(Train %>% select(company_id, refdate, sector, r14, r14_Sector_Zscore, r14_Delta, r14_Volatility_Exp)) 
+  glimpse(Train)
   
-  if(length(cols_present) > 0){
-    Data_Eng <- Data_Eng %>% select(-all_of(cols_present))
-    message(paste("Dropped", length(cols_present), "raw financial columns."))
-  }
-  
-}, error = function(e) message("Error in Feature Engineering: ", e))  
+}, error = function(e) message(e))
 
-#==== 03B - Data Sampling =====================================================#
+#### Test set.
+tryCatch({
+  
+  
+  
+  
+}, error = function(e) message(e))
+
+#==== 03A - Standardization ===================================================#
 
 tryCatch({
   
-  message("--- Starting Data Split ---")
-  set.seed(123)
+if(DivideByTotalAssets){
   
-  if(exists("MVstratifiedsampling")) {
-    Data_Sampled <- MVstratifiedsampling(Data_Eng, strat_vars = c("sector", "y"), Train_size = 0.7)
-    Train <- Data_Sampled[["Train"]]
-    Test  <- Data_Sampled[["Test"]]
-  } else {
-    warning("MVstratifiedsampling not found. Using simple random split.")
-    train_idx <- sample(1:nrow(Data_Eng), 0.7 * nrow(Data_Eng))
-    Train <- Data_Eng[train_idx, ]
-    Test  <- Data_Eng[-train_idx, ]
+  asset_col <- "f1" 
+  cols_to_scale <- c("f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11")
+  
+  safe_divide <- function(numerator, denominator) {
+    if_else(denominator == 0 | is.na(denominator), 
+            0,                       
+            numerator / denominator
+    )
   }
   
-  message(paste("Split Complete. Train:", nrow(Train), "Test:", nrow(Test)))
+  Train <- Train %>%
+    mutate(
+      across(
+        .cols = all_of(cols_to_scale),
+        .fns = ~ safe_divide(.x, .data[[asset_col]])
+      )
+    ) %>%
+    as.data.frame()
   
-}, error = function(e) message("Error in Splitting: ", e))
+  Test <- Test %>%
+    mutate(
+      across(
+        .cols = all_of(cols_to_scale),
+        .fns = ~ safe_divide(.x, .data[[asset_col]])
+      )
+    ) %>%
+    as.data.frame()
+  
+}
 
-#==== 03C - Quantile Transformation ===========================================#
+}, error = function(e) message(e))
+
+#==== 03B - Quantile Transformation ===========================================#
 
 tryCatch({
   
-  message("--- Starting Quantile Transformation ---")
-  
-  if(exists("Quantile_Transform") && Quantile_Transform){
+  if(Quantile_Transform){
     
-    # 1. Identify Columns to Transform
-    # Exclude metadata, targets, and binary flags
+    # 1. Identify all Numeric Columns to Transform
+    # We exclude:
+    # - ID/Metadata: "id", "company_id", "row_id", "time_index", "refdate", "sector", "size"
+    # - The Target: "y"
+    # - Binary Flags: "is_new_company", "Profit_Trend_Consistent" (Transforming 0/1 makes no sense)
+    
     exclude_cols <- c("y", "id", "company_id", "row_id", "time_index", 
                       "refdate", "sector", "size", "groupmember", "public",
-                      "is_new_company", "Profit_Trend_Consistent", "year")
+                      "is_new_company", "Profit_Trend_Consistent", "new_company_flag")
     
     numeric_cols <- names(Train)[sapply(Train, is.numeric)]
     cols_to_transform <- setdiff(numeric_cols, exclude_cols)
@@ -274,64 +341,54 @@ tryCatch({
     Train_Transformed <- Train
     Test_Transformed  <- Test 
     
-    # 2. Transform Loop
     for (col in cols_to_transform) {
       if(col %in% names(Train) && col %in% names(Test)) {
-        if(exists("QuantileTransformation")) {
-          res <- QuantileTransformation(Train[[col]], Test[[col]])
-          Train_Transformed[[col]] <- res$train
-          Test_Transformed[[col]]  <- res$test
-        }
+        res <- QuantileTransformation(Train[[col]], Test[[col]])
+        Train_Transformed[[col]] <- res$train
+        Test_Transformed[[col]]  <- res$test
       }
     }
     
-    message("Transformation Complete.")
+    message("Transformation Complete. Summary of r14 (ROA) after transform:")
+    print(summary(Train_Transformed$r14))
     
   } else {
     Train_Transformed <- Train
     Test_Transformed  <- Test
-    message("Skipping Transformation.")
   }
   
-}, error = function(e) message("Error in Transformation: ", e))
-
-#==== 03D - Cleanup and factors ===============================================#
+}, error = function(e) message(e))
+#==== 03C - Ensure the categorical variables are factors ======================#
 
 tryCatch({
   
-  message("--- Starting Final Cleanup ---")
+## Ensure categorical variables are set up as factors.
+cat_cols <- names(Train_Transformed)[sapply(Train_Transformed, is.character)]
+cat_cols <- setdiff(cat_cols, "y")
+
+print(paste("Categorical columns found:", paste(cat_cols, collapse = ", ")))
+
+for (col in cat_cols) {
   
-  # 1. define Metadata to Drop from Modeling Set
-  cols_to_drop <- c("id", "company_id", "row_id", "time_index", "refdate", "year")
+  Train_Transformed[[col]] <- as.factor(Train_Transformed[[col]])
   
-  # 2. Align Factors
-  # Identify categorical predictors (exclude y and metadata)
-  cat_cols <- names(Train_Transformed)[sapply(Train_Transformed, function(x) is.character(x) || is.factor(x))]
-  cat_cols <- setdiff(cat_cols, c("y", cols_to_drop))
+  train_levels <- levels(Train_Transformed[[col]])
+  Test_Transformed[[col]] <- factor(Test_Transformed[[col]], 
+                                    levels = train_levels)
   
-  for (col in cat_cols) {
-    # Train
-    Train_Transformed[[col]] <- as.factor(Train_Transformed[[col]])
-    train_levels <- levels(Train_Transformed[[col]])
-    
-    # Test (Enforce Train levels)
-    Test_Transformed[[col]] <- factor(Test_Transformed[[col]], levels = train_levels)
+  na_count <- sum(is.na(Test_Transformed[[col]]))
+  if(na_count > 0){
+    warning(paste("Variable", col, "in Test set has", na_count, 
+                  "new levels not seen in Train. They are now NAs."))
   }
-  
-  # 3. Handle Target 'y'
-  if("y" %in% names(Train_Transformed)) {
-    Train_Transformed$y <- factor(as.character(Train_Transformed$y), levels = c("0", "1"))
-    Test_Transformed$y  <- factor(as.character(Test_Transformed$y), levels = c("0", "1"))
-  }
-  
-  # 4. Create Final Sets
-  Train_Final <- Train_Transformed[, !names(Train_Transformed) %in% cols_to_drop]
-  Test_Final  <- Test_Transformed[, !names(Test_Transformed) %in% cols_to_drop]
-  
-  message("Processing Complete. Ready for Modelling.")
-  glimpse(Train_Final)
-  
-}, error = function(e) message("Error in Cleanup: ", e))
+}
+
+Train_Transformed$y <- as.factor(Train_Transformed$y)
+Test_Transformed$y  <- factor(Test_Transformed$y, levels = levels(Train_Transformed$y))
+
+str(Train_Transformed[, cat_cols, drop=FALSE])
+
+}, error = function(e) message(e))
 
 #==============================================================================#
 #==== 04 - VAE (Strategy A: latent features; Strategy B: anomaly score) =======#
@@ -341,69 +398,29 @@ tryCatch({
 
 tryCatch({
   
-  # --- 1. Filter out Metadata & Target first ---
-  # We only want predictors.
-  # "y" is the target. "id", "refdate", "year", "time_index", "company_id" are metadata.
-  meta_cols <- c("y", "id", "refdate", "year", "time_index", "company_id", "row_id")
-  
-  # Predictors only
-  features_only <- Train_Final[, !names(Train_Final) %in% meta_cols]
-  
-  # --- 2. Identify Binary Features ---
-  # explicitly list your binary 0/1 columns
-  bin_cols <- c("groupmember", "public", "is_new_company", "Profit_Trend_Consistent")
-  
-  # --- 3. Identify Categorical Features (for One-Hot) ---
-  # These are your factors like 'sector' and 'size'
-  cat_cols <- names(features_only)[sapply(features_only, is.factor)]
-  
-  # --- 4. Identify Continuous Features ---
-  # Everything else that is Numeric is a continuous feature (Ratios, Z-Scores, Deltas)
-  # We take all numeric columns and subtract the known binary ones
-  num_cols <- names(features_only)[sapply(features_only, is.numeric)]
-  cont_cols <- setdiff(num_cols, bin_cols)
-  
-  message(paste("Continuous Features:", length(cont_cols)))
-  message(paste("Binary Features:", length(bin_cols)))
-  message(paste("Categorical Features:", length(cat_cols)))
-  
-  # --- 5. Construct the Input Matrix ---
-  
-  # A. Continuous Data (Normalized Ratios, Z-Scores)
-  data_cont <- features_only[, cont_cols]
-  
-  # B. Binary Data (Flags)
-  data_bin  <- features_only[, bin_cols]
-  
-  # C. One-Hot Encoded Categoricals
-  # We use fullRank = FALSE to keep all levels (usually better for VAEs/Neural Nets)
-  dummies_model <- dummyVars(~ ., data = features_only[, cat_cols])
-  data_cat_onehot <- predict(dummies_model, newdata = features_only[, cat_cols]) %>% as.data.frame()
-  
-  # --- 6. Combine ---
-  vae_input_data <- cbind(data_cont, data_bin, data_cat_onehot)
-  
-  # Final Check
-  if(any(is.na(vae_input_data))) stop("Input data contains NAs!")
-  
-  # --- 7. Distribution Setup (Assuming this function exists in your env) ---
-  feat_dist <- extracting_distribution(vae_input_data)
-  set_feat_dist(feat_dist)
-  
-  ### Configuration:
-  # Note: 64/32 neurons is small if you have many One-Hot columns. 
-  # Check ncol(vae_input_data). If it's >100, consider 128->64.
-  encoder_config <- list(
-    list("dense", 128, "relu"),
-    list("dense", 64, "relu")
-  )
-  
-  decoder_config <- list(
-    list("dense", 64, "relu"),
-    list("dense", 128, "relu")
-  )
-  
-}, error = function(e) message("VAE Prep Error: ", e))
+train_features <- Train_Transformed %>% select(-y)
+data_cont <- train_features %>% select(starts_with("f"))
+data_bin  <- train_features %>% select(groupmember, public)
+
+dummies_model   <- dummyVars(~ size + sector, data = train_features)
+data_cat_onehot <- predict(dummies_model, newdata = train_features) %>% as.data.frame()
+
+vae_input_data <- cbind(data_cont, data_bin, data_cat_onehot)
+feat_dist <- extracting_distribution(vae_input_data)
+set_feat_dist(feat_dist)
+
+### Configuration:
+encoder_config <- list(
+  list("dense", 64, "relu"),
+  list("dense", 32, "relu")
+)
+
+decoder_config <- list(
+  list("dense", 32, "relu"),
+  list("dense", 64, "relu")
+)
+
+}, error = function(e) message(e))
 
 #==== 04B - Train the Baseline VAE ============================================#
 
@@ -454,154 +471,147 @@ colnames(Strategy_A_LF) <- paste0("l", 1:8)
 ## Test set.
 tryCatch({
   
-  # 1. Separate Features from Metadata
-  # We reuse the same logic as training
-  test_features <- Test_Final %>% select(-y)
+  test_features <- Test_Transformed %>% select(-y)
+  test_cont     <- test_features %>% select(starts_with("f"))
+  test_bin      <- test_features %>% select(groupmember, public)
   
-  # 2. Select Columns using the SAME lists from Training
-  # (Assumes 'cont_cols' and 'bin_cols' exist from the previous step)
-  
-  # Continuous (Ratios, Z-Scores, Deltas)
-  test_cont <- test_features[, cont_cols]
-  
-  # Binary (Flags)
-  test_bin  <- test_features[, bin_cols]
-  
-  # 3. One-Hot Encoding
-  # Use the SAME dummies_model from training to ensure levels match
   test_cat_onehot <- predict(dummies_model, newdata = test_features) %>% as.data.frame()
-  
-  # 4. Combine
   test_vae_input_data <- cbind(test_cont, test_bin, test_cat_onehot)
   
-  # 5. Alignment (Defensive Programming)
-  # This section ensures the column ORDER and COUNT match exactly
   
-  # A. Add missing columns (e.g. if Test set is missing a specific sector)
   missing_cols <- setdiff(names(vae_input_data), names(test_vae_input_data))
+  
   if(length(missing_cols) > 0) {
-    # Create a zero-filled dataframe for missing cols
-    missing_df <- as.data.frame(matrix(0, nrow = nrow(test_vae_input_data), ncol = length(missing_cols)))
-    colnames(missing_df) <- missing_cols
-    test_vae_input_data <- cbind(test_vae_input_data, missing_df)
-    message(paste("Filled missing columns in Test:", paste(missing_cols, collapse=", ")))
+    for(col in missing_cols) {
+      test_vae_input_data[[col]] <- 0
+    }
   }
   
-  # B. Remove extra columns (e.g. if Test has a level not seen in Train)
   extra_cols <- setdiff(names(test_vae_input_data), names(vae_input_data))
   if(length(extra_cols) > 0) {
     test_vae_input_data <- test_vae_input_data %>% select(-all_of(extra_cols))
   }
   
-  # C. Reorder columns to match Train EXACTLY
-  test_vae_input_data <- test_vae_input_data[, names(vae_input_data)]
+  test_vae_input_data <- test_vae_input_data %>% select(all_of(names(vae_input_data)))
   test_matrix <- as.matrix(test_vae_input_data)
   
-  # 6. Prediction
-  # Use the standalone encoder
+  # Use the standalone encoder we built earlier
   test_latent_raw <- predict(enc_model, test_matrix)
   
-  ### Strategy A Output:
+  ### Strategy A:
   Strategy_A_LF_Test <- as.data.frame(test_latent_raw[[1]])
   colnames(Strategy_A_LF_Test) <- paste0("l", 1:8)
   
-  message("Test Set Latent Features extracted successfully.")
-  
-}, error = function(e) message("Test Prep Error: ", e))
+}, error = function(e) message(e))
 
 #==== 04C - Strategy B: Anomaly Score =========================================#
 
 ## Training set.
 tryCatch({
   
-  message("--- Calculating Training Anomaly Scores ---")
-  
   # 1. Get Reconstruction
   reconstructed_list <- predict(vae_fit$trained_model, as.matrix(vae_input_data))
   
-  # Handle Keras output (list vs tensor)
   if(is.list(reconstructed_list)) {
     reconstructed_data <- as.matrix(reconstructed_list[[1]])
   } else {
     reconstructed_data <- as.matrix(reconstructed_list)
   }
   
-  # 2. Define Dimensions (Using Sources of Truth)
-  # We rely on 'cont_cols' from the VAE Prep block if available
-  if(exists("cont_cols")) {
-    n_cont_cols <- length(cont_cols)
-  } else if (exists("data_cont")) {
+  # --- SENIOR FIX 1: Fix Dimensions & Indexing ---
+  # Check if data_cont exists; if not, assume all numeric columns are continuous
+  if (exists("data_cont") && !is.null(data_cont)) {
     n_cont_cols <- ncol(data_cont)
   } else {
-    stop("Critical: Cannot determine number of continuous columns. 'cont_cols' missing.")
+    # Fallback: Count numeric columns in input
+    n_cont_cols <- sum(sapply(vae_input_data, is.numeric))
+    message(paste("Note: 'data_cont' object not found. Detected", n_cont_cols, "continuous columns."))
   }
   
-  n_total_cols <- ncol(vae_input_data)
-  n_cat_cols   <- n_total_cols - n_cont_cols # Includes Binary + OneHot
-  
-  # 3. Extract Matrices
-  # Continuous Part (First N columns)
-  if (n_cont_cols > 0) {
-    input_cont <- as.matrix(vae_input_data[, 1:n_cont_cols, drop = FALSE])
-    recon_cont <- as.matrix(reconstructed_data[, 1:n_cont_cols, drop = FALSE])
+  # Handle edge case where NO continuous columns exist to prevent index errors
+  if (n_cont_cols == 0) {
+    n_cat_cols <- ncol(vae_input_data)
+    cont_indices <- integer(0) # Empty vector
+  } else {
+    n_cat_cols <- ncol(vae_input_data) - n_cont_cols 
+    cont_indices <- 1:n_cont_cols
   }
   
-  # Categorical/Binary Part (Remaining columns)
+  # 2. Extract Matrices Safely
+  if (length(cont_indices) > 0) {
+    input_cont <- as.matrix(vae_input_data[, cont_indices, drop = FALSE])
+    recon_cont <- as.matrix(reconstructed_data[, cont_indices, drop = FALSE])
+  } else {
+    input_cont <- matrix(0, nrow = nrow(vae_input_data), ncol = 0)
+    recon_cont <- matrix(0, nrow = nrow(vae_input_data), ncol = 0)
+  }
+  
   if (n_cat_cols > 0) {
-    cat_indices <- (n_cont_cols + 1):n_total_cols
+    cat_indices <- (n_cont_cols + 1):ncol(vae_input_data)
     input_cat   <- as.matrix(vae_input_data[, cat_indices, drop = FALSE])
     recon_cat   <- as.matrix(reconstructed_data[, cat_indices, drop = FALSE])
+  } else {
+    input_cat <- matrix(0, nrow = nrow(vae_input_data), ncol = 0)
+    recon_cat <- matrix(0, nrow = nrow(vae_input_data), ncol = 0)
   }
   
-  # 4. Calculate Scores
+  # 3. Calculate Scores (MSE & BCE)
   
-  # A. Continuous Score (MSE)
+  # Continuous Score
   if (n_cont_cols > 0) {
     mse_raw <- (input_cont - recon_cont)^2
-    # Clip extreme overflows
+    # Clip extreme overflows just in case
     mse_raw[is.infinite(mse_raw)] <- 1e9 
-    
-    # Row-wise Sum / Count
-    mse_normalized <- rowSums(mse_raw, na.rm = TRUE) / n_cont_cols
+    mse_scores <- rowSums(mse_raw, na.rm = TRUE)
   } else {
-    mse_normalized <- numeric(nrow(vae_input_data))
+    mse_scores <- numeric(nrow(vae_input_data))
   }
   
-  # B. Categorical Score (BCE for 0/1 data)
+  # Categorical Score
   if (n_cat_cols > 0) {
     epsilon   <- 1e-15
     recon_cat <- pmax(pmin(recon_cat, 1 - epsilon), epsilon)
-    
-    bce_raw <- -(input_cat * log(recon_cat) + (1 - input_cat) * log(1 - recon_cat))
-    
-    # Row-wise Sum / Count
-    bce_normalized <- rowSums(bce_raw, na.rm = TRUE) / n_cat_cols
+    bce_scores <- -rowSums(input_cat * log(recon_cat) + (1 - input_cat) * log(1 - recon_cat), na.rm = TRUE)
   } else {
-    bce_normalized <- numeric(nrow(vae_input_data))
+    bce_scores <- numeric(nrow(vae_input_data))
   }
   
-  # 5. Weighted Combination (Balanced)
+  # --- SENIOR FIX 2: Safe Normalization (Prevent Div/0) ---
+  
+  if (n_cont_cols > 0) {
+    mse_normalized <- mse_scores / n_cont_cols
+  } else {
+    mse_normalized <- 0 
+  }
+  
+  if (n_cat_cols > 0) {
+    bce_normalized <- bce_scores / n_cat_cols
+  } else {
+    bce_normalized <- 0
+  }
+  
+  # 5. Weighted Combination
   final_score <- mse_normalized + bce_normalized
   
   # 6. Apply to Dataframe
-  Strategy_B_AS <- Train_Final %>%
+  Strategy_B_AS <- Train_Transformed %>%
     mutate(
       anomaly_score_cont_avg = mse_normalized,
       anomaly_score_cat_avg  = bce_normalized,
       anomaly_score_balanced = final_score 
     )
   
-  print("Strategy B (Train) calculated successfully. Summary:")
+  print("Strategy B calculated successfully. Summary:")
   print(summary(Strategy_B_AS$anomaly_score_balanced))
   
-}, error = function(e) message("Error in Strategy B Train: ", e))
+}, error = function(e) message("Error in Strategy B: ", e))
 
 ## Test set.
 tryCatch({
   
-  message("--- Calculating Test Anomaly Scores ---")
+  ### Strategy B: Test Set Anomaly Detection
   
-  # 1. Get Reconstruction
+  # 1. Get Reconstruction & Handle Output Format
   reconstructed_list <- predict(vae_fit$trained_model, as.matrix(test_matrix))
   
   if(is.list(reconstructed_list)) {
@@ -610,26 +620,26 @@ tryCatch({
     test_recon_matrix <- as.matrix(reconstructed_list)
   }
   
-  # Clip Infinite Model Outputs
+  # SAFETY CHECK: Clip Infinite Model Outputs
   test_recon_matrix[is.infinite(test_recon_matrix) & test_recon_matrix > 0] <- 1e9
   test_recon_matrix[is.infinite(test_recon_matrix) & test_recon_matrix < 0] <- -1e9
   test_recon_matrix[is.na(test_recon_matrix)] <- 0 
   
-  # 2. Define Dimensions (Consistency Check)
-  # USE THE SAME COUNT AS TRAINING
-  if(exists("n_cont_cols")) {
-    n_cont <- n_cont_cols
-  } else if(exists("cont_cols")) {
-    n_cont <- length(cont_cols)
-  } else {
-    # Fallback to test_cont if training vars are lost
+  # 2. Define Dimensions Safely
+  # Detect n_cont based on actual data if possible, or fall back to column count
+  if (exists("test_cont") && !is.null(test_cont)) {
     n_cont <- ncol(test_cont)
+  } else {
+    # Fallback: assume first N columns are numeric if test_cont isn't explicitly defined
+    # You might need to hardcode this if you know the exact number, e.g., n_cont <- 12
+    n_cont <- sum(sapply(test_matrix, is.numeric))
+    message(paste("Note: 'test_cont' not found. Using detected count:", n_cont))
   }
   
-  n_total <- ncol(test_matrix)
-  n_cat   <- n_total - n_cont
+  # Define Categorical count
+  n_cat <- ncol(test_matrix) - n_cont
   
-  # 3. Calculate Scores
+  # 3. Calculate Scores (with conditional logic for 0 columns)
   
   # --- Continuous Scores (MSE) ---
   if (n_cont > 0) {
@@ -637,38 +647,49 @@ tryCatch({
     input_cont_test <- as.matrix(test_matrix[, 1:n_cont, drop = FALSE])
     recon_cont_test <- as.matrix(test_recon_matrix[, 1:n_cont, drop = FALSE])
     
+    # Sanitize Input (Handle potential Infs in input data)
     input_cont_test[is.infinite(input_cont_test)] <- 1e9 
     
+    # Calculate Squared Error
     sq_error <- (input_cont_test - recon_cont_test)^2
-    sq_error[is.infinite(sq_error)] <- 1e9 
+    sq_error[is.infinite(sq_error)] <- 1e9 # Clip overflows
     
+    # Normalize immediately (Sum / Count)
     mse_norm_test <- rowSums(sq_error, na.rm = TRUE) / n_cont
+    
   } else {
-    mse_norm_test <- numeric(nrow(test_matrix)) 
+    mse_norm_test <- numeric(nrow(test_matrix)) # Zeros if no cont columns
   }
   
   # --- Categorical Scores (BCE) ---
   if (n_cat > 0) {
     # Slice matrices
-    cat_indices      <- (n_cont + 1):n_total
+    cat_indices      <- (n_cont + 1):ncol(test_matrix)
     input_cat_test   <- as.matrix(test_matrix[, cat_indices, drop = FALSE])
     recon_cat_test   <- as.matrix(test_recon_matrix[, cat_indices, drop = FALSE])
     
+    # Epsilon Clipping for log stability
     epsilon <- 1e-15
     recon_cat_test <- pmax(pmin(recon_cat_test, 1 - epsilon), epsilon)
     
+    # Calculate BCE
     bce_raw <- -(input_cat_test * log(recon_cat_test) + (1 - input_cat_test) * log(1 - recon_cat_test))
     
+    # Normalize immediately
     bce_norm_test <- rowSums(bce_raw, na.rm = TRUE) / n_cat
+    
   } else {
-    bce_norm_test <- numeric(nrow(test_matrix))
+    bce_norm_test <- numeric(nrow(test_matrix)) # Zeros if no cat columns
   }
   
   # 4. Weighted Combination
-  final_score_test <- mse_norm_test + bce_norm_test
+  w_cont <- 1.0 
+  w_cat  <- 1.0 
+  
+  final_score_test <- (mse_norm_test * w_cont) + (bce_norm_test * w_cat)
   
   # 5. Append to Test Data
-  Strategy_B_AS_Test <- Test_Final %>%
+  Strategy_B_AS_Test <- Test_Transformed %>%
     mutate(
       anomaly_score_cont_avg = mse_norm_test,
       anomaly_score_cat_avg  = bce_norm_test,
@@ -685,28 +706,24 @@ tryCatch({
 ## Training set.
 tryCatch({
   
-  message("--- Strategy C: Training DAE ---")
-  
-  # 1. Prepare Data
-  # We use the correctly engineered 'vae_input_data' from the previous step
   x_train_clean <- as.matrix(vae_input_data)
   input_dim <- ncol(x_train_clean)
   
-  message(paste("Training DAE on", input_dim, "features..."))
-  
-  # 2. Define the DAE Architecture (Functional API)
+  # 2. Define the DAE Architecture
+  # We use the Functional API to insert the Noise Layer
   input_layer <- layer_input(shape = c(input_dim))
   
   encoded <- input_layer %>%
-    # Noise Injection: 0.1 stddev is standard for financial data
+    # ADD NOISE HERE: 0.1 is standard deviation (tune between 0.05 - 0.2)
     layer_gaussian_noise(stddev = 0.1) %>% 
-    layer_dense(units = 128, activation = "relu") %>% # Increased to match complex features
     layer_dense(units = 64, activation = "relu") %>%
+    layer_dense(units = 32, activation = "relu") %>%
     layer_dense(units = 8, activation = "relu", name = "bottleneck") # Latent Space
   
   decoded <- encoded %>%
+    layer_dense(units = 32, activation = "relu") %>%
     layer_dense(units = 64, activation = "relu") %>%
-    layer_dense(units = 128, activation = "relu") %>%
+    # Output layer must match input dimensions
     layer_dense(units = input_dim, activation = "linear") 
   
   # 3. Compile
@@ -714,12 +731,12 @@ tryCatch({
   
   dae_autoencoder %>% compile(
     optimizer = "adam",
-    loss = "mse"
+    loss = "mse" # MSE is standard for DAE reconstruction
   )
   
-  # 4. Train
-  # x = Clean Data, y = Clean Data. 
-  # The Gaussian Noise layer corrupts 'x' internally during training.
+  # 4. Train (The Critical Step)
+  # Notice: x = x_train_clean, y = x_train_clean
+  # The layer_gaussian_noise handles the corruption internally during training only.
   history <- dae_autoencoder %>% fit(
     x = x_train_clean, 
     y = x_train_clean, 
@@ -731,76 +748,44 @@ tryCatch({
   )
   
   # 5. Extract Latent Features
+  # Create a separate model that stops at the bottleneck
   encoder_only <- keras_model(inputs = dae_autoencoder$input, 
                               outputs = get_layer(dae_autoencoder, "bottleneck")$output)
   
+  # Predict Latent Features
   latent_train <- predict(encoder_only, x_train_clean)
+  colnames(latent_train) <- paste0("dae_l", 1:8)
   
-  # Create DataFrame
-  Strategy_C_LF <- as.data.frame(latent_train)
-  colnames(Strategy_C_LF) <- paste0("dae_l", 1:8)
-  
-  # Combine with original data
-  Strategy_C <- cbind(Train_Final, Strategy_C_LF)
+  # Combine
+  Strategy_C <- cbind(Train_Transformed, as.data.frame(latent_train))
   
   message("DAE Training Complete. Latent features extracted.")
   
-}, error = function(e) message("Strategy C Training Error: ", e))
+}, error = function(e) message("Strategy C: Denoising Training.", e))
 
 ## Test set.
 tryCatch({
   
   message("--- Preparing Test Set for Strategy C ---")
   
-  # 1. Separate Features from Metadata
-  test_features <- Test_Final %>% select(-y)
+  test_features <- Test_Transformed %>% select(-y)
+  test_cont     <- test_features %>% select(starts_with("f"))
+  test_bin      <- test_features %>% select(groupmember, public)
   
-  # 2. Select Columns using the SAME lists from Training (Robust)
-  # (Assumes 'cont_cols' and 'bin_cols' exist from VAE Prep step)
-  
-  # Continuous (Ratios, Z-Scores, Deltas)
-  test_cont <- test_features[, cont_cols]
-  
-  # Binary (Flags)
-  test_bin  <- test_features[, bin_cols]
-  
-  # 3. One-Hot Encoding
   test_cat_onehot <- predict(dummies_model, newdata = test_features) %>% as.data.frame()
+  test_vae_input_data <- cbind(test_cont, test_bin, test_cat_onehot)
   
-  # 4. Combine
-  test_dae_input_data <- cbind(test_cont, test_bin, test_cat_onehot)
+  x_test_matrix <- as.matrix(test_vae_input_data)
   
-  # 5. ALIGNMENT (Crucial Step)
-  # Ensure columns match Training exactly
-  
-  # A. Fill Missing
-  missing_cols <- setdiff(colnames(vae_input_data), colnames(test_dae_input_data))
-  if(length(missing_cols) > 0) {
-    missing_df <- as.data.frame(matrix(0, nrow = nrow(test_dae_input_data), ncol = length(missing_cols)))
-    colnames(missing_df) <- missing_cols
-    test_dae_input_data <- cbind(test_dae_input_data, missing_df)
-  }
-  
-  # B. Drop Extra
-  extra_cols <- setdiff(colnames(test_dae_input_data), colnames(vae_input_data))
-  if(length(extra_cols) > 0) {
-    test_dae_input_data <- test_dae_input_data %>% select(-all_of(extra_cols))
-  }
-  
-  # C. Reorder
-  test_dae_input_data <- test_dae_input_data[, colnames(vae_input_data)]
-  x_test_matrix <- as.matrix(test_dae_input_data)
-  
-  # 6. Predict Latent Features
   test_latent_dae <- predict(encoder_only, x_test_matrix)
   
   Strategy_C_LF_Test <- as.data.frame(test_latent_dae)
   colnames(Strategy_C_LF_Test) <- paste0("dae_l", 1:8)
   
-  Strategy_C_Test <- cbind(Test_Final, Strategy_C_LF_Test)
+  Strategy_C_Test <- cbind(Test_Transformed, Strategy_C_LF_Test)
   
-  print("Success: Strategy C Test Set Prepared and Features Extracted.")
-  
+  print("Success: Strategy C Test Set Prepared.")
+
 }, error = function(e) message("DAE Test Set Error: ", e))
 
 #==== 04E - Strategy D: Feature engineering Cash & Profit =====================#

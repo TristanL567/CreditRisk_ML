@@ -23,14 +23,14 @@ tryCatch({
 ##=========================================##
   
 ### Base Model.
-Train_Data_Base_Model <- Train_Transformed
+Train_Data_Base_Model <- Train_Final
 Train_Data_Base_Model <- Train_Data_Base_Model %>%
   mutate(
     id = Train_with_id$id) 
 
 ######## DO NOT NEED TO ADD THE ID AS WE USE THE SAME ROWS LATER.
 ### Strategy A: latent features.
-Final_Train_Set_A <- cbind(Train_Transformed, Strategy_A_LF)
+Final_Train_Set_A <- cbind(Train_Final, Strategy_A_LF)
 Train_Data_Strategy_A <- Final_Train_Set_A
 
 ### Strategy B: anomaly score.
@@ -78,8 +78,8 @@ Train_Data_Base_Model <- Train_Data_Base_Model %>%
 ## General Parameters.
 ##==============================##
 
-n_init_points <- 2
-n_iter_bayes  <- 4
+n_init_points <- 10
+n_iter_bayes  <- 20
 
 #==== 01A - Base model ========================================================#
 
@@ -1183,7 +1183,8 @@ tryCatch({
 tryCatch({
 
 ### Base model.
-Test_Data_Base_Model <- Test_Transformed
+  # Train_Final
+Test_Data_Base_Model <- Test_Final
 
 ### Strategy A: latent features.
 Final_Test_Set_A <- cbind(Test_Transformed, Strategy_A_LF_Test)

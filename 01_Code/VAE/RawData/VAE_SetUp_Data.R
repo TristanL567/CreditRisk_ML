@@ -78,7 +78,7 @@ sourceFunctions <- function (functionDirectory)  {
 #==== 1C - Parameters =========================================================#
 
 ## Directories.
-Data_Path <- "C:/Users/TristanLeiter/Documents/Privat/ILAB/Data/WS2025" ## Needs to be set manually.
+Data_Path <- "C:/Users/Tristan Leiter/Documents/Privat/ILAB/Data/WS2025" ## Needs to be set manually.
 Data_Directory <- file.path(Data_Path, "data.rda")
 Data_Directory_write <- file.path(Path, "02_Data")
 Charts_Directory <- file.path(Path, "03_Charts")
@@ -176,7 +176,7 @@ Test_Backup <- Test
 
 DivideByTotalAssets <- FALSE
 
-#==== 03A - Standardization ===================================================#
+#==== 03B - Standardization ===================================================#
 
 tryCatch({
   
@@ -214,7 +214,7 @@ if(DivideByTotalAssets){
 
 }, error = function(e) message(e))
 
-#==== 03B - Quantile Transformation ===========================================#
+#==== 03C - Quantile Transformation ===========================================#
 
 tryCatch({
   
@@ -233,7 +233,7 @@ summary(Train_Transformed$f1)
 
 }, error = function(e) message(e))
 
-#==== 03C - Ensure the categorical variables are factors ======================#
+#==== 03D - Ensure the categorical variables are factors ======================#
 
 tryCatch({
   
