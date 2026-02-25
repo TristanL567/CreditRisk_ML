@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2022.11.21)  17 FEB 2026 17:04
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2022.11.21)  17 FEB 2026 22:23
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -638,211 +638,211 @@ l.490 \chapter
 
 ]
 \bbl@ensure@ngerman {Kapitel} 5.
+<C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModel_Feature_Importance.png, id=393, 578.16pt x 433.62pt>
+File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModel_Feature_Importance.png Graphic file (type png)
+<use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModel_Feature_Importance.png>
+Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModel_Feature_Importance.png  used on input line 551.
+(pdftex.def)             Requested size: 400.38872pt x 300.28984pt.
 [11
 
 
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.1}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.546 
+l.554 
       
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.2}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.546 
+l.554 
       ]
-<C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModel_Feature_Importance.png, id=402, 578.16pt x 433.62pt>
-File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModel_Feature_Importance.png Graphic file (type png)
-<use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModel_Feature_Importance.png>
-Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModel_Feature_Importance.png  used on input line 553.
-(pdftex.def)             Requested size: 400.38872pt x 300.28984pt.
 <C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelMarginalResponse_Batch_1.png, id=404, 867.24pt x 578.16pt>
 File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelMarginalResponse_Batch_1.png Graphic file (type png)
 <use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelMarginalResponse_Batch_1.png>
-Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelMarginalResponse_Batch_1.png  used on input line 561.
+Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelMarginalResponse_Batch_1.png  used on input line 559.
 (pdftex.def)             Requested size: 400.38872pt x 266.92725pt.
+<C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelBeamer_Hex_f8_f5.png, id=405, 650.43pt x 505.89pt>
+File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelBeamer_Hex_f8_f5.png Graphic file (type png)
+<use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelBeamer_Hex_f8_f5.png>
+Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelBeamer_Hex_f8_f5.png  used on input line 568.
+(pdftex.def)             Requested size: 400.38872pt x 311.41768pt.
 [12
 pdfTeX warning (ext4): destination with the same identifier (name{figure.5.1}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.565 
-       <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModel_Feature_Importance.png>]
-<C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelBeamer_Hex_f8_f5.png, id=413, 650.43pt x 505.89pt>
-File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelBeamer_Hex_f8_f5.png Graphic file (type png)
-<use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelBeamer_Hex_f8_f5.png>
-Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelBeamer_Hex_f8_f5.png  used on input line 570.
-(pdftex.def)             Requested size: 400.38872pt x 311.41768pt.
-<C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelError_Boxplot_Batch_3.png, id=414, 722.7pt x 578.16pt>
-File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelError_Boxplot_Batch_3.png Graphic file (type png)
-<use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelError_Boxplot_Batch_3.png>
-Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelError_Boxplot_Batch_3.png  used on input line 579.
-(pdftex.def)             Requested size: 400.38872pt x 320.30916pt.
-[13
+l.572 
+      
 pdfTeX warning (ext4): destination with the same identifier (name{figure.5.2}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.582 
-      
+l.572 
+       <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModel_Feature_Importance.png> <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelMarginalResponse_Batch_1.png>]
+<C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelError_Boxplot_Batch_3.png, id=416, 722.7pt x 578.16pt>
+File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelError_Boxplot_Batch_3.png Graphic file (type png)
+<use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelError_Boxplot_Batch_3.png>
+Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelError_Boxplot_Batch_3.png  used on input line 577.
+(pdftex.def)             Requested size: 400.38872pt x 320.30916pt.
+[13
 pdfTeX warning (ext4): destination with the same identifier (name{figure.5.3}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.582 
-       <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelMarginalResponse_Batch_1.png> <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelBeamer_Hex_f8_f5.png>]
+l.580 
+       <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelBeamer_Hex_f8_f5.png>]
 <C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyA_Feature_Importance.png, id=423, 578.16pt x 433.62pt>
 File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyA_Feature_Importance.png Graphic file (type png)
 <use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyA_Feature_Importance.png>
-Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyA_Feature_Importance.png  used on input line 610.
+Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyA_Feature_Importance.png  used on input line 608.
 (pdftex.def)             Requested size: 400.38872pt x 300.28984pt.
 [14
 pdfTeX warning (ext4): destination with the same identifier (name{figure.5.4}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.613 
+l.611 
       
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.3}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.613 
+l.611 
        <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel/BaseModelError_Boxplot_Batch_3.png>]
 <C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAMarginalResponse_Batch_1.png, id=431, 867.24pt x 578.16pt>
 File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAMarginalResponse_Batch_1.png Graphic file (type png)
 <use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAMarginalResponse_Batch_1.png>
-Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAMarginalResponse_Batch_1.png  used on input line 618.
+Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAMarginalResponse_Batch_1.png  used on input line 616.
 (pdftex.def)             Requested size: 400.38872pt x 266.92725pt.
 [15
 pdfTeX warning (ext4): destination with the same identifier (name{figure.5.5}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.622 
+l.620 
        <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyA_Feature_Importance.png>]
 <C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyABeamer_Hex_f8_f5.png, id=439, 650.43pt x 505.89pt>
 File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyABeamer_Hex_f8_f5.png Graphic file (type png)
 <use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyABeamer_Hex_f8_f5.png>
-Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyABeamer_Hex_f8_f5.png  used on input line 627.
+Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyABeamer_Hex_f8_f5.png  used on input line 625.
 (pdftex.def)             Requested size: 400.38872pt x 311.41768pt.
 [16
 pdfTeX warning (ext4): destination with the same identifier (name{figure.5.6}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.631 
+l.629 
        <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAMarginalResponse_Batch_1.png>]
 <C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAError_Boxplot_Batch_2.png, id=447, 722.7pt x 578.16pt>
 File: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAError_Boxplot_Batch_2.png Graphic file (type png)
 <use C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAError_Boxplot_Batch_2.png>
-Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAError_Boxplot_Batch_2.png  used on input line 636.
+Package pdftex.def Info: C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAError_Boxplot_Batch_2.png  used on input line 634.
 (pdftex.def)             Requested size: 400.38872pt x 320.30916pt.
 [17
 pdfTeX warning (ext4): destination with the same identifier (name{figure.5.7}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.639 
+l.637 
        <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyABeamer_Hex_f8_f5.png>] [18
 pdfTeX warning (ext4): destination with the same identifier (name{figure.5.8}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.707 \end{table}
+l.705 \end{table}
                  
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.4}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.707 \end{table}
+l.705 \end{table}
                  
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.5}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.707 \end{table}
+l.705 \end{table}
                   <c:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA/StrategyAError_Boxplot_Batch_2.png>]
-Underfull \hbox (badness 10000) in paragraph at lines 758--758
+Underfull \hbox (badness 10000) in paragraph at lines 756--756
 []\T1/lmr/bx/n/10 Methodological In-
  []
 
 
-Underfull \hbox (badness 2608) in paragraph at lines 758--758
+Underfull \hbox (badness 2608) in paragraph at lines 756--756
 \T1/lmr/m/n/10 "Cash Burn." It miss-es
  []
 
 
-Underfull \hbox (badness 1048) in paragraph at lines 758--758
+Underfull \hbox (badness 1048) in paragraph at lines 756--756
 \T1/lmr/m/n/10 count-ing prof-it to mask
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 758--758
+Underfull \hbox (badness 10000) in paragraph at lines 756--756
 []\T1/lmr/bx/n/10 Liquidity Blind-ness\T1/lmr/m/n/10 :
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 758--758
+Underfull \hbox (badness 10000) in paragraph at lines 756--756
 []\T1/lmr/bx/n/10 Over-Smoothing\T1/lmr/m/n/10 : The
  []
 
 
-Underfull \hbox (badness 1881) in paragraph at lines 758--758
+Underfull \hbox (badness 1881) in paragraph at lines 756--756
 \T1/lmr/m/n/10 straint forces a smooth
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 758--758
+Underfull \hbox (badness 10000) in paragraph at lines 756--756
 \T1/lmr/m/n/10 Gaus-sian la-tent space.
  []
 
 
-Underfull \hbox (badness 3058) in paragraph at lines 758--758
+Underfull \hbox (badness 3058) in paragraph at lines 756--756
 \T1/lmr/m/n/10 This like-ly blurred the
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 758--758
+Underfull \hbox (badness 10000) in paragraph at lines 756--756
 \T1/lmr/m/n/10 sharp, dis-crete "cliff"
  []
 
 
-Underfull \hbox (badness 1360) in paragraph at lines 758--758
+Underfull \hbox (badness 1360) in paragraph at lines 756--756
 \T1/lmr/m/n/10 Missed firms with High
  []
 
 
-Underfull \hbox (badness 1102) in paragraph at lines 758--758
+Underfull \hbox (badness 1102) in paragraph at lines 756--756
 \T1/lmr/m/n/10 Prof-it (0.064) and High
  []
 
 
-Underfull \hbox (badness 7851) in paragraph at lines 758--758
+Underfull \hbox (badness 7851) in paragraph at lines 756--756
 []\T1/lmr/bx/n/10 Noise Fil-ter-ing\T1/lmr/m/n/10 : The
  []
 
 
-Underfull \hbox (badness 2799) in paragraph at lines 758--758
+Underfull \hbox (badness 2799) in paragraph at lines 756--756
 []\T1/lmr/bx/n/10 Strategic Miss-es\T1/lmr/m/n/10 : Ac-
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 758--758
+Underfull \hbox (badness 10000) in paragraph at lines 756--756
 []\T1/lmr/bx/n/10 The "Zom-bie" Fil-
  []
 
 
-Underfull \hbox (badness 3907) in paragraph at lines 758--758
+Underfull \hbox (badness 3907) in paragraph at lines 756--756
 \T1/lmr/bx/n/10 ter\T1/lmr/m/n/10 : The ex-plic-it "Sol-
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 758--758
+Underfull \hbox (badness 10000) in paragraph at lines 756--756
 \T1/lmr/m/n/10 ven-cy Gap" fea-ture
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 758--758
+Underfull \hbox (badness 10000) in paragraph at lines 756--756
 \T1/lmr/m/n/10 ($\OML/lmm/m/it/10 Liabilities \OMS/lmsy/m/n/10 ^^@ \OML/lmm/m/it/10 Equity$\T1/lmr/m/n/10 )
  []
 
 
-Underfull \hbox (badness 1052) in paragraph at lines 758--758
+Underfull \hbox (badness 1052) in paragraph at lines 756--756
 \T1/lmr/m/n/10 dis-tin-guish-ing "dis-tressed
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 758--758
+Underfull \hbox (badness 10000) in paragraph at lines 756--756
 \T1/lmr/m/n/10 sur-vivors" from ac-tu-al
  []
 
@@ -853,12 +853,12 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.6}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.779 \end{itemize}
+l.777 \end{itemize}
                    
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.7}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.779 \end{itemize}
+l.777 \end{itemize}
                    ]
 
 LaTeX Warning: `h' float specifier changed to `ht'.
@@ -867,12 +867,12 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.8}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.840 \end{table}
+l.838 \end{table}
                  
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.9}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.840 \end{table}
+l.838 \end{table}
                  ]
 
 LaTeX Warning: `h' float specifier changed to `ht'.
@@ -881,32 +881,32 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.10}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.932 
+l.930 
       
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.11}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.932 
+l.930 
       
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.12}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.932 
+l.930 
       
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.14}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.932 
+l.930 
       ] [22
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.13}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.943 \chapter
+l.941 \chapter
               {Training Results}
 pdfTeX warning (ext4): destination with the same identifier (name{table.5.15}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.943 \chapter
+l.941 \chapter
               {Training Results}]
 \bbl@ensure@ngerman {Kapitel} 6.
 [23
@@ -919,27 +919,32 @@ l.943 \chapter
 pdfTeX warning (ext4): destination with the same identifier (name{table.7.1}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.1071 \end{table}
+l.1069 \end{table}
                   
 pdfTeX warning (ext4): destination with the same identifier (name{table.7.2}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.1071 \end{table}
+l.1069 \end{table}
                   
 pdfTeX warning (ext4): destination with the same identifier (name{table.7.3}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.1071 \end{table}
+l.1069 \end{table}
                   ] [26
 pdfTeX warning (ext4): destination with the same identifier (name{table.7.4}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.1211 \end{document}
+l.1224 \end{document}
                      
 pdfTeX warning (ext4): destination with the same identifier (name{table.7.5}) has been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.1211 \end{document}
+l.1224 \end{document}
+                     
+pdfTeX warning (ext4): destination with the same identifier (name{table.7.6}) has been already used, duplicate ignored
+<argument> ...shipout:D \box_use:N \l_shipout_box 
+                                                  \__shipout_drop_firstpage_...
+l.1224 \end{document}
                      ] (./Documentation_VAE.aux)
 
 LaTeX Warning: There were multiply-defined labels.
@@ -948,18 +953,18 @@ Package rerunfilecheck Info: File `Documentation_VAE.out' has not changed.
 (rerunfilecheck)             Checksum: C79EFD242EBE82321187A32E4DD9E4FB;11562.
  ) 
 Here is how much of TeX's memory you used:
- 12072 strings out of 476931
- 201753 string characters out of 5823353
- 576824 words of memory out of 5000000
- 32967 multiletter control sequences out of 15000+600000
+ 12074 strings out of 476931
+ 201785 string characters out of 5823353
+ 576896 words of memory out of 5000000
+ 32968 multiletter control sequences out of 15000+600000
  537916 words of font info for 60 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  72i,12n,77p,935b,618s stack positions out of 10000i,1000n,20000p,200000b,200000s
 {c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}{c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}{c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathex.enc}{c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}{c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc}{c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}<c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx12.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmcsc10.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmex10.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi10.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi7.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr10.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr12.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr7.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmri10.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmri8.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy10.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy7.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtk10.pfb><c:/Users/Tristan Leiter/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtt10.pfb>
-Output written on Documentation_VAE.pdf (27 pages, 1998698 bytes).
+Output written on Documentation_VAE.pdf (27 pages, 1998869 bytes).
 PDF statistics:
- 631 PDF objects out of 1000 (max. 8388607)
- 554 compressed objects within 6 object streams
- 155 named destinations out of 1000 (max. 500000)
+ 632 PDF objects out of 1000 (max. 8388607)
+ 555 compressed objects within 6 object streams
+ 156 named destinations out of 1000 (max. 500000)
  521 words of extra memory for PDF output out of 10000 (max. 10000000)
 

@@ -1,5 +1,5 @@
 #==============================================================================#
-#==== 05 - Ensemble Construction ==============================================#
+#==== 05 - Ensemble Construction (Corrected & Complete) =======================#
 #==============================================================================#
 
 library(dplyr)
@@ -11,12 +11,11 @@ library(tibble)
 library(RColorBrewer)
 
 # 1. Setup & Load Data --------------------------------------------------------
-# Assuming xgb_objects are already loaded or exist in environment
-# If not, uncomment the load line:
-# xgb_objects <- readRDS(file = file.path(Data_Directory_Ensemble, "xgb_objects.RData"))
+# Ensure these objects exist in your environment from previous steps.
+# If starting fresh, uncomment and adjust the path below:
+# xgb_objects <- readRDS("path/to/xgb_objects.RData")
 
-# Define the models and their corresponding Test Datasets
-# Ensure these objects exist in your environment from previous steps
+# Define the models
 Model_List <- list(
   Base      = XGBoost_Results_BaseModel$optimal_model,
   StrategyA = XGBoost_Results_Strategy_A$optimal_model,
@@ -24,51 +23,59 @@ Model_List <- list(
   StrategyC = XGBoost_Results_Strategy_C$optimal_model
 )
 
-# Important: List corresponding Test Dataframes (must match Model_List order)
+# Define the corresponding Test Dataframes
+# CRITICAL: These must match the order of Model_List
 Test_Data_List <- list(
   Base      = Test_Data_Base_Model,
-  StrategyA = Test_Data_Strategy_A,       # From Step 04C (VAE Latent)
-  StrategyB = Test_Data_Strategy_B,    # From Step 04C (Anomaly Score)
-  StrategyC = Test_Data_Strategy_C        # From Step 04D (Denoising)
+  StrategyA = Test_Data_Strategy_A,
+  StrategyB = Test_Data_Strategy_B,
+  StrategyC = Test_Data_Strategy_C
 )
 
-# Extract Actuals (y) from one of the test sets
+# Extract Actuals (y) from the Base test set
+# We assume all test sets share the same target 'y'
 test_y_raw <- Test_Data_Base_Model$y
 actuals <- as.numeric(as.character(test_y_raw))
 
-# 2. Robust Prediction Helper -------------------------------------------------
-# This function handles the different feature sets (Alignment) automatically
 
+# 2. Validation Checks --------------------------------------------------------
+# Verify all test sets have the exact same number of rows as the target
+expected_rows <- length(actuals)
+dims_check <- sapply(Test_Data_List, nrow)
+
+if(any(dims_check != expected_rows)) {
+  mismatched <- names(dims_check)[dims_check != expected_rows]
+  stop(paste("CRITICAL ERROR: Row count mismatch in:", paste(mismatched, collapse=", "), 
+             ". All test sets must align exactly with 'test_y_raw'." ))
+}
+
+
+# 3. Robust Prediction Function -----------------------------------------------
 get_xgb_pred <- function(model, test_data) {
   
   require(Matrix)
   require(xgboost)
   
-  # 1. Clean Metadata
+  # A. Clean Metadata
   cols_to_drop <- c("id", "refdate", "time_index", "year", "row_id", "company_id")
   test_clean <- test_data[, !names(test_data) %in% cols_to_drop]
   
-  # 2. Create Sparse Matrix
+  # B. Safety: Ensure 'y' exists for the formula
+  # If 'y' is missing (unlabeled test data), use dummy 0 to satisfy syntax
+  if(!"y" %in% colnames(test_clean)) {
+    test_clean$y <- 0 
+  }
+  
+  # C. Create Sparse Matrix
+  # This handles Factor -> Dummy conversion automatically
   sparse_formula <- as.formula("y ~ . - 1")
   test_matrix <- sparse.model.matrix(sparse_formula, data = test_clean, na.action = "na.pass")
   
-  # 3. ALIGNMENT LOGIC (With Safety Fallback)
+  # D. Alignment Logic (Match Columns to Training Data)
   train_cols <- model$feature_names
   
-  if(is.null(train_cols)) {
-    # --- FALLBACK MODE ---
-    # The model lost its column names. We assume Test Data is correct.
-    # We warn the user but proceed instead of stopping.
-    warning(paste("Model", "has no feature names stored. Skipping column alignment and assuming structure is correct."))
-    
-    # We accept the matrix as-is
-    final_matrix <- test_matrix
-    
-  } else {
-    # --- ROBUST ALIGNMENT MODE ---
-    # The model knows what it wants. We force the Test Matrix to match.
-    
-    # A. Add Missing Columns (Fill with 0)
+  if(!is.null(train_cols)) {
+    # 1. Add Missing Columns (Fill with 0)
     missing_cols <- setdiff(train_cols, colnames(test_matrix))
     if(length(missing_cols) > 0) {
       new_cols <- Matrix(0, nrow = nrow(test_matrix), ncol = length(missing_cols), sparse = TRUE)
@@ -76,25 +83,21 @@ get_xgb_pred <- function(model, test_data) {
       test_matrix <- cbind(test_matrix, new_cols)
     }
     
-    # B. Remove Extra Columns
-    extra_cols <- setdiff(colnames(test_matrix), train_cols)
-    if(length(extra_cols) > 0) {
-      test_matrix <- test_matrix[, !colnames(test_matrix) %in% extra_cols]
-    }
-    
-    # C. Reorder Columns
+    # 2. Reorder & Filter Columns (Remove Extras)
+    # 'drop = FALSE' prevents vector conversion if only 1 feature remains
     final_matrix <- test_matrix[, train_cols, drop = FALSE]
+  } else {
+    warning("Model has no feature names stored. Assuming strictly correct column order.")
+    final_matrix <- test_matrix
   }
   
-  # 4. EXPLICIT CONVERSION
-  # Convert to xgb.DMatrix to prevent "double" errors
+  # E. Predict
   dtest <- xgb.DMatrix(data = final_matrix)
-  
-  # 5. Predict
   return(predict(model, dtest))
 }
 
-# 3. Generate Individual Predictions ------------------------------------------
+
+# 4. Generate Predictions (The "Generation Step") -----------------------------
 message("Generating predictions for individual models...")
 
 preds_list <- list()
@@ -103,29 +106,28 @@ model_names <- names(Model_List)
 for(i in seq_along(Model_List)) {
   name <- model_names[i]
   message(paste("Predicting:", name))
+  
+  # Call the robust helper function
   preds_list[[name]] <- get_xgb_pred(Model_List[[i]], Test_Data_List[[i]])
 }
 
-# Verify results
-print("Predictions generated:")
+# Verify structure
 print(str(preds_list))
 
-# 4. Construct Ensembles ------------------------------------------------------
 
-# Ensemble Approach A: Base Model + Strategy A
-# Logic: Combines raw financials with VAE Latent Features
+# 5. Construct Ensembles ------------------------------------------------------
+
+# Ensemble A: Base + Strategy A
 ens_A_preds <- (preds_list$Base + preds_list$StrategyA) / 2
 
-# Ensemble Approach B: Strategy A + Strategy C
-# Logic: Combines Dimensionality Reduction (VAE) with Feature Denoising (DAE)
+# Ensemble B: Strategy A + Strategy C
 ens_B_preds <- (preds_list$StrategyA + preds_list$StrategyC) / 2
 
-# Ensemble Approach C: All Models Together (Base + A + B + C)
-# Logic: Maximum diversity (Raw + Latent + Anomaly + Denoised)
+# Ensemble C: Average of All Models (Base + A + B + C)
 ens_C_preds <- (preds_list$Base + preds_list$StrategyA + preds_list$StrategyB + preds_list$StrategyC) / 4
 
-# 5. Evaluation Function ------------------------------------------------------
 
+# 6. Evaluation Function ------------------------------------------------------
 evaluate_ensemble <- function(preds, actuals, name) {
   # AUC
   roc_obj <- pROC::roc(actuals, preds, quiet = TRUE)
@@ -134,28 +136,30 @@ evaluate_ensemble <- function(preds, actuals, name) {
   # Brier Score
   brier <- mean((preds - actuals)^2)
   
-  # Penalized Brier Score (As defined in your setup)
-  # Penalty applied if prediction is on the wrong side of 0.5
-  R <- 2 
-  penalty_term <- (R - 1) / R # 0.5
-  
-  pred_class <- round(preds)
+  # Penalized Brier Score
+  # Custom metric: Penalize errors on the wrong side of threshold 0.5
+  R <- 2  
+  penalty_term <- (R - 1) / R 
+  pred_class <- round(preds) # Threshold at 0.5
   penalty_vec <- ifelse(pred_class != actuals, penalty_term, 0)
   pen_brier <- mean((preds - actuals)^2 + penalty_vec)
   
   return(data.frame(
     Model = name, 
-    AUC = round(auc_score, 5), 
+    AUC = round(as.numeric(auc_score), 5), 
     Brier = round(brier, 5), 
     Pen_Brier = round(pen_brier, 5)
   ))
 }
 
-# 6. Run Evaluation & Leaderboard ---------------------------------------------
 
-# Individual Models (for comparison)
+# 7. Run Evaluation & Leaderboard ---------------------------------------------
+
+# Individual Models
 res_Base   <- evaluate_ensemble(preds_list$Base, actuals, "Single: Base Model")
 res_StratA <- evaluate_ensemble(preds_list$StrategyA, actuals, "Single: Strategy A (VAE)")
+res_StratB <- evaluate_ensemble(preds_list$StrategyB, actuals, "Single: Strategy B (Anomaly)")
+res_StratC <- evaluate_ensemble(preds_list$StrategyC, actuals, "Single: Strategy C (Denoise)")
 
 # Ensembles
 res_EnsA <- evaluate_ensemble(ens_A_preds, actuals, "Ensemble A (Base + A)")
@@ -163,7 +167,8 @@ res_EnsB <- evaluate_ensemble(ens_B_preds, actuals, "Ensemble B (A + C)")
 res_EnsC <- evaluate_ensemble(ens_C_preds, actuals, "Ensemble C (All Models)")
 
 # Combine into Leaderboard
-leaderboard <- rbind(res_EnsA, res_EnsB, res_EnsC, res_StratA, res_Base) %>%
+leaderboard <- rbind(res_EnsA, res_EnsB, res_EnsC, 
+                     res_StratA, res_StratB, res_StratC, res_Base) %>%
   arrange(desc(AUC))
 
 print("=========================================")
@@ -171,13 +176,14 @@ print("          ENSEMBLE LEADERBOARD           ")
 print("=========================================")
 print(leaderboard)
 
-# 7. Correlation Visualization (Orthogonality) --------------------------------
+
+# 8. Correlation Visualization (Orthogonality) --------------------------------
 
 # Create Dataframe of Predictions
 pred_df <- as.data.frame(preds_list)
 colnames(pred_df) <- c("Base", "Strat A (VAE)", "Strat B (Anomaly)", "Strat C (Denoise)")
 
-# Calculate Correlation
+# Calculate Correlation Matrix
 M <- cor(pred_df)
 
 # Plot

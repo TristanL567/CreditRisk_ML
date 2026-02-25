@@ -511,7 +511,6 @@ Table \ref{tab:leaderboard} presents the comparative performance of each strateg
         \hline
         \textbf{Model} & \textbf{AUC} & \textbf{Brier Score (\%)} & \textbf{Pen. Brier Score (\%)} \\
         \hline
-        Strategy D (Manual Feature Eng.) & 0.8138 & 0.8166\% & 1.246\% \\
         Base Model & 0.8132 & 0.8093\% & 1.239\% \\
         Strategy B (Anomaly Score) & 0.8131 & 0.8185\% & 1.248\% \\
         Strategy A (Dim. Reduction) & 0.8127 & 0.8096\% & 1.239\% \\
@@ -536,7 +535,6 @@ To ensure fair comparison, Bayesian optimization was utilized to find the optima
         Strategy A (Anomaly Score) & 0.010 & 4 & 0.500 & 0.696 \\
         Strategy B (Dim. Reduction) & 0.034 & 3 & 0.636 & 1.000 \\
         Strategy C (Feature Denoising) & 0.010 & 4 & 0.822 & 0.561 \\
-        Strategy D (Manual Feature Eng.) & 0.010 & 4 & 0.561 & 0.660 \\
         \hline
     \end{tabular}
 \end{table}
@@ -1091,7 +1089,22 @@ Strategy C (Feature Denoising)  & 0.8289 & 0.8059\% & 1.2218\% & 0.0413 \\
 
 \section{Model Selection \& Summary}
 
-
+\begin{table}[h]
+    \centering
+    \caption{Final Model Performance Leaderboard (Test Set)}
+    \label{tab:final_leaderboard}
+    \begin{tabular}{llccc}
+        \hline
+        \textbf{Model} & \textbf{Strategy} & \textbf{Test-AUC} & \textbf{Brier Score (\%)} & \textbf{Pen. Brier Score (\%)} \\
+        \hline
+        \textbf{XGBoost Ratios} & \textbf{Strategy C} & \textbf{83.18\%} & \textbf{0.80\%} & \textbf{1.22\%} \\
+        XGBoost & Base Model & 82.05\% & 0.83\% & 1.25\% \\
+        GLM & Strategy A & 81.98\% & 0.83\% & 1.27\% \\
+        GLM Ratios & Strategy A & 81.69\% & 0.84\% & 1.26\% \\
+        Random Forest & Base Model & 81.32\% & 0.83\% & - \\
+        \hline
+    \end{tabular}
+\end{table}
 
 
 

@@ -5,14 +5,15 @@
 Path <- dirname(this.path::this.path())
 setwd(Path)
 
-source("XGBoost_Training.R")
-source("XGBoost_Test.R")
+source("Subfunctions/XGBoost_Training.R")
+source("Subfunctions/XGBoost_Test.R")
 
 ##==============================##
 ## General Parameters.
 ##==============================##
 
 N_folds <- 5
+Use_VAE_Only <- TRUE
 
 #==== 0A - Data Preparation ===================================================#
 
@@ -26,35 +27,60 @@ tryCatch({
 Train_Data_Base_Model <- Train_Final
 Train_Data_Base_Model <- Train_Data_Base_Model %>%
   mutate(
-    id = Train_with_id$id) 
-
-Train_Data_Base_Model <- Train
-Train_Data_Base_Model <- Train_Data_Base_Model %>%
-  select(-id, -refdate)
-
-Train_Data_Base_Model$sector <- as.factor(Train_Data_Base_Model$sector)
-Train_Data_Base_Model$size <- as.factor(Train_Data_Base_Model$size)
+    id = Train_Transformed$id) 
 
 ######## DO NOT NEED TO ADD THE ID AS WE USE THE SAME ROWS LATER.
 ### Strategy A: latent features.
-Final_Train_Set_A <- cbind(Train_Final, Strategy_A_LF)
-Train_Data_Strategy_A <- Final_Train_Set_A
+if(Use_VAE_Only) {
+  Train_Data_Strategy_A <- cbind(
+    Train_Final %>% select(y), 
+    Strategy_A_LF
+  )
+  message("Strategy A: Using ONLY VAE Latent Features.")
+  
+} else {
+  Train_Data_Strategy_A <- cbind(
+    Train_Final, 
+    Strategy_A_LF
+  )
+  message("Strategy A: Using ALL Features (Original + VAE).")
+}
 
-### Strategy B: anomaly score.
-Train_Data_Strategy_B <- Strategy_B_AS
+### Strategy B: Anomaly Scores
+if(Use_VAE_Only) {
+  Train_Data_Strategy_B <- cbind(
+    Train_Final %>% select(y), 
+    Strategy_B_AS
+  )
+  message("Strategy B: Using ONLY the Anomaly Score.")
+  
+} else {
+  Train_Data_Strategy_B <- cbind(
+    Train_Final, 
+    Strategy_B_AS
+  )
+  message("Strategy B: Using ALL Features (Original + Anomaly Score).")
+}
 
-### Strategy C: Manual Feature engineering.
-Train_Data_Strategy_C <- Strategy_C
-
-### Strategy D: fitting on the residuals of the base model.
-# Train_Data_Strategy_D <- Strategy_D
+### Strategy C: Denoising Autoencoder (DAE) Features
+if(Use_VAE_Only) {
+  Train_Data_Strategy_C <- cbind(
+    Strategy_C_Train
+  )
+  message("Strategy C: Using ONLY DAE Latent Features.")
+  
+} else {
+  Train_Data_Strategy_C <- Strategy_C_Train # (Which is already Train_Final + Strategy_C_LF)
+  
+  message("Strategy C: Using ALL Features (Original + DAE).")
+}
 
 ##=========================================##
 ##==== First stratify by IDs.
 ##=========================================##
   
-# Data_Train_CV_Split_IDs <- MVstratifiedsampling_CV_ID(data = Train_Data_Base_Model, 
-#                                                       num_folds = N_folds)
+Data_Train_CV_Split_IDs <- MVstratifiedsampling_CV_ID(data = Train_Data_Base_Model,
+                                                      num_folds = N_folds)
   
 ##=========================================##
 ##==== Now use the stratified IDs to get the row in the train set for each fold.
@@ -81,6 +107,8 @@ Train_Data_Base_Model <- Train_Data_Base_Model %>%
 #==== 01 - XGBoost Model Training =============================================#
 #==============================================================================#
 
+tryCatch({
+  
 ##==============================##
 ## General Parameters.
 ##==============================##
@@ -96,8 +124,7 @@ tryCatch({
 ## Parameters.
 ##==============================##
 
-# Data_Train_CV_List <- Data_Train_CV_Base_Model[["fold_list"]]
-Data_Train_CV_List <- Data_Train_CV_Split_IDs
+Data_Train_CV_List <- Data_Train_CV_Base_Model[["fold_list"]]
 Train_Data <- Train_Data_Base_Model
 
 ##==============================##
@@ -183,32 +210,13 @@ XGBoost_Results_Strategy_C <- XGBoost_Training(Data_Train_CV_List = Data_Train_C
 
 }, error = function(e) message(e))
 
-#==== 01E - Strategy D: Manual Feature Engineering ============================#
+#==============================================================================#
 
-tryCatch({
-  
-##==============================##
-## Parameters.
-##==============================##
-  
-# Data_Train_CV_List <- Data_Train_CV_Base_Model[["fold_list"]]
-# Train_Data <- Train_Data_Strategy_D
-
-##==============================##
-## Code.
-##==============================##
-  
-# XGBoost_Results_Strategy_D <- XGBoost_Training(Data_Train_CV_List = Data_Train_CV_List,
-#                                                Train_Data = Train_Data,
-#                                                n_init_points = n_init_points,
-#                                                n_iter_bayes = n_iter_bayes)
-    
-}, error = function(e) message(".", e))
+}, error = function(e) message("01.Error: Model Training.", e))
 
 #==============================================================================#
 #==== 02 - XGBoost Model Comparison (AUC and Parameters) ======================#
 #==============================================================================#
-
 
 tryCatch({
     
@@ -1192,8 +1200,54 @@ tryCatch({
 tryCatch({
 
 ### Base model.
-  # Train_Final
 Test_Data_Base_Model <- Test_Final
+
+### Strategy A: latent features.
+if(Use_VAE_Only) {
+  Test_Data_Strategy_A <- cbind(
+    Test_Final %>% select(y), 
+    Strategy_A_LF_Test
+  )
+  message("Strategy A: Using ONLY VAE Latent Features.")
+  
+} else {
+  Test_Data_Strategy_A <- cbind(
+    Test_Final, 
+    Strategy_A_LF_Test
+  )
+  message("Strategy A: Using ALL Features (Original + VAE).")
+}
+
+### Strategy B: Anomaly Scores
+if(Use_VAE_Only) {
+  Test_Data_Strategy_B <- cbind(
+    Test_Final %>% select(y), 
+    Strategy_B_AS_Test
+  )
+  message("Strategy B: Using ONLY the Anomaly Score.")
+  
+} else {
+  Test_Data_Strategy_B <- cbind(
+    Test_Final, 
+    Strategy_B_AS_Test
+  )
+  message("Strategy B: Using ALL Features (Original + Anomaly Score).")
+}
+
+### Strategy C: Denoising Autoencoder (DAE) Features
+if(Use_VAE_Only) {
+  Test_Data_Strategy_C <- cbind(
+    Strategy_C_Test
+  )
+  message("Strategy C: Using ONLY DAE Latent Features.")
+  
+} else {
+  Test_Data_Strategy_C <- Strategy_C_Test
+  
+  message("Strategy C: Using ALL Features (Original + DAE).")
+}
+
+####=================== OLD ===========================================#########
 
 ### Strategy A: latent features.
 Test_Data_Strategy_A <- cbind(Test_Final, Strategy_A_LF_Test)
