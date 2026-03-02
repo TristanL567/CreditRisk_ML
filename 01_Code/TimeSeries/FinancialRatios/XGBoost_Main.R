@@ -113,8 +113,8 @@ tryCatch({
 ## General Parameters.
 ##==============================##
 
-n_init_points <- 5
-n_iter_bayes  <- 10
+n_init_points <- 2
+n_iter_bayes  <- 3
 
 #==== 01A - Base model ========================================================#
 
