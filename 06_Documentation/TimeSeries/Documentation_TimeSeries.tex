@@ -1,0 +1,387 @@
+%==== KNITR ===================================================================%
+
+
+
+%==== START ===================================================================%
+
+\documentclass{report}\usepackage[]{graphicx}\usepackage[]{xcolor}
+% maxwidth is the original width if it is less than linewidth
+% otherwise use linewidth (to make sure the graphics do not exceed the margin)
+\makeatletter
+\def\maxwidth{ %
+  \ifdim\Gin@nat@width>\linewidth
+    \linewidth
+  \else
+    \Gin@nat@width
+  \fi
+}
+\makeatother
+
+\definecolor{fgcolor}{rgb}{0.345, 0.345, 0.345}
+\newcommand{\hlnum}[1]{\textcolor[rgb]{0.686,0.059,0.569}{#1}}%
+\newcommand{\hlsng}[1]{\textcolor[rgb]{0.192,0.494,0.8}{#1}}%
+\newcommand{\hlcom}[1]{\textcolor[rgb]{0.678,0.584,0.686}{\textit{#1}}}%
+\newcommand{\hlopt}[1]{\textcolor[rgb]{0,0,0}{#1}}%
+\newcommand{\hldef}[1]{\textcolor[rgb]{0.345,0.345,0.345}{#1}}%
+\newcommand{\hlkwa}[1]{\textcolor[rgb]{0.161,0.373,0.58}{\textbf{#1}}}%
+\newcommand{\hlkwb}[1]{\textcolor[rgb]{0.69,0.353,0.396}{#1}}%
+\newcommand{\hlkwc}[1]{\textcolor[rgb]{0.333,0.667,0.333}{#1}}%
+\newcommand{\hlkwd}[1]{\textcolor[rgb]{0.737,0.353,0.396}{\textbf{#1}}}%
+\let\hlipl\hlkwb
+
+\usepackage{framed}
+\makeatletter
+\newenvironment{kframe}{%
+ \def\at@end@of@kframe{}%
+ \ifinner\ifhmode%
+  \def\at@end@of@kframe{\end{minipage}}%
+  \begin{minipage}{\columnwidth}%
+ \fi\fi%
+ \def\FrameCommand##1{\hskip\@totalleftmargin \hskip-\fboxsep
+ \colorbox{shadecolor}{##1}\hskip-\fboxsep
+     % There is no \\@totalrightmargin, so:
+     \hskip-\linewidth \hskip-\@totalleftmargin \hskip\columnwidth}%
+ \MakeFramed {\advance\hsize-\width
+   \@totalleftmargin\z@ \linewidth\hsize
+   \@setminipage}}%
+ {\par\unskip\endMakeFramed%
+ \at@end@of@kframe}
+\makeatother
+
+\definecolor{shadecolor}{rgb}{.97, .97, .97}
+\definecolor{messagecolor}{rgb}{0, 0, 0}
+\definecolor{warningcolor}{rgb}{1, 0, 1}
+\definecolor{errorcolor}{rgb}{1, 0, 0}
+\newenvironment{knitrout}{}{} % an empty environment to be redefined in TeX
+
+\usepackage{alltt}
+
+\usepackage[left=2cm, right=2cm, top=1cm, bottom=2cm]{geometry}
+
+% Language setting.
+\usepackage[main=ngerman, provide=*]{babel}
+
+% Main packages.
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs} 
+\usepackage{rotating} 
+\usepackage{lmodern}
+
+% Citations.
+\usepackage{natbib}
+\setcitestyle{authoryear,open={(},close={)}} %Citation-related commands
+
+%% Testing different layout.
+\usepackage{geometry}
+\usepackage{xcolor}
+
+% Chart placement.
+\usepackage{float}
+
+% Path for charts.
+\graphicspath{
+    {C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/BaseModel}
+    {C:/Users/Tristan Leiter/Documents/ILAB_OeNB//CreditRisk_ML/03_Charts/VAE/XGBoost/StrategyA}
+}
+
+%==== DOCUMENT START ==========================================================%
+
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\begin{document}
+
+\begin{titlepage}
+    \newgeometry{top=3cm, bottom=3cm, left=2.5cm, right=2.5cm}
+    \centering
+    
+    % \includegraphics[width=0.4\textwidth]{logo.png} \par
+    {\scshape\LARGE ILAB: OeNB \par}
+    \vspace{1cm}
+    {\scshape\Large Documentation \par}
+    
+    \vspace{2.5cm}
+    
+    % --- Title Section ---
+    \hrule height 2pt
+    \vspace{0.5cm}
+    { \huge \bfseries Variational Autoencoders \\}
+    \vspace{0.5cm}
+    \hrule height 2pt
+    
+    \vspace{2cm}
+    
+    % --- Author Section ---
+    \Large
+    \textbf{Author:} \\
+    Tristan \textsc{Leiter}
+    
+    \vspace{1.5cm}
+    
+    % --- Metadata ---
+    \normalsize
+    % \textbf{Submission Date:} \\
+    \today
+
+    \vfill
+    
+\end{titlepage}
+\restoregeometry
+
+% \maketitle
+
+%==== ABSTRACT ================================================================%
+
+% \begin{abstract}
+% This report demonstrates the integration of R code and its output within a LaTeX document using Sweave. It covers the basic structure of a report, including a summary, chapters with subchapters, and a bibliography.
+% \end{abstract}
+
+%==== Table of content ========================================================%
+
+\tableofcontents
+\newpage
+
+%==== Chapter 1: Vae and Strategy Overview ====================================%
+
+\chapter{Agenda}
+
+\section{Agenda}
+
+\begin{itemize}
+    % First Big Point: RQ1 (XGBoost + VAE)
+    \item \textbf{Research Question 1: Develop and evaluate supervised credit scoring models for
+Austrian SMEs using raw balance-sheet data.}
+    \begin{itemize}
+        \item \textbf{VAE Integration:} Does the integration of VAEs improve the CV-AUC?
+        \item \textbf{AutoML:} Can AutoML lead to better results?
+        \item \textbf{Model Selection:} Leaderboard Results and Strategy Comparison (GLM, RF and Boosting).
+    \end{itemize}
+
+    \vspace{0.5cm} % Adds vertical space for visual separation
+
+    % Second Big Point: RQ2 (GLM Benchmark)
+    \item \textbf{Research Question 2: Does the use of financial ratios improve model performance and 
+generalization compared to the raw-data approach?}
+    \begin{itemize}
+        \item \textbf{Model Training:} Model Comparison and identifing the optimal hyperparameters.
+        \item \textbf{Model Selection:} Which model is finally selected?
+        \item \textbf{Comparative Analysis:} Raw accounting-positions versus financial ratios.
+    \end{itemize}
+    
+    %% Outlook.
+    \item \textbf{Outlook: Research Question 3 and Year specifications.}
+
+\end{itemize}
+
+%==== Chapter 1: Out of Sample Testing ========================================%
+
+\chapter{Out-of-Sample}
+
+\section{Ratios Only}
+
+\subsection{Training Set}
+
+\begin{table}[h]
+    \centering
+    \caption{XGBoost (5-Fold CV) - Base Model}
+    \label{tab:xgb_leaderboard}
+    \begin{tabular}{lccccccccc}
+        \hline
+        \textbf{Rank} & \textbf{$\eta$} & \textbf{Depth} & \textbf{Subsample} & \textbf{Colsample} & \textbf{MCW} & \textbf{$\gamma$} & \textbf{L2 ($\lambda$)} & \textbf{L1 ($\alpha$)} & \textbf{CV AUC} \\
+        \hline
+        1 & 0.0715 & 4 & 0.773 & 0.933 & 4  & 2.700 & 2.960 & 1.740 & \textbf{0.827} \\
+        2 & 0.2980 & 3 & 0.690 & 0.566 & 20 & 0.191 & 0.000 & 4.900 & 0.823 \\
+        3 & 0.0934 & 5 & 0.970 & 0.764 & 11 & 4.780 & 3.390 & 0.515 & 0.822 \\
+        \hline
+        \multicolumn{10}{l}{\footnotesize \textit{Note:} The optimal configuration converged at 83 boosting rounds.} \\
+        \multicolumn{10}{l}{\footnotesize \textit{In-sample AUC:} 0.8717 \textit{ | Total tuning time:} 92.2s.} \\
+    \end{tabular}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \caption{XGBoost (5-Fold CV) - Dimensionality Reduction}
+    \label{tab:xgb_leaderboard_updated}
+    \begin{tabular}{lccccccccc}
+        \hline
+        \textbf{Rank} & \textbf{$\eta$} & \textbf{Depth} & \textbf{Subsample} & \textbf{Colsample} & \textbf{MCW} & \textbf{$\gamma$} & \textbf{L2 ($\lambda$)} & \textbf{L1 ($\alpha$)} & \textbf{CV AUC} \\
+        \hline
+        1 & 0.0323 & 5 & 0.665 & 0.958 & 3 & 0.238 & 3.513 & 4.327 & \textbf{0.755} \\
+        2 & 0.1540 & 8 & 0.989 & 0.872 & 8 & 5.000 & 0.028 & 5.000 & 0.752 \\
+        3 & 0.0731 & 4 & 0.796 & 0.754 & 16 & 0.862 & 2.770 & 3.210 & 0.750 \\
+        \hline
+        \multicolumn{10}{l}{\footnotesize \textit{Note:} The optimal configuration converged at 183 boosting rounds.} \\
+        \multicolumn{10}{l}{\footnotesize \textit{In-sample AUC:} 0.8326 \textit{ | Total tuning time:} 142.4s.} \\
+    \end{tabular}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Time Series}
+
+\subsection{Training Set}
+
+\begin{table}[h]
+    \centering
+    \caption{XGBoost Top 3 Optimised Configurations (5-Fold CV) - Time Series Features}
+    \label{tab:xgb_leaderboard_ts}
+    \begin{tabular}{lccccccccc}
+        \hline
+        \textbf{Rank} & \textbf{$\eta$} & \textbf{Depth} & \textbf{Subsample} & \textbf{Colsample} & \textbf{MCW} & \textbf{$\gamma$} & \textbf{L2 ($\lambda$)} & \textbf{L1 ($\alpha$)} & \textbf{CV AUC} \\
+        \hline
+        1 & 0.0715 & 4 & 0.773 & 0.933 & 4  & 2.700 & 2.960 & 1.740 & \textbf{0.900} \\
+        2 & 0.0934 & 5 & 0.970 & 0.764 & 11 & 4.780 & 3.390 & 0.515 & 0.899 \\
+        3 & 0.3000 & 3 & 0.784 & 0.961 & 18 & 1.520 & 0.000 & 3.650 & 0.897 \\
+        \hline
+        \multicolumn{10}{l}{\footnotesize \textit{Note:} The optimal configuration converged at 97 boosting rounds.} \\
+        \multicolumn{10}{l}{\footnotesize \textit{In-sample AUC:} 0.9434 \textit{ | Total tuning time:} 339.1s.} \\
+    \end{tabular}
+\end{table}
+
+\subsection{Test Set}
+
+\begin{table}[h]
+    \centering
+    \caption{XGBoost Test Set Performance (Time Series Model)}
+    \label{tab:xgb_test_eval}
+    \begin{tabular}{lc}
+        \hline
+        \textbf{Evaluation Metric} & \textbf{Value} \\
+        \hline
+        \multicolumn{2}{l}{\textit{Probabilistic Metrics}} \\
+        Area Under the ROC Curve (AUC) & 0.9083 \\
+        Brier Score & 0.1052 \\
+        Penalised Brier Score & 0.1712 \\
+        Log Loss & 0.3315 \\
+        \hline
+        \multicolumn{2}{l}{\textit{Classification Metrics (Threshold = 0.5560)}} \\
+        Sensitivity (Recall) & 0.7958 \\
+        Specificity & 0.8690 \\
+        Precision & 0.0484 \\
+        F1-Score & 0.0912 \\
+        \hline
+    \end{tabular}
+    \\[1ex]
+    \raggedright
+    \footnotesize \textit{Note:} Hard classification metrics were evaluated using the Youden-optimal probability threshold of $0.5560$.
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Sector Deviations}
+
+\subsection{Training Set}
+
+\begin{table}[H]
+    \centering
+    \caption{XGBoost Top 3 Optimised Configurations (5-Fold CV)}
+    \label{tab:xgb_leaderboard_v3}
+    \begin{tabular}{lccccccccc}
+        \hline
+        \textbf{Rank} & \textbf{$\eta$} & \textbf{Depth} & \textbf{Subsample} & \textbf{Colsample} & \textbf{MCW} & \textbf{$\gamma$} & \textbf{L2 ($\lambda$)} & \textbf{L1 ($\alpha$)} & \textbf{CV AUC} \\
+        \hline
+        1 & 0.0268 & 6 & 0.650 & 0.796 & 8  & 1.140 & 4.590 & 4.750 & \textbf{0.823} \\
+        2 & 0.0934 & 5 & 0.970 & 0.764 & 11 & 4.780 & 3.390 & 0.515 & 0.821 \\
+        3 & 0.0532 & 7 & 0.867 & 0.628 & 18 & 1.700 & 1.070 & 1.430 & 0.820 \\
+        \hline
+        \multicolumn{10}{l}{\footnotesize \textit{Note:} The optimal configuration converged at 136 boosting rounds.} \\
+        \multicolumn{10}{l}{\footnotesize \textit{In-sample AUC:} 0.9158 \textit{ | Total tuning time:} 196.3s.} \\
+    \end{tabular}
+\end{table}
+
+\subsection{Test Set}
+
+\begin{table}[H]
+    \centering
+    \caption{XGBoost Test Set Performance}
+    \label{tab:xgb_test_eval_baseline}
+    \begin{tabular}{lc}
+        \hline
+        \textbf{Evaluation Metric} & \textbf{Value} \\
+        \hline
+        \multicolumn{2}{l}{\textit{Probabilistic Metrics}} \\
+        Area Under the ROC Curve (AUC) & 0.8270 \\
+        Brier Score & 0.1308 \\
+        Penalised Brier Score & 0.2403 \\
+        Log Loss & 0.4033 \\
+        \hline
+        \multicolumn{2}{l}{\textit{Classification Metrics (Threshold = 0.4699)}} \\
+        Sensitivity (Recall) & 0.7197 \\
+        Specificity & 0.7810 \\
+        Precision & 0.0269 \\
+        F1-Score & 0.0518 \\
+        \hline
+    \end{tabular}
+    \\[1ex]
+    \raggedright
+    \footnotesize \textit{Note:} Hard classification metrics were evaluated using the Youden-optimal probability threshold of $0.4699$.
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{All}
+
+\subsection{Training Set}
+
+\begin{table}[H]
+    \centering
+    \caption{XGBoost Top 3 Optimised Configurations (5-Fold CV)}
+    \label{tab:xgb_leaderboard_v4}
+    \begin{tabular}{lccccccccc}
+        \hline
+        \textbf{Rank} & \textbf{$\eta$} & \textbf{Depth} & \textbf{Subsample} & \textbf{Colsample} & \textbf{MCW} & \textbf{$\gamma$} & \textbf{L2 ($\lambda$)} & \textbf{L1 ($\alpha$)} & \textbf{CV AUC} \\
+        \hline
+        1 & 0.0934 & 5 & 0.970 & 0.764 & 11 & 4.780 & 3.390 & 0.515 & \textbf{0.907} \\
+        2 & 0.1310 & 5 & 0.912 & 0.742 & 17 & 2.750 & 0.115 & 1.760 & 0.905 \\
+        3 & 0.2960 & 4 & 0.663 & 1.000 & 16 & 0.137 & 2.290 & 4.000 & 0.898 \\
+        \hline
+        \multicolumn{10}{l}{\footnotesize \textit{Note:} The optimal configuration converged at 69 boosting rounds.} \\
+        \multicolumn{10}{l}{\footnotesize \textit{In-sample AUC:} 0.9656 \textit{ | Total tuning time:} 242.7s.} \\
+    \end{tabular}
+\end{table}
+
+
+\subsection{Test Set}
+
+\begin{table}[H]
+    \centering
+    \caption{XGBoost Test Set Performance (Final Revised Model)}
+    \label{tab:xgb_test_eval_final}
+    \begin{tabular}{lc}
+        \hline
+        \textbf{Evaluation Metric} & \textbf{Value} \\
+        \hline
+        \multicolumn{2}{l}{\textit{Probabilistic Metrics}} \\
+        Area Under the ROC Curve (AUC) & 0.9160 \\
+        Brier Score & 0.0849 \\
+        Penalised Brier Score & 0.1448 \\
+        Log Loss & 0.2784 \\
+        \hline
+        \multicolumn{2}{l}{\textit{Classification Metrics (Threshold = 0.4967)}} \\
+        Sensitivity (Recall) & 0.8114 \\
+        Specificity & 0.8810 \\
+        Precision & 0.0539 \\
+        F1-Score & 0.1011 \\
+        \hline
+    \end{tabular}
+    \\[1ex]
+    \raggedright
+    \footnotesize \textit{Note:} Hard classification metrics were evaluated using the Youden-optimal probability threshold of $0.4967$.
+\end{table}
+
+%==== Chapter 4: References ===================================================%
+
+% \bibliographystyle{plainnat} 
+% \bibliography{references}
+
+%==== Appendix ================================================================%
+
+% \appendix 
+% 
+% \chapter{Overview}
+
+%==== END =====================================================================%
+
+\end{document}

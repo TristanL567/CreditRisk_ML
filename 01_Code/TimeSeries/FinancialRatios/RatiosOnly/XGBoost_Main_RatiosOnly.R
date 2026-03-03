@@ -33,13 +33,15 @@ tryCatch({
   ### Strategy A: latent features.
   if(Use_VAE_Only) {
     Train_Data_Strategy_A <- cbind(
-      Strategy_A_Train
+      Train_Final %>% select(y), 
+      Strategy_A_LF
     )
     message("Strategy A: Using ONLY VAE Latent Features.")
     
   } else {
     Train_Data_Strategy_A <- cbind(
-      Strategy_A_Train
+      Train_Final, 
+      Strategy_A_LF
     )
     message("Strategy A: Using ALL Features (Original + VAE).")
   }
@@ -107,16 +109,16 @@ tryCatch({
 
 tryCatch({
   
-  ##==============================##
-  ## General Parameters.
-  ##==============================##
+##==============================##
+## General Parameters.
+##==============================##
   
-  n_init_points <- 2
-  n_iter_bayes  <- 3
+n_init_points <- 2
+n_iter_bayes  <- 3
   
-  #==== 01A - Base model ========================================================#
+#==== 01A - Base model ========================================================#
   
-  tryCatch({
+tryCatch({
     
 ##==============================##
 ## Parameters.
@@ -131,62 +133,65 @@ XGBoost_Results_BaseModel <- XGBoost_Training_revised(
   
 Data_Train_CV_List = Data_Train_CV_List,
 Train_Data         = Train_Data,
+      
+## Bayesian Optimisation
 n_init_points    = n_init_points,
 n_iter_bayes     = n_iter_bayes,
+      
+## Early stopping — consistent between BayesOpt and final CV
 early_stop_bo    = 20,
 early_stop_final = 50,
+      
+## Round budgets
 nrounds_bo       = 1000,
 nrounds_final    = 2000,
+## Hardware
 nthread          = parallel::detectCores() - 1,
+## Metric
 eval_metric      = "auc")
+
+
     
 }, error = function(e) message(e))
   
 #==== 01B - Strategy A: Latent features =======================================#
   
-tryCatch({
+  tryCatch({
     
-##==============================##
-## Parameters.
-##==============================##
+    ##==============================##
+    ## Parameters.
+    ##==============================##
     
-Data_Train_CV_List <- Data_Train_CV_Base_Model[["fold_list"]]
-Train_Data <- Train_Data_Strategy_A
+    Data_Train_CV_List <- Data_Train_CV_Base_Model[["fold_list"]]
+    Train_Data <- Train_Data_Strategy_A
     
-##==============================##
-## Code.
-##==============================##
+    ##==============================##
+    ## Code.
+    ##==============================##
     
-XGBoost_Results_Strategy_A <- XGBoost_Training_revised(
-                                      Data_Train_CV_List = Data_Train_CV_List,
-                                      Train_Data         = Train_Data,
-                                      n_init_points    = n_init_points,
-                                      n_iter_bayes     = n_iter_bayes,
-                                      early_stop_bo    = 20,
-                                      early_stop_final = 50,
-                                      nrounds_bo       = 1000,
-                                      nrounds_final    = 2000,
-                                      nthread          = parallel::detectCores() - 1,
-                                      eval_metric      = "auc")
+    XGBoost_Results_Strategy_A <- XGBoost_Training(Data_Train_CV_List = Data_Train_CV_List,
+                                                   Train_Data = Train_Data,
+                                                   n_init_points = n_init_points,
+                                                   n_iter_bayes = n_iter_bayes)
     
-##==============================##
+    ##==============================##
     
-}, error = function(e) message(e))
+  }, error = function(e) message(e))
   
-#==== 01C - Strategy B: Anomaly Score =========================================#
+  #==== 01C - Strategy B: Anomaly Score =========================================#
   
-tryCatch({
+  tryCatch({
     
-##==============================##
-## Parameters.
-##==============================##
+    ##==============================##
+    ## Parameters.
+    ##==============================##
     
-Data_Train_CV_List <- Data_Train_CV_Base_Model[["fold_list"]]
-Train_Data <- Train_Data_Strategy_B
+    Data_Train_CV_List <- Data_Train_CV_Base_Model[["fold_list"]]
+    Train_Data <- Train_Data_Strategy_B
     
-##==============================##
-## Code.
-##==============================##
+    ##==============================##
+    ## Code.
+    ##==============================##
     
     XGBoost_Results_Strategy_B <- XGBoost_Training(Data_Train_CV_List = Data_Train_CV_List,
                                                    Train_Data = Train_Data,
