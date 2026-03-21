@@ -35,17 +35,23 @@ tryCatch({
   Train_Data_Base_Model <- Train_Transformed %>%
     dplyr::mutate(id = Train_with_id$id)
   
-  ### Strategy A: latent features
-  Train_Data_Strategy_A <- cbind(Train_Transformed, Strategy_A_LF)
+  
+  ### Strategy A: latent features ONLY (keep y, drop original predictors)
+  Train_Data_Strategy_A <- cbind(
+    y = Train_Transformed$y,
+    Strategy_A_LF
+  )
   
   ### Strategy B: anomaly score
-  Train_Data_Strategy_B <- Strategy_B_AS
+  Train_Data_Strategy_B <- Strategy_B_AS %>% dplyr::select(y, dplyr::starts_with("anomaly_"))
+  
   
   ### Strategy C: feature denoising (DAE latent features)
-  Train_Data_Strategy_C <- Strategy_C
+  Train_Data_Strategy_C <- Strategy_C %>% dplyr::select(y, dplyr::starts_with("dae_l"))
+
   
   ### Strategy D: cash & profit feature engineering
-  Train_Data_Strategy_D <- Strategy_D
+  Train_Data_Strategy_D <- Strategy_D %>% dplyr::select(y, Gap_Debt_Equity, Ratio_Cash_Profit, Interaction_Cash_Profit, Feature_Stabilizer)
   
   
   ##=========================================##
@@ -73,10 +79,17 @@ tryCatch({
   ##==== Build TEST datasets (recommended)
   ##=========================================##
   Test_Data_Base_Model <- Test_Transformed
-  Test_Data_Strategy_A <- cbind(Test_Transformed, Strategy_A_LF_Test)
-  Test_Data_Strategy_B <- Strategy_B_AS_Test
-  Test_Data_Strategy_C <- Strategy_C_Test
-  Test_Data_Strategy_D <- Strategy_D_Test
+  
+  Test_Data_Strategy_A <- cbind(
+    y = Test_Transformed$y,
+    Strategy_A_LF_Test
+  )
+  
+  Test_Data_Strategy_B  <- Strategy_B_AS_Test %>% dplyr::select(y, dplyr::starts_with("anomaly_"))
+  
+  Test_Data_Strategy_C  <- Strategy_C_Test %>% dplyr::select(y, dplyr::starts_with("dae_l"))
+  
+  Test_Data_Strategy_D  <- Strategy_D_Test %>% dplyr::select(y, Gap_Debt_Equity, Ratio_Cash_Profit, Interaction_Cash_Profit, Feature_Stabilizer)
   
   ## Align TEST to TRAIN (very important for factors + column order)
   Test_Data_Base_Model <- align_test_to_train(Train_Data_Base_Model, Test_Data_Base_Model)
@@ -156,7 +169,6 @@ tryCatch({
 #==============================================================================#
 #==== 02 - GLM Model Comparison (AUC and Parameters) ==========================#
 #==============================================================================#
-
 tryCatch({
   
   extract_metrics <- function(model_obj, model_name) {
@@ -164,78 +176,99 @@ tryCatch({
     # Safety Check: If model didn't train, return NAs
     if (is.null(model_obj) || is.null(model_obj$results)) {
       warning(paste("Model", model_name, "is missing. Returning NA row."))
-      return(data.frame(
-        Model = model_name,
-        Type  = "Error",
-        AUC   = NA_real_,
-        Brier_Score = NA_real_,
-        Penalized_Brier = NA_real_,
-        Alpha  = NA_real_,
-        Lambda = NA_real_
-      ))
+      return(data.frame(Model = model_name, AUC = NA, Brier_Score = NA, 
+                        Penalized_Brier = NA, Model_Type = "Error"))
     }
     
-    # 1) Standard metrics (these names match your example)
+    # 1. Standard Metrics (Available in both)
     best_auc  <- model_obj$results$AUC[1]
-    brier_val <- if (!is.null(model_obj$Brier_Score)) model_obj$Brier_Score else NA_real_
-    penalized_brier <- if (!is.null(model_obj$Penalized_Brier_Score)) model_obj$Penalized_Brier_Score else NA_real_
+    brier_val <- if(!is.null(model_obj$Brier_Score)) model_obj$Brier_Score else NA
     
-    # 2) Parameter extraction (GLM params)
+    # 2. Penalized Brier Score (Specific to GLM usually)
+    penalized_brier <- if(!is.null(model_obj$Penalized_Brier_Score)) model_obj$Penalized_Brier_Score else NA
+    
+    # 3. Parameter Extraction (Conditional)
     params <- model_obj$optimal_parameters
     
-    alpha  <- NA_real_
-    lambda <- NA_real_
+    # Initialize defaults
+    eta <- NA; depth <- NA; subs <- NA; colsample <- NA; rounds <- NA
+    alpha <- NA; lambda <- NA
     model_type <- "Unknown"
     
-    if (!is.null(params) && "alpha" %in% names(params)) {
+    # Detect XGBoost (has "eta")
+    if ("eta" %in% names(params)) {
+      model_type <- "XGBoost"
+      eta        <- params$eta
+      depth      <- params$max_depth
+      subs       <- params$subsample
+      colsample  <- params$colsample_bytree
+      rounds     <- model_obj$optimal_rounds
+    } 
+    # Detect GLM (has "alpha")
+    else if ("alpha" %in% names(params)) {
       model_type <- "GLM"
-      alpha  <- params$alpha
-      lambda <- params$lambda
-    } else {
-      # If you ever pass a non-GLM model object here, keep it robust:
-      model_type <- "Other/Unknown"
+      alpha      <- params$alpha
+      lambda     <- params$lambda
     }
     
+    # 4. Return Dataframe
     data.frame(
       Model = model_name,
       Type  = model_type,
       AUC   = best_auc,
       Brier_Score = brier_val,
       Penalized_Brier = penalized_brier,
+      
+      # Model Specific Params
       Alpha  = alpha,
-      Lambda = lambda
+      Lambda = lambda,
+      Rounds = rounds,
+      Eta    = eta,
+      Max_Depth = depth
     )
   }
   
 }, error = function(e) message("Function Definition Error: ", e))
 
 
-#==============================================================================#
-#==== 02A - Compare models (Leaderboard) ======================================#
-#==============================================================================#
-
 tryCatch({
   
-  comparison_table <- dplyr::bind_rows(
+  comparison_table_raw <- dplyr::bind_rows(
     extract_metrics(GLM_Results_BaseModel,  "Base Model"),
     extract_metrics(GLM_Results_Strategy_A, "Strategy A"),
     extract_metrics(GLM_Results_Strategy_B, "Strategy B"),
     extract_metrics(GLM_Results_Strategy_C, "Strategy C"),
     extract_metrics(GLM_Results_Strategy_D, "Strategy D")
-  ) %>%
-    # Filter out failed models
+  )
+  
+  # --- ensure base exists BEFORE filtering ---
+  base_row <- comparison_table_raw %>%
+    dplyr::filter(Model == "Base Model") %>%
+    dplyr::slice(1)
+  
+  if (nrow(base_row) == 0) stop("Base Model row not found (Model == 'Base Model'). Check naming.")
+  
+  
+  safe_uplift_pct <- function(x, base, higher_is_better = TRUE) {
+    ok <- is.finite(x) & is.finite(base) & base != 0
+    out <- rep(0, length(x))
+    out[ok] <- (x[ok] - base) / base * 100
+    if (!higher_is_better) out[ok] <- -out[ok]
+    out
+  }
+  
+  comparison_table <- comparison_table_raw %>%
+    # Filter out failed models (but keep base in raw already)
     dplyr::filter(!is.na(AUC)) %>%
     dplyr::arrange(dplyr::desc(AUC)) %>%
     dplyr::mutate(
-      # Baselines (safe: if base model row missing, these become NA)
-      Base_AUC   = AUC[Model == "Base Model (GLM)"][1],
-      Base_Brier = Brier_Score[Model == "Base Model (GLM)"][1],
-      Base_PBS   = Penalized_Brier[Model == "Base Model (GLM)"][1],
+      Base_AUC   = base_row$AUC,
+      Base_Brier = base_row$Brier_Score,
+      Base_PBS   = base_row$Penalized_Brier,
       
-      # Uplift (AUC higher is better, Brier lower is better)
-      Uplift_AUC_pct   = (AUC - Base_AUC) / Base_AUC * 100,
-      Uplift_Brier_pct = - (Brier_Score - Base_Brier) / Base_Brier * 100,
-      Uplift_PBS_pct   = - (Penalized_Brier - Base_PBS) / Base_PBS * 100
+      Uplift_AUC_pct   = safe_uplift_pct(AUC,            Base_AUC,   higher_is_better = TRUE),
+      Uplift_Brier_pct = safe_uplift_pct(Brier_Score,    Base_Brier, higher_is_better = FALSE),
+      Uplift_PBS_pct   = safe_uplift_pct(Penalized_Brier,Base_PBS,   higher_is_better = FALSE)
     ) %>%
     dplyr::select(
       Model, Type,
@@ -249,7 +282,6 @@ tryCatch({
   print(comparison_table)
   
 }, error = function(e) message("Comparison Error: ", e))
-
 
 
 #==============================================================================#
@@ -280,18 +312,25 @@ tryCatch({
   ### Base model.
   Test_Data_Base_Model <- Test_Transformed
   
-  ### Strategy A: latent features.
-  Final_Test_Set_A <- cbind(Test_Transformed, Strategy_A_LF_Test)
+  ### Strategy A: latent features ONLY (keep y, drop original predictors)
+  Final_Test_Set_A <- cbind(
+    y = Test_Transformed$y,
+    Strategy_A_LF_Test
+  )
   Test_Data_Strategy_A <- Final_Test_Set_A
   
   ### Strategy B: anomaly score.
-  Test_Data_Strategy_B <- Strategy_B_AS_Test
+  Test_Data_Strategy_B <- cbind(
+    y = Test_Transformed$y,
+    Strategy_B_AS_Test
+  )
   
   ### Strategy C: DAE denoising (latent features).
-  Test_Data_Strategy_C <- Strategy_C_Test
+  Test_Data_Strategy_C  <- Strategy_C_Test %>% dplyr::select(y, dplyr::starts_with("dae_l"))
   
   ### Strategy D: Cash & Profit feature engineering.
-  Test_Data_Strategy_D <- Strategy_D_Test
+  Train_Data_Strategy_D <- Strategy_D %>% dplyr::select(y, Gap_Debt_Equity, Ratio_Cash_Profit, Interaction_Cash_Profit, Feature_Stabilizer)
+
   
   ## Align test sets to the corresponding train sets (recommended)
   Test_Data_Base_Model <- align_test_to_train(Train_Data_Base_Model, Test_Data_Base_Model)
@@ -373,121 +412,52 @@ tryCatch({
 }, error = function(e) message("Test Strategy D Error: ", e))
 
 
+#==============================================================================#
+#==== 04A - Leaderboard on TEST  =============================#
+#==============================================================================#
 
-#==============================================================================#
-#==== 04 - TEST-SET Model Comparison (AUC + Brier + Parameters) ===============#
-#==============================================================================#
+
+
+
 
 tryCatch({
   
-  # helper: robust probability extraction from GLM_Test output
-  get_pred_prob <- function(pred_obj) {
-    if (!is.null(pred_obj$Pred_Prob)) return(as.numeric(pred_obj$Pred_Prob))
-    if (!is.null(pred_obj$Predictions)) return(as.numeric(pred_obj$Predictions))
-    if (!is.null(pred_obj$pred)) return(as.numeric(pred_obj$pred))
-    stop("GLM_Test output has no Pred_Prob / Predictions / pred.")
-  }
-  
-  # helper: robust y extraction (expects y exists in the Test_Data_* dfs)
-  get_y01 <- function(df) {
-    y <- df$y
-    # common case: factor with levels "0","1"
-    y_num <- suppressWarnings(as.numeric(as.character(y)))
-    if (all(y_num %in% c(0,1), na.rm = TRUE)) return(y_num)
-    # fallback: factor -> 0/1
-    if (is.factor(y)) return(as.numeric(y) - 1)
-    # fallback: already numeric/logical
-    return(as.numeric(y))
-  }
-  
-  # helper: brier score
-  brier_score <- function(y_true01, p_hat) mean((p_hat - y_true01)^2, na.rm = TRUE)
-  
-  extract_test_metrics <- function(test_pred_obj, test_df, train_model_obj, model_name) {
-    
-    # If missing, return NA row
-    if (is.null(test_pred_obj)) {
-      warning(paste("Test predictions missing for", model_name, "- returning NA row."))
-      return(data.frame(
-        Model = model_name, Type = "Error",
-        AUC = NA_real_, Brier_Score = NA_real_,
-        Penalized_Brier = NA_real_,
-        Alpha = NA_real_, Lambda = NA_real_
-      ))
-    }
-    
-    # 1) Get probs + y
-    p_hat <- get_pred_prob(test_pred_obj)
-    y01   <- get_y01(test_df)
-    
-    # 2) AUC (only if both classes present)
-    auc_val <- NA_real_
-    if (length(unique(stats::na.omit(y01))) == 2) {
-      roc_obj <- pROC::roc(y01, p_hat, quiet = TRUE)
-      auc_val <- as.numeric(pROC::auc(roc_obj))
-    } else {
-      warning(paste("AUC not defined for", model_name, "(only one class in test y)."))
-    }
-    
-    # 3) Brier
-    brier_val <- brier_score(y01, p_hat)
-    
-    # 4) Penalized brier (if your training object has it; else NA)
-    pbs <- NA_real_
-    if (!is.null(train_model_obj) && !is.null(train_model_obj$Penalized_Brier_Score)) {
-      pbs <- train_model_obj$Penalized_Brier_Score
-    }
-    
-    # 5) Params (alpha/lambda if present)
-    alpha <- NA_real_
-    lambda <- NA_real_
-    model_type <- "Unknown"
-    if (!is.null(train_model_obj) && !is.null(train_model_obj$optimal_parameters)) {
-      params <- train_model_obj$optimal_parameters
-      if ("alpha" %in% names(params)) {
-        model_type <- "GLM"
-        alpha  <- params$alpha
-        lambda <- params$lambda
-      }
-    }
-    
-    data.frame(
-      Model = model_name,
-      Type  = model_type,
-      AUC   = auc_val,
-      Brier_Score = brier_val,
-      Penalized_Brier = pbs,
-      Alpha  = alpha,
-      Lambda = lambda
-    )
-  }
-  
-}, error = function(e) message("Function Definition Error (TEST comparison): ", e))
-
-
-#==============================================================================#
-#==== 04A - Leaderboard on TEST ===============================================#
-#==============================================================================#
-
-tryCatch({
-  
-  comparison_table_test <- dplyr::bind_rows(
+  comparison_table_test_raw <- dplyr::bind_rows(
     extract_test_metrics(GLM_Test_Results_BaseModel,  Test_Data_Base_Model,  GLM_Results_BaseModel,  "Base Model"),
     extract_test_metrics(GLM_Test_Results_Strategy_A, Test_Data_Strategy_A,  GLM_Results_Strategy_A, "Strategy A"),
     extract_test_metrics(GLM_Test_Results_Strategy_B, Test_Data_Strategy_B,  GLM_Results_Strategy_B, "Strategy B"),
     extract_test_metrics(GLM_Test_Results_Strategy_C, Test_Data_Strategy_C,  GLM_Results_Strategy_C, "Strategy C"),
     extract_test_metrics(GLM_Test_Results_Strategy_D, Test_Data_Strategy_D,  GLM_Results_Strategy_D, "Strategy D")
-  ) %>%
+  )
+  
+  # --- extract base BEFORE filtering ---
+  base_row <- comparison_table_test_raw %>%
+    dplyr::filter(Model == "Base Model") %>%
+    dplyr::slice(1)
+  
+  if (nrow(base_row) == 0) stop("Base Model row not found (Model == 'Base Model'). Check naming.")
+  
+  # helper: safe pct uplift (returns 0 instead of NA)
+  safe_uplift_pct <- function(x, base, higher_is_better = TRUE) {
+    ok <- is.finite(x) & is.finite(base) & base != 0
+    out <- rep(0, length(x))
+    out[ok] <- (x[ok] - base) / base * 100
+    if (!higher_is_better) out[ok] <- -out[ok]
+    out
+  }
+  
+  comparison_table_test <- comparison_table_test_raw %>%
+    # If you want to exclude models where AUC can't be computed, keep this:
     dplyr::filter(!is.na(AUC)) %>%
     dplyr::arrange(dplyr::desc(AUC)) %>%
     dplyr::mutate(
-      Base_AUC   = AUC[Model == "Base Model (TEST)"][1],
-      Base_Brier = Brier_Score[Model == "Base Model (TEST)"][1],
-      Base_PBS   = Penalized_Brier[Model == "Base Model (TEST)"][1],
+      Base_AUC   = base_row$AUC,
+      Base_Brier = base_row$Brier_Score,
+      Base_PBS   = base_row$Penalized_Brier,
       
-      Uplift_AUC_pct   = (AUC - Base_AUC) / Base_AUC * 100,
-      Uplift_Brier_pct = - (Brier_Score - Base_Brier) / Base_Brier * 100,
-      Uplift_PBS_pct   = - (Penalized_Brier - Base_PBS) / Base_PBS * 100
+      Uplift_AUC_pct   = safe_uplift_pct(AUC,             Base_AUC,   higher_is_better = TRUE),
+      Uplift_Brier_pct = safe_uplift_pct(Brier_Score,     Base_Brier, higher_is_better = FALSE),
+      Uplift_PBS_pct   = safe_uplift_pct(Penalized_Brier, Base_PBS,   higher_is_better = FALSE)
     ) %>%
     dplyr::select(
       Model, Type,
@@ -501,7 +471,6 @@ tryCatch({
   print(comparison_table_test)
   
 }, error = function(e) message("TEST Comparison Error: ", e))
-
 
 
 
@@ -558,7 +527,7 @@ get_top_coeffs_glmnet <- function(model, model_name = "Model", top_n = 20) {
     select(Strategy, Feature, Coef, AbsCoef, OddsRatio)
 }
 
-#--- collect the optimal models (trained) -------------------------------------
+
 models_list <- list(
   "Base Model" = GLM_Results_BaseModel$optimal_model,
   "Strategy A" = GLM_Results_Strategy_A$optimal_model,
@@ -567,17 +536,16 @@ models_list <- list(
   "Strategy D" = GLM_Results_Strategy_D$optimal_model
 )
 
-#--- run and print top contributors per strategy ------------------------------
+
 top_n <- 20
 
 importance_all <- bind_rows(lapply(names(models_list), function(nm) {
   get_top_coeffs_glmnet(models_list[[nm]], model_name = nm, top_n = top_n)
 }))
 
-# 1) Combined table (all strategies)
+
 print(importance_all)
 
-# 2) Print each strategy separately (cleaner in console)
 importance_by_strategy <- split(importance_all, importance_all$Strategy)
 for (nm in names(importance_by_strategy)) {
   cat("\n====================\n", nm, "— Top", top_n, "features\n====================\n")
@@ -594,7 +562,7 @@ for (nm in names(importance_by_strategy)) {
 library(openxlsx)
 
 # Define path
-file_path <- "/Users/admin/Desktop/Industry Lab/01_Code/GLM_Variable_Importance_By_Strategy.xlsx"
+file_path <- "/Users/admin/Desktop/Functions only autoencoded features - new transformation/NT_train_autoencoded_results_only.xlsx"
 
 # Create workbook
 wb <- createWorkbook()
@@ -615,13 +583,8 @@ cat("File saved to:\n", file_path)
 
 
 
-
-
-
-
-
 #==============================================================================#
-#==== 05B - TEST-set variable contributions (per strategy) ====================#
+#==== 05B - TEST-set variable contributions per strategy ====================#
 #==============================================================================#
 
 library(dplyr)
@@ -633,13 +596,12 @@ get_coef_vec <- function(model) {
   setNames(as.numeric(cc[, 1]), rownames(cc))
 }
 
-#--- helper: build model matrix compatible with glmnet prediction -------------
-# Uses the formula interface y ~ . assuming y exists in df (it does in your code).
+
 build_x_matrix <- function(df) {
   stats::model.matrix(y ~ ., data = df)  # includes (Intercept)
 }
 
-#--- main: compute average absolute contribution on TEST ----------------------
+
 get_test_contrib <- function(model, test_df, strategy_name = "Model", top_n = 20) {
   if (is.null(model) || is.null(test_df)) {
     warning(paste("Missing model or test_df for", strategy_name))
@@ -679,16 +641,13 @@ get_test_contrib <- function(model, test_df, strategy_name = "Model", top_n = 20
   Xc <- X[, common, drop = FALSE]
   bc <- beta[common]
   
-  # contribution matrix: each column j is X[,j] * beta[j]
   contrib <- sweep(Xc, 2, bc, `*`)
   
-  # drop intercept for "variable contribution"
   if ("(Intercept)" %in% colnames(contrib)) {
     contrib <- contrib[, setdiff(colnames(contrib), "(Intercept)"), drop = FALSE]
     bc <- bc[setdiff(names(bc), "(Intercept)")]
   }
   
-  # aggregate across test observations
   tibble(
     Strategy = strategy_name,
     Feature  = colnames(contrib),
@@ -700,7 +659,7 @@ get_test_contrib <- function(model, test_df, strategy_name = "Model", top_n = 20
     slice_head(n = top_n)
 }
 
-#--- collect models + corresponding test dfs ----------------------------------
+
 test_items <- list(
   list(name = "Base Model", model = GLM_Results_BaseModel$optimal_model,  test_df = Test_Data_Base_Model),
   list(name = "Strategy A", model = GLM_Results_Strategy_A$optimal_model, test_df = Test_Data_Strategy_A),
@@ -725,14 +684,7 @@ for (nm in names(by_strat)) {
   print(by_strat[[nm]])
 }
 
-# Optional: save
-# write.csv(test_contrib_all, "glm_test_contributions_by_strategy.csv", row.names = FALSE)
 
-
-
-
-
-# install.packages("openxlsx")  # run once if needed
 library(openxlsx)
 library(dplyr)
 
@@ -745,12 +697,12 @@ test_contrib_all_ranked <- test_contrib_all %>%
   select(Strategy, Rank, Feature, Coef, MeanAbsContrib, MeanContrib)
 
 # ---- Define file path ----
-file_path_test <- "/Users/admin/Desktop/Industry Lab/01_Code/GLM_TEST_Variable_Importance_By_Strategy.xlsx"
+file_path_test <- "/Users/admin/Desktop/Functions only autoencoded features - new transformation/NT_Test_autoencoded_results_only.xlsx"
 
-# ---- Create workbook ----
+
 wb <- createWorkbook()
 
-# ---- Split by strategy into separate sheets ----
+
 test_split <- split(test_contrib_all_ranked, test_contrib_all_ranked$Strategy)
 
 for (nm in names(test_split)) {
@@ -761,7 +713,13 @@ for (nm in names(test_split)) {
   setColWidths(wb, nm, cols = 1:6, widths = "auto")
 }
 
-# ---- Save workbook ----
 saveWorkbook(wb, file_path_test, overwrite = TRUE)
 
 cat("TEST Variable Importance file saved to:\n", file_path_test)
+
+
+
+
+
+
+

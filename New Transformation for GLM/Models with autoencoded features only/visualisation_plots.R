@@ -32,8 +32,8 @@ theme_ilab <- function(base_size = 18) {
 }
 
 # ---- paths ----
-excel_path <- "/Users/admin/Desktop/Industry Lab/01_Code/GLM_Variable_Importance_By_Strategy.xlsx"
-out_dir    <- "/Users/admin/Desktop/Industry Lab/01_Code/plots_beta_importance"
+excel_path <- "/Users/admin/Desktop/Functions only autoencoded fatures - new transformation/NT_Test_autoencoded_results_only.xlsx"
+out_dir    <- "/Users/admin/Desktop/Functions only autoencoded fatures - new transformation/plots_NT_importance_raw_test"
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
 # ---- plot function ----
@@ -58,10 +58,10 @@ plot_strategy_beta_ilab <- function(sheet_name, top_n = 10) {
     geom_vline(xintercept = 0, linewidth = 0.9, color = "grey55") +
     geom_text(
       aes(label = sprintf("%.3f", Coef)),
-      hjust = ifelse(df$Coef >= 0, -0.15, 1.15),
+      hjust = ifelse(df$Coef >= 0, 1.10, -0.10),  # put text inside each bar
       size = 5,
       fontface = "bold",
-      color = "black"
+      color = "white"
     ) +
     scale_fill_manual(values = c("Positive β" = blue, "Negative β" = grey)) +
     labs(

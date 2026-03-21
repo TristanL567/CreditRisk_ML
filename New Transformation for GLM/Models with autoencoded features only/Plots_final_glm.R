@@ -55,7 +55,7 @@ plot_auc_leaderboard_train <- function(comparison_table) {
 
 
 p_auc_train <- plot_auc_leaderboard_train(comparison_table)
-path <- "/Users/admin/Desktop/Industry Lab/01_Code/Functions"
+path <- "/Users/admin/Desktop/Functions only autoencoded fatures - new transformation"
 
 ggsave(
   filename = file.path(path, "p_auc_train n.png"),
@@ -121,9 +121,9 @@ make_leaderboard_table_train <- function(comparison_table) {
 }
 
 
-path <- "/Users/admin/Desktop/Industry Lab/01_Code/Functions"
+path <- "/Users/admin/Desktop/Functions only autoencoded fatures - new transformation"
 tbl_train <- make_leaderboard_table_train(comparison_table)
-file_name <- file.path(path, "GLM_Leaderboard_Train.png")
+file_name <- file.path(path, "GLM_NT_raw_data_Leaderboard_Train.png")
 gtsave(tbl_train, file_name)
 
 
@@ -208,7 +208,7 @@ plot_auc_leaderboard_test <- function(comparison_table_test) {
 
 p_auc_test <- plot_auc_leaderboard_test(comparison_table_test)
 
-path <- "/Users/admin/Desktop/Industry Lab/01_Code/Functions"
+path <- "/Users/admin/Desktop/Functions only autoencoded fatures - new transformation"
 
 ggsave(
   filename = file.path(path, "p_auc_test.png"),
@@ -278,5 +278,5 @@ make_leaderboard_table_test <- function(comparison_table_test) {
 
 
 tbl_test <- make_leaderboard_table_test(comparison_table_test)
-file_name <- file.path(path, "GLM_Leaderboard_Test.png")
+file_name <- file.path(path, "GLM_Leaderboard_NT_Test.png")
 gtsave(tbl_test, file_name)
