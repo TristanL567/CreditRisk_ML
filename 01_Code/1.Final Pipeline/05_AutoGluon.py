@@ -244,23 +244,34 @@ elif MODEL == "M4":
     # VAE latent feature cols (exclude meta)
     lat_feat_cols = [c for c in train_lat.columns if c not in LAT_META_COLS]
 
-    # Join: raw features + latent features on id
-    train_df = train_raw.merge(
-        train_lat[["id"] + lat_feat_cols],
-        on="id", how="left"
+    # Both files are row-aligned from the R pipeline (same split, same order).
+    # Join on id would create a cartesian product (multiple obs per firm).
+    # Correct approach: cbind by position after asserting row counts match.
+    assert len(train_raw) == len(train_lat), (
+        f"M4 row mismatch: raw={len(train_raw)} vs latent={len(train_lat)}"
     )
-    test_df = test_raw.merge(
-        test_lat[["id"] + lat_feat_cols],
-        on="id", how="left"
+    assert len(test_raw) == len(test_lat), (
+        f"M4 row mismatch: raw={len(test_raw)} vs latent={len(test_lat)}"
     )
 
-    # Drop id from modelling df (not a feature)
-    train_df = train_df.drop(columns=["id"])
-    test_df  = test_df.drop(columns=["id"])
+    # Reset indices to guarantee alignment, then concatenate column-wise
+    train_raw = train_raw.reset_index(drop=True)
+    test_raw  = test_raw.reset_index(drop=True)
+    train_lat = train_lat.reset_index(drop=True)
+    test_lat  = test_lat.reset_index(drop=True)
 
-    n_unmatched = train_df[lat_feat_cols[0]].isna().sum()
-    if n_unmatched > 0:
-        print(f"  ⚠ {n_unmatched} train rows unmatched after join — check id alignment")
+    train_df = pd.concat(
+        [train_raw.drop(columns=["id"], errors="ignore"),
+         train_lat[lat_feat_cols]],
+        axis=1
+    )
+    test_df = pd.concat(
+        [test_raw.drop(columns=["id"], errors="ignore"),
+         test_lat[lat_feat_cols]],
+        axis=1
+    )
+
+    print(f"  M4 cbind: train {train_df.shape} | test {test_df.shape}")
 
 # For M1/M2/M3: drop id if it survived into the modelling df
 for col in ["id"]:
