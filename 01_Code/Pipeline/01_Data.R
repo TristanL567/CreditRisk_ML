@@ -8,120 +8,203 @@
 #
 # PURPOSE:
 #   Load the raw panel dataset, run structural preprocessing, and produce
-#   a clean Data object ready for feature engineering.
+#   a clean Data object ready for feature engineering in 02_FeatureEngineering.R.
 #
-# INPUTS:
-#   PATH_DATA_FILE          — path to data.rda         (from config.R)
-#   TARGET_COL              — name of the target col   (from config.R)
+# INPUTS  (all from config.R):
+#   PATH_DATA_FILE   — path to data.rda
+#   TARGET_COL       — name of the binary default target column
 #
 # OUTPUT:
-#   Data                    — cleaned data.frame / data.table
-#
-# CHANGES FROM ORIGINAL:
-#   [01] load() wrapper: original used Data <- load(...); Data <- d.
-#        load() returns a character vector of object names, not the object.
-#        The two-line idiom works but silently assumes the object inside the
-#        .rda is always named "d". Replaced with a safe wrapper that loads
-#        into a temporary environment and retrieves the first object by name,
-#        making the assumption explicit and failure-safe.
-#   [02] Column removal before drop_na: original called drop_na() first, then
-#        removed "f*" columns. Any NA introduced by the raw financial position
-#        columns ("f*") would cause rows to be dropped unnecessarily before
-#        those columns were removed. Reordered to: drop "f*" → replace Inf →
-#        drop_na(). This preserves more rows.
-#   [03] Validation report: added a brief summary (rows, cols, default rate,
-#        remaining NAs) so the stage is self-documenting in the console log.
+#   Data             — clean data.table, passed in memory to next stage.
+#                      No NAs, no duplicates.
 #
 #==============================================================================#
 
+## ── Feature selection ─────────────────────────────────────────────────────────
+## Controls which feature families are retained after loading.
+##
+##   "r"    — keep only ratio features (r1–r18); drop raw financials (f*)
+##   "f"    — keep only raw financial position features (f*); drop ratios (r*)
+##   "both" — keep all features
+##
+KEEP_FEATURES <- "both"   ## <── change here
+
+## ─────────────────────────────────────────────────────────────────────────────
+
+message("--- Starting 01_Data: Load & Preprocess ---")
 
 tryCatch({
   
-  message("--- Starting 01_Data: Load & Preprocess ---")
+  #==============================================================================#
+  #==== A - Load =================================================================#
+  #==============================================================================#
   
-  #============================================================================#
-  #==== A - Load Raw Data ======================================================#
-  #============================================================================#
-  
-  ## [CHANGE 01] Safe load wrapper.
-  ## load() assigns objects into an environment and returns their names as a
-  ## character vector. The original code relied on the object inside the .rda
-  ## being named "d" (Data <- load(...) then Data <- d).
-  ## This wrapper is explicit: it loads into a temporary env, retrieves the
-  ## first object by name, and fails with a clear message if the file is empty.
-  
+  ## Safe load() wrapper — retrieves first object from .rda without assuming name.
   load_rda <- function(path) {
-    tmp  <- new.env(parent = emptyenv())
-    nms  <- load(path, envir = tmp)
+    tmp <- new.env(parent = emptyenv())
+    nms <- load(path, envir = tmp)
     if (length(nms) == 0L)
       stop("No objects found in: ", path)
     if (length(nms) > 1L)
-      message(sprintf(
-        "  Note: .rda contains %d objects (%s). Using first: '%s'.",
-        length(nms), paste(nms, collapse = ", "), nms[1L]
-      ))
+      message(sprintf("  Note: .rda contains %d objects. Using first: '%s'.",
+                      length(nms), nms[1L]))
     get(nms[1L], envir = tmp)
   }
   
   Data <- load_rda(PATH_DATA_FILE)
-  message(sprintf("  Loaded: %d rows x %d cols from '%s'",
+  if (!is.data.table(Data)) setDT(Data)
+  
+  message(sprintf("  Loaded: %d rows x %d cols  [%s]",
                   nrow(Data), ncol(Data), basename(PATH_DATA_FILE)))
   
   
-  #============================================================================#
-  #==== B - Structural Preprocessing ===========================================#
-  #============================================================================#
+  #==============================================================================#
+  #==== B - DataPreprocessing ====================================================#
+  #==============================================================================#
   
-  ## External preprocessing function (sourced from Subfunctions/).
-  ## Tolerance = 2 removes columns where more than 2% of values are missing
-  ## or structurally problematic (exact behaviour defined inside the function).
+  required_cols <- c("id", "refdate", TARGET_COL, "sector", "size")
+  ncol_before   <- ncol(Data)
+  
   Data <- DataPreprocessing(Data, Tolerance = 2)
+  if (!is.data.table(Data)) setDT(Data)
   
-  ## [CHANGE 02] Column removal BEFORE Inf → NA and drop_na.
-  ## Original order: replace Inf → drop_na → remove "f*" columns.
-  ## Problem: "f*" (raw financial position) columns may contain NAs. Calling
-  ## drop_na() before removing them discards rows that would have been fine
-  ## after column removal. Correct order: remove columns → replace Inf → drop rows.
+  message(sprintf("  DataPreprocessing(): %d -> %d cols  (%d removed)",
+                  ncol_before, ncol(Data), ncol_before - ncol(Data)))
   
-  ## Step 1: Drop raw financial position columns (prefix "f").
-  f_cols <- grep("^f", colnames(Data), value = TRUE)
-  if (length(f_cols) > 0L) {
-    Data <- Data[, !colnames(Data) %in% f_cols, drop = FALSE]
-    message(sprintf("  Dropped %d raw financial position column(s): %s%s",
-                    length(f_cols),
-                    paste(head(f_cols, 5L), collapse = ", "),
-                    if (length(f_cols) > 5L) ", ..." else ""))
+  missing_req <- setdiff(required_cols, names(Data))
+  if (length(missing_req) > 0L)
+    stop("DataPreprocessing() dropped required columns: ",
+         paste(missing_req, collapse = ", "))
+  
+  
+  #==============================================================================#
+  #==== C - Structural Cleaning ==================================================#
+  #==============================================================================#
+  
+  ## Step 1: Drop feature families according to KEEP_FEATURES.
+  ##         Must happen before NA handling — dropped cols may contain NAs
+  ##         that would otherwise cause rows to be dropped unnecessarily.
+  if (!KEEP_FEATURES %in% c("r", "f", "both"))
+    stop('KEEP_FEATURES must be one of: "r", "f", "both".')
+  
+  f_cols <- grep("^f", names(Data), value = TRUE)
+  r_cols <- grep("^r", names(Data), value = TRUE)
+  
+  drop_cols <- switch(KEEP_FEATURES,
+                      "r"    = f_cols,
+                      "f"    = r_cols,
+                      "both" = character(0L)
+  )
+  
+  if (length(drop_cols) > 0L) {
+    Data[, (drop_cols) := NULL]
+    message(sprintf("  KEEP_FEATURES = '%s' — removed %d col(s): %s%s",
+                    KEEP_FEATURES,
+                    length(drop_cols),
+                    paste(head(drop_cols, 6L), collapse = ", "),
+                    if (length(drop_cols) > 6L) ", ..." else ""))
+  } else {
+    message("  KEEP_FEATURES = 'both' — retaining all f* and r* cols.")
   }
   
-  ## Step 2: Replace infinite values with NA (can arise from ratio calculations).
-  Data <- Data %>%
-    mutate(across(where(is.numeric), ~ ifelse(is.infinite(.), NA_real_, .)))
+  ## Step 2: Replace Inf/-Inf with NA.
+  inf_cols <- names(Data)[sapply(Data, function(x)
+    is.numeric(x) && any(is.infinite(x)))]
+  if (length(inf_cols) > 0L) {
+    Data[, (inf_cols) := lapply(.SD, function(x)
+      replace(x, is.infinite(x), NA_real_)), .SDcols = inf_cols]
+    message(sprintf("  Replaced Inf in %d col(s): %s",
+                    length(inf_cols), paste(inf_cols, collapse = ", ")))
+  }
   
-  ## Step 3: Drop rows that still contain any NA.
-  n_before <- nrow(Data)
-  Data     <- tidyr::drop_na(Data)
+  ## Step 3: NA diagnostic.
+  na_counts <- sort(sapply(names(Data), function(nm) sum(is.na(Data[[nm]]))),
+                    decreasing = TRUE)
+  na_counts <- na_counts[na_counts > 0L]
+  
+  if (length(na_counts) > 0L) {
+    n_rows_affected <- nrow(Data) - nrow(na.omit(Data))
+    message(sprintf("  NA report (%d col(s) affected, %d row(s) will be dropped):",
+                    length(na_counts), n_rows_affected))
+    for (nm in names(na_counts))
+      message(sprintf("    %-28s: %d NA(s)  (%.2f%%)",
+                      nm, na_counts[[nm]], 100 * na_counts[[nm]] / nrow(Data)))
+  }
+  
+  ## Step 4: Drop rows with remaining NAs.
+  n_before  <- nrow(Data)
+  Data      <- na.omit(Data)
   n_dropped <- n_before - nrow(Data)
+  
   if (n_dropped > 0L)
-    message(sprintf("  drop_na(): removed %d row(s) (%.2f%% of pre-drop rows)",
+    message(sprintf("  na.omit(): removed %d row(s)  (%.2f%%)",
                     n_dropped, 100 * n_dropped / n_before))
+  else
+    message("  na.omit(): no rows removed.")
   
   
-  #============================================================================#
-  #==== C - Validation Report ==================================================#
-  #============================================================================#
+  #==============================================================================#
+  #==== D - Panel Validation =====================================================#
+  #==============================================================================#
   
-  ## [CHANGE 03] Self-documenting summary — not present in original.
-  n_defaults <- sum(Data[[TARGET_COL]] == 1L, na.rm = TRUE)
-  message("--- 01_Data complete ---")
-  message(sprintf("  Rows            : %d", nrow(Data)))
-  message(sprintf("  Columns         : %d", ncol(Data)))
-  message(sprintf("  Default rate    : %.3f%% (%d events)",
-                  100 * n_defaults / nrow(Data), n_defaults))
-  message(sprintf("  Remaining NAs   : %d", sum(is.na(Data))))
+  setorder(Data, id, refdate)
+  
+  ## Assert (id, refdate) uniqueness — duplicates cause silent errors in shift().
+  n_dup <- anyDuplicated(Data[, .(id, refdate)])
+  if (n_dup > 0L) {
+    dup_sample <- Data[
+      duplicated(Data[, .(id, refdate)]) |
+        duplicated(Data[, .(id, refdate)], fromLast = TRUE),
+      .(id, refdate)
+    ]
+    message("  Sample duplicate keys:")
+    print(head(dup_sample, 10L))
+    stop(sprintf("Panel key violation: %d duplicate (id, refdate) pair(s).", n_dup))
+  }
+  
+  ## Panel summary.
+  obs_per_firm <- Data[, .N, by = id]
+  message(sprintf(
+    "  Panel summary: %d firms | obs/firm — median: %.1f  min: %d  max: %d",
+    uniqueN(Data$id), median(obs_per_firm$N),
+    min(obs_per_firm$N), max(obs_per_firm$N)
+  ))
+  
+  ## Mixed-frequency check.
+  Data[, .obs_gap := as.numeric(
+    difftime(refdate, shift(refdate, 1L, type = "lag"), units = "days")
+  ), by = id]
+  
+  gap_vals <- Data[!is.na(.obs_gap), .obs_gap]
+  message(sprintf("  Obs gap (days) — median: %.0f  min: %.0f  max: %.0f",
+                  median(gap_vals), min(gap_vals), max(gap_vals)))
+  
+  if (min(gap_vals) < 300L && max(gap_vals) >= 300L)
+    warning(
+      "Mixed reporting frequencies detected. ",
+      "Lag-1 features in 02_FeatureEngineering will be period-over-period ",
+      "for sub-annual reporters, NOT year-over-year."
+    )
+  
+  Data[, .obs_gap := NULL]
+  
+  
+  #==============================================================================#
+  #==== E - Exit Validation ======================================================#
+  #==============================================================================#
   
   stopifnot(
-    "Target column missing from Data"  = TARGET_COL %in% colnames(Data),
-    "NAs remain in Data after 01_Data" = sum(is.na(Data)) == 0L
+    "TARGET_COL missing after 01_Data" = TARGET_COL %in% names(Data),
+    "NAs remain after 01_Data"         = sum(is.na(Data)) == 0L,
+    "Data is empty after 01_Data"      = nrow(Data) > 0L
   )
+  
+  n_defaults <- sum(Data[[TARGET_COL]] == 1L, na.rm = TRUE)
+  
+  message("--- 01_Data complete ---")
+  message(sprintf("  Rows         : %d", nrow(Data)))
+  message(sprintf("  Columns      : %d", ncol(Data)))
+  message(sprintf("  Default rate : %.3f%%  (%d events)",
+                  100 * n_defaults / nrow(Data), n_defaults))
   
 }, error = function(e) stop("01_Data failed: ", e$message))
