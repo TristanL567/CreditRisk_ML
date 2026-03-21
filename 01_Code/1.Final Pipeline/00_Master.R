@@ -3,63 +3,112 @@
 #==============================================================================#
 #
 # PROJECT:  Credit Risk Modelling — VAE-Augmented Default Prediction
-# AUTHOR:   
+# AUTHOR:   Tristan Leiter
 # UPDATED:  2026
 #
 # PURPOSE:
 #   Single entry point for the entire pipeline. Sources config.R first,
-#   then installs/loads all packages, sources all subfunctions, and runs
-#   each stage in sequence. Every stage can also be sourced independently —
-#   all parameters are read from config.R.
+#   then loads all packages, sources all subfunctions, and runs each stage
+#   in sequence. Every stage can also be sourced independently after
+#   sourcing config.R.
 #
-# PIPELINE OVERVIEW:
+# ── PIPELINE OVERVIEW ─────────────────────────────────────────────────────────
+#
 #   00_Master.R              Orchestrator (this file)
 #   config.R                 Single source of truth — all parameters and paths
-#   ─────────────────────────────────────────────────────────────────────────
-#   01_Data.R                Raw data load, preprocessing, column filtering
-#   02_FeatureEngineering.R  Time-series dynamics, sector features,
-#                            quantile transform, imputation, final cleanup
-#   ─────────────────────────────────────────────────────────────────────────
-#   03_Split.R               Stratified firm-level train/test split,
-#                            leakage check, CV fold construction
-#   ─────────────────────────────────────────────────────────────────────────
-#   04_VAE_Prep.R            Column classification (continuous / bounded /
-#                            binary), VAE input matrix, feat_dist
-#   05_VAE_Train.R           Architecture derivation, manual training loop,
-#                            KL warmup, early stopping, weight restore
-#   06_Strategies.R          Strategy A (latent features), B (anomaly score),
-#                            C (DAE denoising) — assemble train/test sets
-#   ─────────────────────────────────────────────────────────────────────────
-#   07_Train.R               XGBoost Bayesian HPO for all four strategies
-#   08_Evaluate.R            Test-set evaluation, leaderboard, uplift table
-#   09_Charts.R              Feature importance, PDP, calibration,
-#                            hexbin interactions, residual diagnostics
-#   ─────────────────────────────────────────────────────────────────────────
-#   Subfunctions/
-#     MVstratifiedsampling.R         Firm-level stratified train/test split
-#     MVstratifiedsampling_CV.R      Stratified CV folds (full output)
-#     MVstratifiedsampling_CV_ID.R   CV fold assignment at firm-ID level
-#     MVstratifiedsampling_CV_Split.R Map firm-fold IDs to row indices
-#     QuantileTransformation.R       Rank-based Gaussian normalisation
-#     XGBoost_Training_revised.R     Full HPO + final model training
-#     XGBoost_Test_revised.R         Test-set evaluation with Youden threshold
 #
-# STAGE GROUPINGS:
-#   DATA          (01–02) : Load, preprocess, engineer features
-#   SPLIT         (03)    : Train/test and CV split — run once, checkpoint
-#   VAE           (04–06) : Encode, train, extract representations
-#   MODELLING     (07–09) : Train, evaluate, visualise
+#   ── STAGE 1: Data & Feature Engineering (R) ──────────────────────────────
+#   01_Data.R                Raw data load, structural preprocessing,
+#                            column filtering (KEEP_FEATURES flag)
+#
+#   02_FeatureEngineering.R  Split (OoS or OoT), time-series dynamics,
+#                            sector deviation features, quantile transform
+#                            (Uniform), imputation, final cleanup
+#
+#   ── STAGE 2: CV Setup (R) ────────────────────────────────────────────────
+#   03_CV_Setup.R            Stratified firm-level k-fold CV construction
+#                            (sector × y_ever, N_FOLDS from config.R)
+#                            Saves cv_folds_{split}.rds for 04A + 04B
+#
+#   ── STAGE 3: Autoencoder (Python) ────────────────────────────────────────
+#   03_Autoencoder.py        Beta-VAE on normal-scores features.
+#                            Outputs latent dims + anomaly scores.
+#
+#   ── STAGE 3: Modelling (R) ───────────────────────────────────────────────
+#   04A_Train_GLM.R          Penalised GLM (elastic net / lasso) baseline
+#   04B_Train_XGBoost.R      XGBoost with Bayesian HPO
+#
+#   ── STAGE 4: AutoML (Python) ─────────────────────────────────────────────
+#   05_AutoGluon.py          AutoGluon AutoML — four model configurations:
+#                              M1: raw uniform features
+#                              M2: VAE latent dims + recon error
+#                              M3: recon error (anomaly score) only
+#                              M4: raw + VAE latent combined
+#
+#   ── STAGE 5: Evaluation & Charts (R) ─────────────────────────────────────
+#   06_Evaluate.R            Test-set evaluation, leaderboard, uplift table
+#   07_Charts.R              Feature importance, PDP, calibration,
+#                            SHAP, residual diagnostics
+#
+# ── KEY LOCATIONS ─────────────────────────────────────────────────────────────
+#
+#   INPUT DATA:
+#     Raw data (.rda)        C:/Users/Tristan Leiter/Documents/Privat/ILAB/Data/WS2025/data.rda
+#
+#   R PIPELINE OUTPUTS  (→ {PATH_ROOT}/02_Data/):
+#     02_train_final_OoS.rds          Uniform(0,1) train features  — XGBoost / GLM
+#     02_test_final_OoS.rds           Uniform(0,1) test features   — XGBoost / GLM
+#     02_train_final_vae_OoS.rds      N(0,1) train features        — VAE input
+#     02_test_final_vae_OoS.rds       N(0,1) test features         — VAE input
+#     02_train_id_vec_OoS.rds         Firm id vector (train rows)  — for joining
+#     02_test_id_vec_OoS.rds          Firm id vector (test rows)   — for joining
+#     (Replace _OoS with _OoT for the out-of-time split)
+#
+#   PYTHON / VAE OUTPUTS  (→ {PATH_ROOT}/03_Output/):
+#     Latent/
+#       latent_train_OoS.parquet      id, y, z1..z32, vae_recon_error (train)
+#       latent_test_OoS.parquet       id, y, z1..z32, vae_recon_error (test)
+#       anomaly_train_OoS.parquet     id, y, vae_recon_error only (train)
+#       anomaly_test_OoS.parquet      id, y, vae_recon_error only (test)
+#     Models/VAE/OoS/
+#       vae_weights.pt                Full VAE model weights
+#       encoder_weights.pt            Encoder weights only
+#       vae_config.json               Architecture + training config
+#     Figures/VAE/
+#       training_curves_OoS.png
+#       latent_space_OoS.png
+#
+#   AUTOGLUON OUTPUTS  (→ {PATH_ROOT}/03_Output/AutoGluon/{M1..M4}_{OoS}/):
+#     ag_predictor/                   Full AutoGluon predictor (model weights)
+#     predictions_test.parquet        id, y, p_default, split_mode, model_name, year
+#     eval_summary.json               AUC-ROC, AP, Brier, BSS, Recall@FPR
+#     feature_importance.csv          Permutation feature importance
+#
+#   R MODEL OUTPUTS  (→ {PATH_ROOT}/03_Output/Models/):
+#     GLM/                            Elastic net model objects + metrics
+#     XGBoost/                        XGBoost model objects + metrics
+#
+#   CHARTS  (→ {PATH_ROOT}/03_Charts/):
+#     Feature importance, PDP, calibration, SHAP plots
+#
+# ── SPLIT CONTROL ─────────────────────────────────────────────────────────────
+#   Set SPLIT_MODE in config.R before running:
+#     "OoS"  →  stratified firm-level random split
+#     "OoT"  →  firms whose last refdate falls in last OOT_N_YEARS → test
+#
+#   All outputs are suffixed _OoS or _OoT automatically.
+#   Downstream Python scripts (03, 05) have their own SPLIT_MODE flag
+#   at the top of the file — set them to match.
 #
 #==============================================================================#
 
 
 #==============================================================================#
-#==== 00 - Python / Reticulate ================================================#
+#==== 00 - Bootstrap: config + reticulate =====================================#
 #==============================================================================#
 
-## Must be sourced before library(reticulate) / library(keras) / library(autotab).
-## config.R sets RETICULATE_PYTHON via Sys.setenv() as its first action —
-## source it here before any library() call.
+## config.R must be sourced BEFORE any library() call because it sets
+## RETICULATE_PYTHON via Sys.setenv() — reticulate reads this on first load.
 
 source(file.path(here::here(""), "config.R"))
 
@@ -72,31 +121,22 @@ use_python(Sys.getenv("RETICULATE_PYTHON"), required = TRUE)
 #==============================================================================#
 
 packages <- c(
-  ## Core data manipulation.
-  "here", "dplyr", "tidyr", "purrr", "tibble", "lubridate",
-  "data.table",
-  ## Modelling infrastructure.
+  ## Core data manipulation
+  "here", "dplyr", "tidyr", "purrr", "tibble", "lubridate", "data.table",
+  ## Modelling infrastructure
   "caret", "Matrix",
-  ## Models.
-  "glmnet", "xgboost", "ranger", "adabag",
-  ## Bayesian optimisation.
+  ## Models
+  "glmnet", "xgboost", "ranger", "PRROC",
+  ## Bayesian optimisation
   "rBayesianOptimization",
-  ## mlr3 stack.
-  "mlr3", "mlr3learners", "mlr3tuning", "mlr3mbo",
-  "mlr3measures", "paradox",
-  ## Evaluation.
+  ## Evaluation
   "pROC",
-  ## Parallelism.
+  ## Parallelism
   "future", "future.apply", "parallel",
-  ## VAE / deep learning.
-  "autotab", "keras", "reticulate", "tensorflow",
-  ## Clustering (soft interaction features).
-  "mclust",
-  ## Visualisation.
-  "ggplot2", "ggrepel", "scales", "Ckmeans.1d.dp",
-  "pdp", "gridExtra", "hexbin",
-  ## Output.
-  "openxlsx"
+  ## Visualisation
+  "ggplot2", "ggrepel", "scales", "gridExtra", "hexbin", "pdp",
+  ## Output
+  "openxlsx", "arrow"      ## arrow: read/write parquet from R
 )
 
 for (pkg in packages) {
@@ -119,7 +159,8 @@ source_dir <- function(path) {
   invisible(lapply(files, function(f) {
     tryCatch(
       source(f, echo = FALSE, local = FALSE),
-      error = function(e) stop(sprintf("Failed to source %s: %s", f, e$message))
+      error = function(e)
+        stop(sprintf("Failed to source %s: %s", f, e$message))
     )
   }))
   message(sprintf("  Sourced %d file(s) from: %s", length(files), path))
@@ -135,34 +176,57 @@ source_dir(PATH_FN_XGB)
 
 pipeline_start <- proc.time()
 
-## ── Stage 1: Data ───────────────────────────────────────────────────────────
-message("\n══ Stage 1/5: Data ══════════════════════════════════════════")
-source(file.path(PATH_ROOT, "01_Code", "01_Data.R"))
+## ── Stage 1: Data & Feature Engineering ─────────────────────────────────────
+message("\n══ Stage 1/3: Data & Feature Engineering ════════════════════")
+message(sprintf("   SPLIT_MODE = %s | KEEP_FEATURES = %s", SPLIT_MODE, KEEP_FEATURES))
 
-## ── Stage 2: Feature Engineering ────────────────────────────────────────────
-message("\n══ Stage 2/5: Feature Engineering ══════════════════════════")
+source(file.path(PATH_ROOT, "01_Code", "01_Data.R"))
 source(file.path(PATH_ROOT, "01_Code", "02_FeatureEngineering.R"))
 
-## ── Stage 3: Split ──────────────────────────────────────────────────────────
-message("\n══ Stage 3/5: Split ═════════════════════════════════════════")
-source(file.path(PATH_ROOT, "01_Code", "03_Split.R"))
-
-## ── Stage 4: VAE ────────────────────────────────────────────────────────────
-message("\n══ Stage 4/5: VAE ═══════════════════════════════════════════")
-source(file.path(PATH_ROOT, "01_Code", "04_VAE_Prep.R"))
-source(file.path(PATH_ROOT, "01_Code", "05_VAE_Train.R"))
-source(file.path(PATH_ROOT, "01_Code", "06_Strategies.R"))
-
-## ── Stage 5: Modelling ──────────────────────────────────────────────────────
-message("\n══ Stage 5/5: Modelling ═════════════════════════════════════")
-source(file.path(PATH_ROOT, "01_Code", "07_Train.R"))
-source(file.path(PATH_ROOT, "01_Code", "08_Evaluate.R"))
-source(file.path(PATH_ROOT, "01_Code", "09_Charts.R"))
-
-## ── Pipeline Summary ────────────────────────────────────────────────────────
-elapsed <- proc.time() - pipeline_start
-
 message(sprintf(
-  "\n══ Pipeline complete — %.1f min ═════════════════════════════",
+  "   Outputs → %s/02_train_final_%s.rds  (+ vae, id vec variants)",
+  PATH_DATA_OUT, SPLIT_MODE
+))
+
+## ── Stage 2: Autoencoder (Python — run manually) ─────────────────────────────
+message("\n══ Stage 2: Autoencoder (Python) ════════════════════════════")
+message("   Run manually: 03_Autoencoder.py")
+message(sprintf("   Set SPLIT_MODE = '%s' at top of script", SPLIT_MODE))
+message(sprintf(
+  "   Outputs → 03_Output/Latent/latent_train_%s.parquet (+ anomaly, test)",
+  SPLIT_MODE
+))
+
+## ── Stage 2b: CV Setup (R) ───────────────────────────────────────────────────
+message("\n══ Stage 2b: CV Setup ═══════════════════════════════════════")
+source(file.path(PATH_ROOT, "01_Code", "03_CV_Setup.R"))
+
+## ── Stage 3a: GLM (R) ────────────────────────────────────────────────────────
+message("\n══ Stage 3a: GLM ════════════════════════════════════════════")
+source(file.path(PATH_ROOT, "01_Code", "04A_Train_GLM.R"))
+
+## ── Stage 3b: XGBoost (R) ────────────────────────────────────────────────────
+message("\n══ Stage 3b: XGBoost ════════════════════════════════════════")
+source(file.path(PATH_ROOT, "01_Code", "04B_Train_XGBoost.R"))
+
+## ── Stage 4: AutoGluon (Python — run manually) ───────────────────────────────
+message("\n══ Stage 4: AutoGluon (Python) ══════════════════════════════")
+message("   Run manually: 05_AutoGluon.py")
+message(sprintf("   Set SPLIT_MODE = '%s' and MODEL = 'M1'/'M2'/'M3'/'M4'", SPLIT_MODE))
+message(sprintf(
+  "   Outputs → 03_Output/AutoGluon/M1_%s/ (+ M2, M3, M4)",
+  SPLIT_MODE
+))
+
+## ── Stage 5: Evaluation & Charts (R) ─────────────────────────────────────────
+message("\n══ Stage 5: Evaluation & Charts ═════════════════════════════")
+source(file.path(PATH_ROOT, "01_Code", "06_Evaluate.R"))
+source(file.path(PATH_ROOT, "01_Code", "07_Charts.R"))
+
+## ── Pipeline Summary ─────────────────────────────────────────────────────────
+elapsed <- proc.time() - pipeline_start
+message(sprintf(
+  "\n══ R pipeline complete — %.1f min ═══════════════════════════",
   elapsed["elapsed"] / 60
 ))
+message("   Python stages (03_Autoencoder.py, 05_AutoGluon.py) run separately.")
