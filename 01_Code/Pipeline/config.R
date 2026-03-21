@@ -50,7 +50,7 @@ SEED <- 123L
 
 ## Feature families to retain (see 01_Data.R).
 ## "r" = ratios only | "f" = raw financials only | "both" = all
-KEEP_FEATURES <- "both"
+KEEP_FEATURES <- "r"
 
 ## Quantile-normalise continuous features before VAE input.
 QUANTILE_TRANSFORM  <- TRUE
@@ -88,6 +88,13 @@ OOT_N_YEARS <- 1L      ## OoT only: number of trailing years assigned to Test
 ## Use get_split_path() in downstream stages; never hardcode paths directly.
 
 .split_suffix <- function() paste0("_", SPLIT_MODE)
+
+get_vae_path <- function(base_name) {
+  ## Returns the normal-scores (.rds) path for VAE input.
+  ## Example: get_vae_path("02_train_final")
+  ##   OoS → <PATH_DATA_OUT>/02_train_final_vae_OoS.rds
+  file.path(PATH_DATA_OUT, paste0(base_name, "_vae", .split_suffix(), ".rds"))
+}
 
 get_split_path <- function(base_name) {
   ## Returns the correct .rds path for any split-dependent output.

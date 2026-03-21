@@ -480,9 +480,34 @@ tryCatch({
   
 }, error = function(e) stop("02C failed: ", e$message))
 
-
 #==============================================================================#
 #==== D - Quantile Transformation =============================================#
+#==============================================================================#
+#
+# PURPOSE:
+#   Apply a rank-based PIT transformation to continuous features.
+#   Output is Uniform(0,1) — ranks-based, leakage-free (fit on Train only).
+#
+#   Train: (rank - 0.5) / n  → open interval (0,1), avoids exact 0 and 1
+#   Test:  ecdf fitted on Train applied to Test values, clipped to [ε, 1-ε]
+#          where ε = 1/(n+1) — prevents boundary instability for out-of-range
+#          test observations (common in OoT splits).
+#
+#   Downstream:
+#     XGBoost / other models → use uniform output directly (rank-invariant)
+#     VAE (Python)           → applies qnorm() internally via sklearn's
+#                              QuantileTransformer(output_distribution="normal")
+#                              No double-transformation risk: Python receives
+#                              uniform and converts to N(0,1) before encoding.
+#
+#   NOT transformed:
+#     - Already-normalised : secZ_, secSizeZ_, secRank_
+#     - Count features     : consec_decline_
+#     - Binary flags       : sector_, size_, is_, has_, time_, history_
+#     - Semantic metadata  : y, id, refdate, sector, size, year,
+#                            groupmember, public
+#     - Bounded [0,1]      : excluded when TRANSFORM_BOUNDED01 = FALSE
+#
 #==============================================================================#
 
 tryCatch({
@@ -490,6 +515,8 @@ tryCatch({
   message("--- Starting 02D: Quantile Transformation ---")
   
   if (QUANTILE_TRANSFORM) {
+    
+    ## ── Exclusion logic ──────────────────────────────────────────────────────
     
     exclude_patterns <- c(
       "^secZ_", "^secSizeZ_", "^secRank_", "^consec_",
@@ -504,7 +531,7 @@ tryCatch({
       any(vapply(exclude_patterns, function(p) grepl(p, nm), logical(1L))),
       logical(1L))]
     
-    detect_binary    <- function(nm) {
+    detect_binary <- function(nm) {
       x <- Train[[nm]][!is.na(Train[[nm]])]
       length(x) > 0L && all(x %in% c(0, 1))
     }
@@ -522,21 +549,33 @@ tryCatch({
                                   binary_excluded, bounded_excluded))
     cols_to_transform <- setdiff(numeric_cols, exclude_cols)
     
-    ## Safety guards
+    ## ── Safety guards ────────────────────────────────────────────────────────
+    
     bad_semantic <- intersect(semantic_exclude, cols_to_transform)
     if (length(bad_semantic) > 0L)
       stop("Semantic cols in transform list: ", paste(bad_semantic, collapse = ", "))
+    
     bad_binary <- cols_to_transform[vapply(cols_to_transform, detect_binary, logical(1L))]
     if (length(bad_binary) > 0L)
       stop("Binary cols in transform list: ", paste(bad_binary, collapse = ", "))
+    
     if (!exists("QuantileTransformation"))
       stop("QuantileTransformation() not found — check Subfunctions/ was sourced.")
+    
     if (length(cols_to_transform) == 0L)
       stop("No columns selected for transformation — check exclusion logic.")
     
-    message(sprintf("  Columns to transform: %d  |  excluded: %d",
-                    length(cols_to_transform),
-                    length(numeric_cols) - length(cols_to_transform)))
+    message(sprintf("  Columns to transform : %d", length(cols_to_transform)))
+    message(sprintf("  Excluded             : %d  (of %d numeric)",
+                    length(numeric_cols) - length(cols_to_transform),
+                    length(numeric_cols)))
+    message(sprintf("  Output distribution  : Uniform(0,1)"))
+    message(sprintf("  Note: VAE (Python) applies qnorm() internally"))
+    
+    ## ── Transform ────────────────────────────────────────────────────────────
+    ## QuantileTransformation(train_vec, test_vec) returns list(train, test).
+    ## Train: (rank - 0.5) / n
+    ## Test:  ecdf(train) applied, clipped to [1/(n+1), n/(n+1)]
     
     Train_Transformed <- copy(Train)
     Test_Transformed  <- copy(Test)
@@ -550,7 +589,8 @@ tryCatch({
         warning("Column entirely NA in Train, skipping: ", col); next
       }
       res <- tryCatch(
-        QuantileTransformation(Train_Transformed[[col]], Test_Transformed[[col]]),
+        QuantileTransformation(Train_Transformed[[col]],
+                               Test_Transformed[[col]]),
         error = function(e) {
           failed_cols <<- c(failed_cols, col)
           message("  Transform failed: ", col, " — ", e$message)
@@ -563,11 +603,27 @@ tryCatch({
       }
     }
     
-    message(sprintf("  Transformed: %d  |  Failed: %d",
-                    length(cols_to_transform) - length(failed_cols),
-                    length(failed_cols)))
+    n_ok <- length(cols_to_transform) - length(failed_cols)
+    message(sprintf("  Transformed: %d  |  Failed: %d", n_ok, length(failed_cols)))
+    if (length(failed_cols) > 0L)
+      message("  Failed cols: ", paste(failed_cols, collapse = ", "))
     
-    ## NA delta check
+    ## ── Output range check ───────────────────────────────────────────────────
+    ## Verify transformed columns are within (0,1) — catches any function
+    ## returning values outside the expected uniform range.
+    transformed_ok <- cols_to_transform[!cols_to_transform %in% failed_cols]
+    out_of_range <- transformed_ok[vapply(transformed_ok, function(col) {
+      x <- Train_Transformed[[col]]
+      x <- x[!is.na(x)]
+      length(x) > 0L && (min(x) < 0 || max(x) > 1)
+    }, logical(1L))]
+    if (length(out_of_range) > 0L)
+      warning(sprintf(
+        "%d transformed col(s) have values outside (0,1): %s",
+        length(out_of_range), paste(out_of_range, collapse = ", ")
+      ))
+    
+    ## ── NA delta check ───────────────────────────────────────────────────────
     na_delta_train <- sum(is.na(Train_Transformed[, .SD, .SDcols = cols_to_transform])) -
       sum(is.na(Train[,             .SD, .SDcols = cols_to_transform]))
     na_delta_test  <- sum(is.na(Test_Transformed[,  .SD, .SDcols = cols_to_transform])) -
@@ -575,18 +631,20 @@ tryCatch({
     if (na_delta_train != 0L || na_delta_test != 0L)
       warning(sprintf("NA delta after transform — Train: %+d  Test: %+d",
                       na_delta_train, na_delta_test))
-    message(sprintf("  NA delta — Train: %+d  Test: %+d", na_delta_train, na_delta_test))
+    message(sprintf("  NA delta — Train: %+d  Test: %+d",
+                    na_delta_train, na_delta_test))
     
   } else {
+    
     Train_Transformed <- copy(Train)
     Test_Transformed  <- copy(Test)
     message("  QUANTILE_TRANSFORM = FALSE — skipping.")
+    
   }
   
   message("--- 02D complete ---")
   
 }, error = function(e) stop("02D failed: ", e$message))
-
 
 #==============================================================================#
 #==== E - Final Cleanup, Imputation, Validation & Save ========================#
@@ -600,6 +658,10 @@ tryCatch({
   ## Cold-start NAs (first obs per firm has no prior period) are expected in
   ## all lag-derived features. Strategy: zero for differences/deviations,
   ## train median for level/scale features.
+  ##
+  ## IMPORTANT: imputation runs on the UNIFORM-transformed data (Train/Test_
+  ## Transformed). The VAE normal-scores version is derived AFTER imputation
+  ## is complete, so both versions share identical NA handling.
   
   imputation_rules <- list(
     list(pattern = "^yoy_",         strategy = "zero"),
@@ -637,7 +699,7 @@ tryCatch({
     handled_cols <- c(handled_cols, matched)
   }
   
-  ## Catch-all for any remaining numeric NAs not matched above
+  ## Catch-all for any remaining numeric NAs not matched above.
   remaining_na_cols <- names(Train_Transformed)[
     vapply(names(Train_Transformed), function(nm)
       is.numeric(Train_Transformed[[nm]]) &&
@@ -654,10 +716,7 @@ tryCatch({
   message(sprintf("  NAs after imputation — Train: %d  Test: %d",
                   sum(is.na(Train_Transformed)), sum(is.na(Test_Transformed))))
   
-  ## ── Target enforcement (direct assignment — no list copy) ─────────────────
-  ## Bug fix: original iterated over list(Train_T, Test_T) with :=, which
-  ## modifies local list-element copies, not the original data.tables.
-  ## Fixed by assigning directly to each data.table.
+  ## ── Target enforcement ────────────────────────────────────────────────────
   Train_Transformed[, (TARGET_COL) := as.integer(as.character(get(TARGET_COL)))]
   Test_Transformed[,  (TARGET_COL) := as.integer(as.character(get(TARGET_COL)))]
   
@@ -676,8 +735,6 @@ tryCatch({
                                                    function(nm) any(vapply(drop_patterns, function(p) grepl(p, nm), logical(1L))),
                                                    logical(1L))]
   
-  ## Use sd() not var() — var() returns near-zero floats on transformed cols,
-  ## causing false zero-variance positives.
   zerovar_drop <- names(Train_Transformed)[vapply(names(Train_Transformed),
                                                   function(nm) {
                                                     x <- Train_Transformed[[nm]]
@@ -692,49 +749,104 @@ tryCatch({
   Train_Final <- copy(Train_Transformed[, ..cols_to_keep])
   Test_Final  <- copy(Test_Transformed[,  ..cols_to_keep])
   
-  ## ── Final validation ───────────────────────────────────────────────────────
-  if (!setequal(names(Train_Final), names(Test_Final))) {
-    only_train <- setdiff(names(Train_Final), names(Test_Final))
-    only_test  <- setdiff(names(Test_Final),  names(Train_Final))
-    stop(sprintf("Column mismatch — Train only: [%s]  Test only: [%s]",
-                 paste(only_train, collapse = ", "),
-                 paste(only_test,  collapse = ", ")))
-  }
+  ## ── Build VAE versions: apply qnorm() to uniform features → N(0,1) ────────
+  ## Only applied to columns that were quantile-transformed (uniform output).
+  ## Binary, count, dummy, and metadata columns are left unchanged in both
+  ## the uniform and normal versions.
+  ##
+  ## qnorm() maps Uniform(0,1) → N(0,1).
+  ## Boundary values are already clipped to (ε, 1-ε) by QuantileTransformation,
+  ## so qnorm() cannot produce ±Inf here.
   
   all_feature_cols <- setdiff(names(Train_Final), TARGET_COL)
-  non_numeric <- all_feature_cols[
-    !vapply(Train_Final[, .SD, .SDcols = all_feature_cols], is.numeric, logical(1L))]
-  if (length(non_numeric) > 0L)
-    stop("Non-numeric columns remain (will break VAE): ",
-         paste(non_numeric, collapse = ", "))
   
-  stopifnot(
-    "NAs in Train_Final" = sum(is.na(Train_Final)) == 0L,
-    "NAs in Test_Final"  = sum(is.na(Test_Final))  == 0L
-  )
+  ## Columns eligible for qnorm: those that were transformed (uniform) and
+  ## are not binary/dummy/count — i.e. the same cols_to_transform from 02D.
+  ## We detect them here by checking the (0,1) open interval rather than
+  ## re-running the exclusion logic.
+  detect_uniform <- function(nm, DT) {
+    x <- DT[[nm]][!is.na(DT[[nm]])]
+    length(x) > 0L && min(x) > 0 && max(x) < 1 && !all(x %in% c(0, 1))
+  }
+  vae_transform_cols <- all_feature_cols[vapply(all_feature_cols,
+                                                function(nm) detect_uniform(nm, Train_Final), logical(1L))]
+  
+  message(sprintf("  VAE normal-scores: applying qnorm() to %d col(s)",
+                  length(vae_transform_cols)))
+  
+  Train_VAE <- copy(Train_Final)
+  Test_VAE  <- copy(Test_Final)
+  
+  for (col in vae_transform_cols) {
+    Train_VAE[, (col) := qnorm(get(col))]
+    Test_VAE[,  (col) := qnorm(get(col))]
+  }
+  
+  ## Sanity: qnorm() on open (0,1) should never produce Inf
+  inf_check_train <- sum(sapply(vae_transform_cols,
+                                function(nm) any(is.infinite(Train_VAE[[nm]]))))
+  inf_check_test  <- sum(sapply(vae_transform_cols,
+                                function(nm) any(is.infinite(Test_VAE[[nm]]))))
+  if (inf_check_train > 0L || inf_check_test > 0L)
+    warning(sprintf(
+      "Inf values after qnorm() — Train cols: %d  Test cols: %d. ",
+      inf_check_train, inf_check_test,
+      "Check QuantileTransformation() epsilon clipping."
+    ))
+  
+  ## ── Final validation ───────────────────────────────────────────────────────
+  for (pair in list(list(Train_Final, Test_Final, "Uniform"),
+                    list(Train_VAE,   Test_VAE,   "VAE/Normal"))) {
+    tr <- pair[[1]]; te <- pair[[2]]; label <- pair[[3]]
+    if (!setequal(names(tr), names(te))) {
+      only_tr <- setdiff(names(tr), names(te))
+      only_te <- setdiff(names(te), names(tr))
+      stop(sprintf("[%s] Column mismatch — Train only: [%s]  Test only: [%s]",
+                   label, paste(only_tr, collapse = ", "),
+                   paste(only_te, collapse = ", ")))
+    }
+    feat_cols <- setdiff(names(tr), TARGET_COL)
+    non_num   <- feat_cols[!vapply(tr[, .SD, .SDcols = feat_cols],
+                                   is.numeric, logical(1L))]
+    if (length(non_num) > 0L)
+      stop(sprintf("[%s] Non-numeric cols remain: %s", label,
+                   paste(non_num, collapse = ", ")))
+    stopifnot(
+      "NAs in Train" = sum(is.na(tr)) == 0L,
+      "NAs in Test"  = sum(is.na(te)) == 0L
+    )
+  }
   
   message("--- 02E Validation Report ---")
   message(sprintf("  Split mode          : %s", SPLIT_MODE))
-  message(sprintf("  Train_Final         : %d rows x %d cols", nrow(Train_Final), ncol(Train_Final)))
-  message(sprintf("  Test_Final          : %d rows x %d cols", nrow(Test_Final),  ncol(Test_Final)))
+  message(sprintf("  Train_Final (unif.) : %d rows x %d cols", nrow(Train_Final), ncol(Train_Final)))
+  message(sprintf("  Test_Final  (unif.) : %d rows x %d cols", nrow(Test_Final),  ncol(Test_Final)))
+  message(sprintf("  Train_VAE   (norm.) : %d rows x %d cols", nrow(Train_VAE),   ncol(Train_VAE)))
+  message(sprintf("  Test_VAE    (norm.) : %d rows x %d cols", nrow(Test_VAE),    ncol(Test_VAE)))
   message(sprintf("  Train default rate  : %.3f%%  (%d events)",
                   100 * mean(Train_Final[[TARGET_COL]]), sum(Train_Final[[TARGET_COL]])))
   message(sprintf("  Test  default rate  : %.3f%%  (%d events)",
                   100 * mean(Test_Final[[TARGET_COL]]),  sum(Test_Final[[TARGET_COL]])))
   message(sprintf("  Total model features: %d", length(all_feature_cols)))
-  message("  Column alignment    : OK")
-  message("  All features numeric: OK")
+  message(sprintf("  VAE-transformed cols: %d", length(vae_transform_cols)))
+  message("  Column alignment    : OK (both versions)")
+  message("  All features numeric: OK (both versions)")
   
-  ## ── Save .rds (suffixed by SPLIT_MODE for downstream auto-resolution) ─────
+  ## ── Save ──────────────────────────────────────────────────────────────────
+  ## Uniform versions — for XGBoost and all non-VAE models
   saveRDS(Train_Final,  get_split_path(SPLIT_OUT_TRAIN_FINAL))
   saveRDS(Test_Final,   get_split_path(SPLIT_OUT_TEST_FINAL))
   saveRDS(train_id_vec, get_split_path(SPLIT_OUT_TRAIN_IDS))
   saveRDS(test_id_vec,  get_split_path(SPLIT_OUT_TEST_IDS))
   
-  message(sprintf("  Saved: %s", get_split_path(SPLIT_OUT_TRAIN_FINAL)))
-  message(sprintf("  Saved: %s", get_split_path(SPLIT_OUT_TEST_FINAL)))
-  message(sprintf("  Saved: %s", get_split_path(SPLIT_OUT_TRAIN_IDS)))
-  message(sprintf("  Saved: %s", get_split_path(SPLIT_OUT_TEST_IDS)))
+  ## Normal-scores versions — for VAE only
+  saveRDS(Train_VAE, get_vae_path(SPLIT_OUT_TRAIN_FINAL))
+  saveRDS(Test_VAE,  get_vae_path(SPLIT_OUT_TEST_FINAL))
+  
+  message(sprintf("  [Uniform] %s", get_split_path(SPLIT_OUT_TRAIN_FINAL)))
+  message(sprintf("  [Uniform] %s", get_split_path(SPLIT_OUT_TEST_FINAL)))
+  message(sprintf("  [Normal]  %s", get_vae_path(SPLIT_OUT_TRAIN_FINAL)))
+  message(sprintf("  [Normal]  %s", get_vae_path(SPLIT_OUT_TEST_FINAL)))
   message("--- 02_FeatureEngineering complete ---")
   
 }, error = function(e) stop("02E failed: ", e$message))

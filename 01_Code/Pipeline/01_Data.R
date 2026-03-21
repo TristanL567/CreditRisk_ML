@@ -57,6 +57,9 @@ tryCatch({
   message(sprintf("  Loaded: %d rows x %d cols  [%s]",
                   nrow(Data), ncol(Data), basename(PATH_DATA_FILE)))
   
+  ### Add the manually adjusted ratios (correct ones, see documentation).
+  Data$r19<-Data$f6/Data$f1
+  Data$r20<-(Data$f3-Data$f11)/Data$f1
   
   #==============================================================================#
   #==== B - DataPreprocessing ====================================================#
