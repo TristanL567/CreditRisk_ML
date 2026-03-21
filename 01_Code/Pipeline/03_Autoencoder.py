@@ -153,8 +153,9 @@ TARGET_COL  = "y"
 
 # Binary feature patterns — these are fed to the VAE but reconstructed with
 # BCE rather than MSE (handled via n_binary split in the model)
-BINARY_PATTERNS = ["^sector_", "^size_", "^is_", "^has_",
-                   "^groupmember$", "^consec_decline_"]
+## consec_decline_ are counts (0,1,2,...) not binary — treated as continuous.
+## BCE requires values in [0,1] strictly; counts violate this.
+BINARY_PATTERNS = ["^sector_", "^size_", "^is_", "^has_", "^groupmember$"]
 
 def load_rds(path: Path) -> pd.DataFrame:
     result = pyreadr.read_r(str(path))
