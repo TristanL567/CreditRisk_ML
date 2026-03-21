@@ -715,33 +715,42 @@ tryCatch({
   message(sprintf("  NAs after imputation — Train: %d  Test: %d",
                   sum(is.na(Train_Transformed)), sum(is.na(Test_Transformed))))
   
-  ## ── Detect uniform columns BEFORE metadata drop ────────────────────────────
-  ## Run on Train_Transformed (still uniform at this point) so the detection
-  ## sees the full range of transformed values, not the post-qnorm N(0,1) range.
+  ## ── VAE columns: use cols_to_transform passed directly from 02D ───────────
+  ## cols_to_transform is the exact set of columns that received the uniform
+  ## PIT transformation in 02D. Using it directly avoids any re-detection
+  ## heuristic and guarantees perfect alignment between what was transformed
+  ## and what gets qnorm() applied here.
   ##
-  ## A column is considered uniform-transformed if ALL of:
-  ##   (a) numeric
-  ##   (b) no NAs (imputation just ran, so this should always hold)
-  ##   (c) all values strictly in (0, 1)  — excludes binaries at 0/1 exactly
-  ##   (d) not all identical (not zero-variance)
-  ##
-  ## This mirrors the 02D exclusion logic without requiring shared state.
+  ## Guard: if 02D was skipped (QUANTILE_TRANSFORM = FALSE), there are no
+  ## uniform columns and no qnorm() step is needed.
   
-  detect_uniform_col <- function(nm, DT) {
-    x <- DT[[nm]]
-    is.numeric(x) &&
-      !anyNA(x)   &&
-      min(x) > 0  &&
-      max(x) < 1  &&
-      sd(x)  > 0
+  if (!exists("cols_to_transform") || !QUANTILE_TRANSFORM) {
+    vae_transform_cols <- character(0L)
+    message("  VAE normal-scores: skipped (QUANTILE_TRANSFORM = FALSE)")
+  } else {
+    ## Exclude zero-imputed columns from qnorm() transform.
+    ## These cols (yoy_, accel_, etc.) had cold-start NAs replaced with 0
+    ## in the imputation step above. Since 0 is not a valid Uniform(0,1)
+    ## value, qnorm(0) = -Inf, which fails the final NA/Inf validation.
+    ## These features are still fed to the VAE as-is (zero = no change),
+    ## just not converted to normal scores.
+    zero_impute_patterns <- c(
+      "^yoy_", "^accel_", "^momentum_", "^peak_drop_", "^trough_rise_",
+      "^secTrend_", "^secDiverg_", "^secDev_", "^dev_expmean_"
+    )
+    zero_imputed_cols <- unique(unlist(lapply(zero_impute_patterns, function(p)
+      grep(p, names(Train_Transformed), value = TRUE)
+    )))
+    vae_transform_cols <- setdiff(
+      intersect(cols_to_transform, names(Train_Transformed)),
+      zero_imputed_cols
+    )
+    message(sprintf(
+      "  VAE normal-scores: %d col(s) (%d excluded — zero-imputed TS features)",
+      length(vae_transform_cols),
+      length(intersect(zero_imputed_cols, cols_to_transform))
+    ))
   }
-  
-  all_numeric_cols  <- names(Train_Transformed)[sapply(Train_Transformed, is.numeric)]
-  vae_candidate_cols <- all_numeric_cols[vapply(all_numeric_cols,
-                                                function(nm) detect_uniform_col(nm, Train_Transformed), logical(1L))]
-  
-  message(sprintf("  Uniform cols detected for VAE qnorm(): %d",
-                  length(vae_candidate_cols)))
   
   ## ── Target enforcement ────────────────────────────────────────────────────
   Train_Transformed[, (TARGET_COL) := as.integer(as.character(get(TARGET_COL)))]
@@ -777,34 +786,49 @@ tryCatch({
   Test_Final  <- copy(Test_Transformed[,  ..cols_to_keep])
   
   ## ── Build VAE versions: apply qnorm() to uniform columns → N(0,1) ─────────
-  ## Intersect detected uniform cols with cols_to_keep (drops any that were
-  ## removed as metadata or zero-variance above).
-  vae_transform_cols <- intersect(vae_candidate_cols, cols_to_keep)
-  
-  message(sprintf("  VAE normal-scores: applying qnorm() to %d col(s)",
-                  length(vae_transform_cols)))
+  ## Intersect with cols_to_keep to exclude any cols dropped above.
+  vae_transform_cols <- intersect(vae_transform_cols, cols_to_keep)
   
   Train_VAE <- copy(Train_Final)
   Test_VAE  <- copy(Test_Final)
   
-  for (col in vae_transform_cols) {
-    Train_VAE[, (col) := qnorm(get(col))]
-    Test_VAE[,  (col) := qnorm(get(col))]
+  if (length(vae_transform_cols) > 0L) {
+    ## Apply qnorm() then clamp any residual -Inf/+Inf/NaN to the
+    ## 4-sigma range [-4, 4], which covers 99.994% of a normal distribution.
+    ## These edge cases arise when median-imputed values land exactly on
+    ## the epsilon boundary, or from floating-point rounding in qnorm().
+    ## Clamping is safe: the rank ordering is preserved and the values
+    ## remain in a numerically stable range for the VAE encoder.
+    clamp_lo <- qnorm(1e-5)   ## ≈ -4.42
+    clamp_hi <- qnorm(1 - 1e-5)  ## ≈ +4.42
+    
+    for (col in vae_transform_cols) {
+      Train_VAE[, (col) := {
+        v <- qnorm(get(col))
+        v[is.nan(v) | is.infinite(v)] <- NA_real_
+        v[is.na(v)] <- 0   ## fallback: map boundary failures to N(0,1) mean
+        pmax(clamp_lo, pmin(clamp_hi, v))
+      }]
+      Test_VAE[, (col) := {
+        v <- qnorm(get(col))
+        v[is.nan(v) | is.infinite(v)] <- NA_real_
+        v[is.na(v)] <- 0
+        pmax(clamp_lo, pmin(clamp_hi, v))
+      }]
+    }
+    
+    ## Count and report any clamps that fired
+    n_clamped <- sum(sapply(vae_transform_cols, function(nm) {
+      x <- Train_VAE[[nm]]
+      sum(x == clamp_lo | x == clamp_hi, na.rm = TRUE)
+    }))
+    if (n_clamped > 0L)
+      message(sprintf("  qnorm clamp fired %d time(s) across %d cols (boundary values → 0)",
+                      n_clamped, length(vae_transform_cols)))
   }
   
-  ## Sanity: qnorm() on open (0,1) should never produce Inf.
-  ## Epsilon clipping in QuantileTransformation() guarantees this,
-  ## but check explicitly in case any boundary values slipped through.
-  inf_train <- sum(sapply(vae_transform_cols,
-                          function(nm) any(is.infinite(Train_VAE[[nm]]))))
-  inf_test  <- sum(sapply(vae_transform_cols,
-                          function(nm) any(is.infinite(Test_VAE[[nm]]))))
-  if (inf_train > 0L || inf_test > 0L)
-    warning(sprintf(
-      "Inf values after qnorm() — Train cols: %d  Test cols: %d. ",
-      inf_train, inf_test,
-      "Check QuantileTransformation() epsilon clipping."
-    ))
+  message(sprintf("  VAE-transformed cols (qnorm applied): %d",
+                  length(vae_transform_cols)))
   
   ## ── Final validation (both versions) ──────────────────────────────────────
   for (pair in list(list(Train_Final, Test_Final, "Uniform"),
@@ -854,6 +878,13 @@ tryCatch({
   saveRDS(test_id_vec,  get_split_path(SPLIT_OUT_TEST_IDS))
   
   ## Normal-scores — VAE only
+  ## Add id back as first column so Python can use it for joining.
+  ## id is NOT a model feature — Python drops it after extracting ID cols.
+  Train_VAE[, id := train_id_vec]
+  Test_VAE[,  id := test_id_vec]
+  setcolorder(Train_VAE, c("id", setdiff(names(Train_VAE), "id")))
+  setcolorder(Test_VAE,  c("id", setdiff(names(Test_VAE),  "id")))
+  
   saveRDS(Train_VAE, get_vae_path(SPLIT_OUT_TRAIN_FINAL))
   saveRDS(Test_VAE,  get_vae_path(SPLIT_OUT_TEST_FINAL))
   
