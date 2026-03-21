@@ -659,9 +659,8 @@ tryCatch({
   ## all lag-derived features. Strategy: zero for differences/deviations,
   ## train median for level/scale features.
   ##
-  ## IMPORTANT: imputation runs on the UNIFORM-transformed data (Train/Test_
-  ## Transformed). The VAE normal-scores version is derived AFTER imputation
-  ## is complete, so both versions share identical NA handling.
+  ## Imputation runs on uniform-transformed data. The VAE normal-scores version
+  ## is derived AFTER imputation so both versions share identical NA handling.
   
   imputation_rules <- list(
     list(pattern = "^yoy_",         strategy = "zero"),
@@ -716,6 +715,34 @@ tryCatch({
   message(sprintf("  NAs after imputation — Train: %d  Test: %d",
                   sum(is.na(Train_Transformed)), sum(is.na(Test_Transformed))))
   
+  ## ── Detect uniform columns BEFORE metadata drop ────────────────────────────
+  ## Run on Train_Transformed (still uniform at this point) so the detection
+  ## sees the full range of transformed values, not the post-qnorm N(0,1) range.
+  ##
+  ## A column is considered uniform-transformed if ALL of:
+  ##   (a) numeric
+  ##   (b) no NAs (imputation just ran, so this should always hold)
+  ##   (c) all values strictly in (0, 1)  — excludes binaries at 0/1 exactly
+  ##   (d) not all identical (not zero-variance)
+  ##
+  ## This mirrors the 02D exclusion logic without requiring shared state.
+  
+  detect_uniform_col <- function(nm, DT) {
+    x <- DT[[nm]]
+    is.numeric(x) &&
+      !anyNA(x)   &&
+      min(x) > 0  &&
+      max(x) < 1  &&
+      sd(x)  > 0
+  }
+  
+  all_numeric_cols  <- names(Train_Transformed)[sapply(Train_Transformed, is.numeric)]
+  vae_candidate_cols <- all_numeric_cols[vapply(all_numeric_cols,
+                                                function(nm) detect_uniform_col(nm, Train_Transformed), logical(1L))]
+  
+  message(sprintf("  Uniform cols detected for VAE qnorm(): %d",
+                  length(vae_candidate_cols)))
+  
   ## ── Target enforcement ────────────────────────────────────────────────────
   Train_Transformed[, (TARGET_COL) := as.integer(as.character(get(TARGET_COL)))]
   Test_Transformed[,  (TARGET_COL) := as.integer(as.character(get(TARGET_COL)))]
@@ -749,27 +776,10 @@ tryCatch({
   Train_Final <- copy(Train_Transformed[, ..cols_to_keep])
   Test_Final  <- copy(Test_Transformed[,  ..cols_to_keep])
   
-  ## ── Build VAE versions: apply qnorm() to uniform features → N(0,1) ────────
-  ## Only applied to columns that were quantile-transformed (uniform output).
-  ## Binary, count, dummy, and metadata columns are left unchanged in both
-  ## the uniform and normal versions.
-  ##
-  ## qnorm() maps Uniform(0,1) → N(0,1).
-  ## Boundary values are already clipped to (ε, 1-ε) by QuantileTransformation,
-  ## so qnorm() cannot produce ±Inf here.
-  
-  all_feature_cols <- setdiff(names(Train_Final), TARGET_COL)
-  
-  ## Columns eligible for qnorm: those that were transformed (uniform) and
-  ## are not binary/dummy/count — i.e. the same cols_to_transform from 02D.
-  ## We detect them here by checking the (0,1) open interval rather than
-  ## re-running the exclusion logic.
-  detect_uniform <- function(nm, DT) {
-    x <- DT[[nm]][!is.na(DT[[nm]])]
-    length(x) > 0L && min(x) > 0 && max(x) < 1 && !all(x %in% c(0, 1))
-  }
-  vae_transform_cols <- all_feature_cols[vapply(all_feature_cols,
-                                                function(nm) detect_uniform(nm, Train_Final), logical(1L))]
+  ## ── Build VAE versions: apply qnorm() to uniform columns → N(0,1) ─────────
+  ## Intersect detected uniform cols with cols_to_keep (drops any that were
+  ## removed as metadata or zero-variance above).
+  vae_transform_cols <- intersect(vae_candidate_cols, cols_to_keep)
   
   message(sprintf("  VAE normal-scores: applying qnorm() to %d col(s)",
                   length(vae_transform_cols)))
@@ -782,19 +792,21 @@ tryCatch({
     Test_VAE[,  (col) := qnorm(get(col))]
   }
   
-  ## Sanity: qnorm() on open (0,1) should never produce Inf
-  inf_check_train <- sum(sapply(vae_transform_cols,
-                                function(nm) any(is.infinite(Train_VAE[[nm]]))))
-  inf_check_test  <- sum(sapply(vae_transform_cols,
-                                function(nm) any(is.infinite(Test_VAE[[nm]]))))
-  if (inf_check_train > 0L || inf_check_test > 0L)
+  ## Sanity: qnorm() on open (0,1) should never produce Inf.
+  ## Epsilon clipping in QuantileTransformation() guarantees this,
+  ## but check explicitly in case any boundary values slipped through.
+  inf_train <- sum(sapply(vae_transform_cols,
+                          function(nm) any(is.infinite(Train_VAE[[nm]]))))
+  inf_test  <- sum(sapply(vae_transform_cols,
+                          function(nm) any(is.infinite(Test_VAE[[nm]]))))
+  if (inf_train > 0L || inf_test > 0L)
     warning(sprintf(
       "Inf values after qnorm() — Train cols: %d  Test cols: %d. ",
-      inf_check_train, inf_check_test,
+      inf_train, inf_test,
       "Check QuantileTransformation() epsilon clipping."
     ))
   
-  ## ── Final validation ───────────────────────────────────────────────────────
+  ## ── Final validation (both versions) ──────────────────────────────────────
   for (pair in list(list(Train_Final, Test_Final, "Uniform"),
                     list(Train_VAE,   Test_VAE,   "VAE/Normal"))) {
     tr <- pair[[1]]; te <- pair[[2]]; label <- pair[[3]]
@@ -817,6 +829,8 @@ tryCatch({
     )
   }
   
+  all_feature_cols <- setdiff(names(Train_Final), TARGET_COL)
+  
   message("--- 02E Validation Report ---")
   message(sprintf("  Split mode          : %s", SPLIT_MODE))
   message(sprintf("  Train_Final (unif.) : %d rows x %d cols", nrow(Train_Final), ncol(Train_Final)))
@@ -833,13 +847,13 @@ tryCatch({
   message("  All features numeric: OK (both versions)")
   
   ## ── Save ──────────────────────────────────────────────────────────────────
-  ## Uniform versions — for XGBoost and all non-VAE models
+  ## Uniform — XGBoost and all non-VAE models
   saveRDS(Train_Final,  get_split_path(SPLIT_OUT_TRAIN_FINAL))
   saveRDS(Test_Final,   get_split_path(SPLIT_OUT_TEST_FINAL))
   saveRDS(train_id_vec, get_split_path(SPLIT_OUT_TRAIN_IDS))
   saveRDS(test_id_vec,  get_split_path(SPLIT_OUT_TEST_IDS))
   
-  ## Normal-scores versions — for VAE only
+  ## Normal-scores — VAE only
   saveRDS(Train_VAE, get_vae_path(SPLIT_OUT_TRAIN_FINAL))
   saveRDS(Test_VAE,  get_vae_path(SPLIT_OUT_TEST_FINAL))
   

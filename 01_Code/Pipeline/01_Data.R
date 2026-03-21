@@ -60,6 +60,7 @@ tryCatch({
   ### Add the manually adjusted ratios (correct ones, see documentation).
   Data$r19<-Data$f6/Data$f1
   Data$r20<-(Data$f3-Data$f11)/Data$f1
+  setcolorder(Data, c(setdiff(names(Data), "y"), "y"))
   
   #==============================================================================#
   #==== B - DataPreprocessing ====================================================#
