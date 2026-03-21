@@ -1022,6 +1022,10 @@ tryCatch({
 #==== 04 - VAE SetUp ==========================================================#
 #==============================================================================#
 
+if (exists("feat_dist")) rm(feat_dist)
+keras::k_clear_session()
+message("TF graph cleared — eager: ", tensorflow::tf$executing_eagerly())
+
 #==== 04A - Data Preparation ==================================================#
 
 tryCatch({
@@ -1052,6 +1056,10 @@ tryCatch({
   message(sprintf("  Feature cols for VAE       : %d", length(feature_cols)))
   
   ## ── B. Classify Features by Distribution Type ─────────────────────────────
+  ## consec_decline_* cols are integer counts (0, 1, 2, 3...) — NOT binary.
+  ## extracting_distribution() may misclassify them as bernoulli due to
+  ## zero-dominance. Explicitly force them to continuous before any pattern match.
+  
   binary_patterns  <- c("^groupmember$", "^is_", "^has_", "^sector_")
   bounded_patterns <- c("^secRank_")
   
@@ -1060,15 +1068,28 @@ tryCatch({
   rank_cols_pattern <- feature_cols[sapply(feature_cols, function(nm)
     any(sapply(bounded_patterns, function(p) grepl(p, nm))))]
   
+  ## Remove consec_decline from binary candidates — they are counts, not flags
+  consec_cols      <- grep("^consec_decline_", feature_cols, value = TRUE)
+  bin_cols_pattern <- setdiff(bin_cols_pattern, consec_cols)
+  
   remaining_cols <- setdiff(feature_cols, c(bin_cols_pattern, rank_cols_pattern))
   bin_cols_data  <- remaining_cols[sapply(remaining_cols, function(nm) {
     x_obs <- Train_Final[[nm]][!is.na(Train_Final[[nm]])]
     length(x_obs) > 0 && all(x_obs %in% c(0, 1))
   })]
   
+  ## Remove consec_decline from data-driven binary candidates too
+  bin_cols_data <- setdiff(bin_cols_data, consec_cols)
+  
   bin_cols  <- as.character(unique(c(bin_cols_pattern, bin_cols_data)) %||% character(0))
   rank_cols <- as.character(rank_cols_pattern %||% character(0))
   cont_cols <- as.character(setdiff(feature_cols, c(bin_cols, rank_cols)) %||% character(0))
+  
+  ## Verify consec cols ended up in cont_cols
+  consec_in_cont <- intersect(consec_cols, cont_cols)
+  message(sprintf("  consec_decline cols forced to continuous: %d", length(consec_in_cont)))
+  if (length(consec_in_cont) != length(consec_cols))
+    warning("  Some consec_decline cols not in cont_cols — check classification logic.")
   
   classified   <- c(cont_cols, rank_cols, bin_cols)
   unclassified <- setdiff(feature_cols, classified)
@@ -1175,8 +1196,24 @@ tryCatch({
     "col_order length != feature_cols length" = n_features == length(feature_cols)
   )
   
+  ## Coerce all integer feature cols to double before matrix conversion.
+  ## as.matrix() on mixed integer/numeric may produce integer matrix →
+  ## TF/Keras rejects or mishandles non-float32 input.
+  int_feature_cols <- col_order[vapply(col_order, function(nm)
+    is.integer(Train_Final[[nm]]), logical(1))]
+  if (length(int_feature_cols) > 0) {
+    message(sprintf("  Coercing %d integer feature cols to double", length(int_feature_cols)))
+    for (col in int_feature_cols) {
+      Train_Final[, (col) := as.double(get(col))]
+      Test_Final[,  (col) := as.double(get(col))]
+    }
+  }
+  
   vae_train_mat <- as.matrix(Train_Final[, ..col_order])
   vae_test_mat  <- as.matrix(Test_Final[,  ..col_order])
+  
+  stopifnot("vae_train_mat is not double — check integer coercion" = is.double(vae_train_mat))
+  stopifnot("vae_test_mat is not double — check integer coercion"  = is.double(vae_test_mat))
   
   if (n_binary > 0) {
     bin_idx <- (n_cont + n_bounded + 1):n_features
@@ -1192,14 +1229,14 @@ tryCatch({
     encoder_dims     = NULL,
     decoder_dims     = NULL,
     latent_dim       = NULL,
-    epochs           = 100L,
+    epochs           = 150L,
     batch_size       = 256L,
-    beta             = 1.0,
+    beta             = 3.0,
     lr               = 1e-3,
     temperature      = 0.5,
     patience         = 10L,
     kl_warmup        = TRUE,
-    kl_warmup_epochs = 10L
+    kl_warmup_epochs = 20L
   )
   
   message(sprintf("  β (KL weight) : %.2f", vae_config$beta))
@@ -1207,38 +1244,32 @@ tryCatch({
                   n_cont, n_bounded, n_binary))
   
   ## ── G. Distribution Metadata ──────────────────────────────────────────────
+  ## feat_reorder() drops rows when features share naming patterns — do NOT use it.
+  ## feat_dist_input is already column-aligned with vae_train_mat (built from it),
+  ## so extracting_distribution() alone is sufficient.
+  
   if (!exists("extracting_distribution"))
     stop("extracting_distribution() not found — check autotab is loaded.")
   if (!exists("set_feat_dist"))
     stop("set_feat_dist() not found — check autotab is loaded.")
   
-  ## Pass data.frame with explicit colnames matching col_order — critical for
-  ## correct loss tensor graph wiring in VAE_train (missing deps error if wrong)
   feat_dist_input <- as.data.frame(vae_train_mat)
   colnames(feat_dist_input) <- col_order
   
-  feat_dist <- extracting_distribution(feat_dist_input)
+  feat_dist <- extracting_distribution(feat_dist_input)   ## no feat_reorder()
   set_feat_dist(feat_dist)
   
-  ## Sanity checks
+  ## Validate
+  stopifnot(
+    "feat_dist row count != ncol(vae_train_mat)" = nrow(feat_dist) == ncol(vae_train_mat)
+  )
   total_params <- sum(feat_dist$num_params)
-  message(sprintf("  feat_dist rows        : %d (should == %d features)",
-                  nrow(feat_dist), length(col_order)))
+  message(sprintf("  feat_dist rows        : %d (== %d features : OK)",
+                  nrow(feat_dist), ncol(vae_train_mat)))
   message(sprintf("  total decoder params  : %d", total_params))
   message(sprintf("  feat_dist dist types  : %s",
                   paste(names(sort(table(feat_dist$distribution), decreasing = TRUE)),
                         collapse = ", ")))
-  
-  if (!is.null(feat_dist$name)) {
-    misaligned <- sum(feat_dist$name != col_order)
-    if (misaligned > 0)
-      stop(sprintf("feat_dist column order misaligned: %d mismatches.", misaligned))
-    else
-      message("  feat_dist column alignment: OK")
-  }
-  
-  message(sprintf("  feat_dist class  : %s", paste(class(feat_dist), collapse = ", ")))
-  message(sprintf("  feat_dist length : %d", length(feat_dist)))
   message("04A Complete.")
   
 }, error = function(e) stop("04A Failed: ", e$message))
@@ -1256,16 +1287,29 @@ tryCatch({
   n_features          <- ncol(vae_train_mat)
   total_output_params <- sum(feat_dist$num_params)
   
+  message(sprintf("  n_features          : %d", n_features))
   message(sprintf("  total_output_params : %d", total_output_params))
   
-  latent_dim  <- max(4L, as.integer(sqrt(n_features)))
-  min_last    <- as.integer(ceiling(total_output_params * 1.1))
+  latent_dim <- max(4L, as.integer(sqrt(n_features)))
+  min_last   <- as.integer(ceiling(total_output_params * 1.1))
   
-  enc_dims <- c(
-    max(as.integer(n_features * 0.75), min_last + 200L),
-    max(as.integer(n_features * 0.50), min_last + 100L),
-    min_last
-  )
+  ## Enforce strictly decreasing encoder dims.
+  ## With large feat_dist (many gaussian cols), total_output_params can exceed
+  ## n_features * 0.5, causing the naive heuristic to produce non-monotone dims
+  ## (e.g. 214 → 342 → 618) which breaks the encoder bottleneck structure.
+  ## Use n_features multipliers that guarantee decrease regardless of param count.
+  enc_dim_1 <- max(as.integer(n_features * 2.0), min_last + 400L)
+  enc_dim_2 <- max(as.integer(n_features * 1.5), min_last + 200L)
+  enc_dim_3 <- min_last
+  
+  ## Guard: ensure strict decrease
+  if (enc_dim_2 >= enc_dim_1) enc_dim_2 <- as.integer(enc_dim_1 * 0.75)
+  if (enc_dim_3 >= enc_dim_2) enc_dim_3 <- as.integer(enc_dim_2 * 0.75)
+  if (enc_dim_3 < total_output_params)
+    stop(sprintf("enc_dim_3 %d < total_output_params %d — increase multipliers.",
+                 enc_dim_3, total_output_params))
+  
+  enc_dims <- c(enc_dim_1, enc_dim_2, enc_dim_3)
   dec_dims <- rev(enc_dims)
   
   make_layer_spec <- function(dims, activation = "relu") {
@@ -1280,6 +1324,12 @@ tryCatch({
     stop(sprintf(
       "Last decoder layer %d < total_output_params %d — increase dec_dims.",
       last_dec_units, total_output_params))
+  
+  ## Verify strict decrease in encoder
+  stopifnot(
+    "Encoder dims not strictly decreasing" =
+      all(diff(enc_dims) < 0)
+  )
   
   message(sprintf("  Input dims    : %d x %d", nrow(vae_train_mat), n_features))
   message(sprintf("  Encoder dims  : %s → %d (latent)",
@@ -1356,6 +1406,451 @@ tryCatch({
   message("04B Complete.")
   
 }, error = function(e) stop("04B Failed: ", e$message))
+
+#==== 04C - VAE Training (Manual) =============================================#
+
+tryCatch({
+  message("--- Starting 04B: VAE Training ---")
+  
+  if (!exists("vae_train_mat")) stop("vae_train_mat missing — run 04A first.")
+  if (!exists("vae_config"))    stop("vae_config missing — run 04A first.")
+  if (!exists("feat_dist"))     stop("feat_dist missing — run 04A first.")
+  
+  ## ── A. Derive Architecture from feat_dist ─────────────────────────────────
+  n_features          <- ncol(vae_train_mat)
+  total_output_params <- sum(feat_dist$num_params)
+  
+  message(sprintf("  n_features          : %d", n_features))
+  message(sprintf("  total_output_params : %d", total_output_params))
+  
+  latent_dim <- max(4L, as.integer(sqrt(n_features)))
+  min_last   <- as.integer(ceiling(total_output_params * 1.1))
+  
+  enc_dim_1 <- max(as.integer(n_features * 2.0), min_last + 400L)
+  enc_dim_2 <- max(as.integer(n_features * 1.5), min_last + 200L)
+  enc_dim_3 <- min_last
+  
+  if (enc_dim_2 >= enc_dim_1) enc_dim_2 <- as.integer(enc_dim_1 * 0.75)
+  if (enc_dim_3 >= enc_dim_2) enc_dim_3 <- as.integer(enc_dim_2 * 0.75)
+  if (enc_dim_3 < total_output_params)
+    stop(sprintf("enc_dim_3 %d < total_output_params %d — increase multipliers.",
+                 enc_dim_3, total_output_params))
+  
+  enc_dims <- c(enc_dim_1, enc_dim_2, enc_dim_3)
+  dec_dims <- rev(enc_dims)
+  
+  stopifnot("Encoder dims not strictly decreasing" = all(diff(enc_dims) < 0))
+  
+  make_layer_spec <- function(dims, activation = "relu") {
+    lapply(dims, function(u) list("dense", as.integer(u), activation))
+  }
+  encoder_spec <- make_layer_spec(enc_dims)
+  decoder_spec <- make_layer_spec(dec_dims)
+  
+  last_dec_units <- decoder_spec[[length(decoder_spec)]][[2]]
+  if (last_dec_units < total_output_params)
+    stop(sprintf("Last decoder layer %d < total_output_params %d.",
+                 last_dec_units, total_output_params))
+  
+  message(sprintf("  Input dims    : %d x %d", nrow(vae_train_mat), n_features))
+  message(sprintf("  Encoder dims  : %s → %d (latent)",
+                  paste(enc_dims, collapse = " → "), latent_dim))
+  message(sprintf("  Decoder dims  : %d → %s",
+                  latent_dim, paste(dec_dims, collapse = " → ")))
+  message(sprintf("  Last dec layer: %d >= %d required : OK",
+                  last_dec_units, total_output_params))
+  message(sprintf("  Epochs: %d | Batch: %d | β: %.2f",
+                  vae_config$epochs, vae_config$batch_size, vae_config$beta))
+  
+  stopifnot(
+    "feat_dist not set"    = exists("feat_dist"),
+    "feat_dist wrong rows" = nrow(feat_dist) == ncol(vae_train_mat)
+  )
+  message(sprintf("  feat_dist validated: %d rows | %d total params",
+                  nrow(feat_dist), sum(feat_dist$num_params)))
+  
+  vae_config$latent_dim   <- latent_dim
+  vae_config$encoder_dims <- enc_dims
+  vae_config$decoder_dims <- dec_dims
+  
+  ## ── B. Build Encoder ──────────────────────────────────────────────────────
+  encoder_input <- keras::layer_input(shape = n_features, name = "encoder_input")
+  enc_x         <- encoder_input
+  for (i in seq_along(encoder_spec)) {
+    spec  <- encoder_spec[[i]]
+    enc_x <- keras::layer_dense(enc_x, units = spec[[2]], activation = spec[[3]],
+                                name = paste0("enc_dense_", i))
+  }
+  
+  z_mean    <- keras::layer_dense(enc_x, units = latent_dim, name = "z_mean")
+  z_log_var <- keras::layer_dense(enc_x, units = latent_dim, name = "z_log_var")
+  
+  ## Reparameterisation trick
+  z_sampled <- keras::layer_lambda(
+    list(z_mean, z_log_var),
+    f    = function(args) {
+      zm  <- args[[1]]
+      zlv <- args[[2]]
+      eps <- tensorflow::tf$random$normal(shape = tensorflow::tf$shape(zm))
+      zm + tensorflow::tf$exp(0.5 * zlv) * eps
+    },
+    name = "z_sampled"
+  )
+  
+  encoder_model <- keras::keras_model(
+    inputs  = encoder_input,
+    outputs = list(z_mean, z_log_var, z_sampled),
+    name    = "encoder"
+  )
+  
+  ## ── C. Build Decoder with Split Output Heads ──────────────────────────────
+  ## Continuous + bounded → linear activation
+  ## Binary               → sigmoid activation (outputs probabilities in [0,1])
+  ## col_order = [cont_cols | rank_cols | bin_cols] so split is clean.
+  
+  n_cont_bounded <- n_cont + n_bounded   ## from 04A col_order construction
+  
+  decoder_input <- keras::layer_input(shape = latent_dim, name = "decoder_input")
+  dec_x         <- decoder_input
+  for (i in seq_along(decoder_spec)) {
+    spec  <- decoder_spec[[i]]
+    dec_x <- keras::layer_dense(dec_x, units = spec[[2]], activation = spec[[3]],
+                                name = paste0("dec_dense_", i))
+  }
+  
+  if (n_cont_bounded > 0 && n_binary > 0) {
+    out_cont       <- keras::layer_dense(dec_x, units = n_cont_bounded,
+                                         activation = "linear",  name = "out_continuous")
+    out_bin        <- keras::layer_dense(dec_x, units = n_binary,
+                                         activation = "sigmoid", name = "out_binary")
+    decoder_output <- keras::layer_concatenate(list(out_cont, out_bin),
+                                               name = "decoder_output")
+  } else if (n_binary > 0) {
+    decoder_output <- keras::layer_dense(dec_x, units = n_binary,
+                                         activation = "sigmoid", name = "decoder_output")
+  } else {
+    decoder_output <- keras::layer_dense(dec_x, units = n_cont_bounded,
+                                         activation = "linear",  name = "decoder_output")
+  }
+  
+  decoder_model <- keras::keras_model(decoder_input, decoder_output, name = "decoder")
+  
+  ## ── D. Mixed Distribution Loss ────────────────────────────────────────────
+  ## Matches autotab's lossbasedondist():
+  ##   Gaussian / bounded → MSE (gaussian NLL up to constant)
+  ##   Bernoulli          → binary cross-entropy
+  
+  compute_mixed_loss <- function(x_true, x_recon, n_cont_bounded, n_binary) {
+    
+    if (n_cont_bounded > 0) {
+      x_cont   <- x_true[,  1:n_cont_bounded]
+      rec_cont <- x_recon[, 1:n_cont_bounded]
+      loss_cont <- tensorflow::tf$reduce_mean(
+        tensorflow::tf$reduce_sum(
+          tensorflow::tf$square(x_cont - rec_cont), axis = 1L))
+    } else {
+      loss_cont <- tensorflow::tf$constant(0, dtype = "float32")
+    }
+    
+    if (n_binary > 0) {
+      start   <- n_cont_bounded + 1L
+      x_bin   <- x_true[,  start:tensorflow::tf$shape(x_true)[2]]
+      rec_bin <- x_recon[, start:tensorflow::tf$shape(x_recon)[2]]
+      rec_bin <- tensorflow::tf$clip_by_value(rec_bin, 1e-6, 1 - 1e-6)
+      loss_bin <- tensorflow::tf$reduce_mean(
+        tensorflow::tf$reduce_sum(
+          -(x_bin * tensorflow::tf$math$log(rec_bin) +
+              (1 - x_bin) * tensorflow::tf$math$log(1 - rec_bin)),
+          axis = 1L))
+    } else {
+      loss_bin <- tensorflow::tf$constant(0, dtype = "float32")
+    }
+    
+    loss_cont + loss_bin
+  }
+  
+  ## ── E. Training Step ──────────────────────────────────────────────────────
+  beta_val      <- tensorflow::tf$constant(vae_config$beta, dtype = "float32")
+  vae_optimizer <- keras::optimizer_adam(learning_rate = vae_config$lr,
+                                         clipnorm = 0.1)
+  
+  train_step <- tensorflow::tf_function(function(x) {
+    with(tensorflow::tf$GradientTape() %as% tape, {
+      enc_out <- encoder_model(x, training = TRUE)
+      z_mu    <- enc_out[[1]]
+      z_lv    <- enc_out[[2]]
+      z_samp  <- enc_out[[3]]
+      x_recon <- decoder_model(z_samp, training = TRUE)
+      
+      recon_loss <- compute_mixed_loss(x, x_recon, n_cont_bounded, n_binary)
+      
+      kl_loss <- -0.5 * tensorflow::tf$reduce_mean(
+        tensorflow::tf$reduce_sum(
+          1 + z_lv - tensorflow::tf$square(z_mu) - tensorflow::tf$exp(z_lv),
+          axis = 1L))
+      
+      total_loss <- recon_loss + beta_val * kl_loss
+    })
+    
+    all_vars <- c(encoder_model$trainable_variables,
+                  decoder_model$trainable_variables)
+    grads <- tape$gradient(total_loss, all_vars)
+    vae_optimizer$apply_gradients(purrr::transpose(list(grads, all_vars)))
+    
+    list(loss = total_loss, recon_loss = recon_loss, kl_loss = kl_loss)
+  })
+  
+  ## ── F. KL Warmup Schedule ─────────────────────────────────────────────────
+  ## Matches autotab's kl_warm / beta_epoch behaviour.
+  ## β is linearly ramped from 0 to vae_config$beta over kl_warmup_epochs.
+  
+  get_beta <- function(epoch) {
+    if (!vae_config$kl_warmup) return(vae_config$beta)
+    warmup_epochs <- vae_config$kl_warmup_epochs
+    if (epoch <= warmup_epochs) {
+      vae_config$beta * (epoch / warmup_epochs)
+    } else {
+      vae_config$beta
+    }
+  }
+  
+  ## ── G. Training Loop ──────────────────────────────────────────────────────
+  n_train      <- nrow(vae_train_mat)
+  n_epochs     <- vae_config$epochs
+  batch_size   <- vae_config$batch_size
+  patience     <- vae_config$patience
+  history      <- list(
+    loss       = numeric(n_epochs),
+    recon_loss = numeric(n_epochs),
+    kl_loss    = numeric(n_epochs)
+  )
+  
+  best_loss    <- Inf
+  patience_ctr <- 0L
+  best_enc_w   <- NULL
+  best_dec_w   <- NULL
+  
+  for (epoch in seq_len(n_epochs)) {
+    
+    ## Update beta for KL warmup — rebuild optimizer-independent constant
+    beta_val <- tensorflow::tf$constant(get_beta(epoch), dtype = "float32")
+    
+    idx          <- sample(n_train)
+    batch_starts <- seq(1, n_train, by = batch_size)
+    epoch_losses <- matrix(NA_real_, nrow = length(batch_starts), ncol = 3)
+    
+    for (b in seq_along(batch_starts)) {
+      batch_idx <- idx[batch_starts[b]:min(batch_starts[b] + batch_size - 1, n_train)]
+      x_batch   <- tensorflow::tf$constant(
+        vae_train_mat[batch_idx, , drop = FALSE], dtype = "float32")
+      res <- train_step(x_batch)
+      epoch_losses[b, ] <- c(
+        as.numeric(res$loss),
+        as.numeric(res$recon_loss),
+        as.numeric(res$kl_loss))
+    }
+    
+    history$loss[epoch]       <- mean(epoch_losses[, 1])
+    history$recon_loss[epoch] <- mean(epoch_losses[, 2])
+    history$kl_loss[epoch]    <- mean(epoch_losses[, 3])
+    
+    if (epoch %% 10 == 0 || epoch == 1)
+      message(sprintf("  Epoch %3d | β=%.3f | loss: %.4f | recon: %.4f | kl: %.4f",
+                      epoch, get_beta(epoch),
+                      history$loss[epoch],
+                      history$recon_loss[epoch],
+                      history$kl_loss[epoch]))
+    
+    ## Early stopping
+    if (history$loss[epoch] < best_loss - 1e-4) {
+      best_loss    <- history$loss[epoch]
+      patience_ctr <- 0L
+      best_enc_w   <- encoder_model$get_weights()
+      best_dec_w   <- decoder_model$get_weights()
+    } else {
+      patience_ctr <- patience_ctr + 1L
+      if (patience_ctr >= patience) {
+        message(sprintf("  Early stopping at epoch %d (best loss: %.4f)",
+                        epoch, best_loss))
+        break
+      }
+    }
+  }
+  
+  ## Restore best weights
+  if (!is.null(best_enc_w)) {
+    encoder_model$set_weights(best_enc_w)
+    decoder_model$set_weights(best_dec_w)
+    message("  Best weights restored.")
+  }
+  
+  ## ── H. Training Diagnostics ───────────────────────────────────────────────
+  actual_epochs <- min(which(history$loss == 0)[1] - 1, n_epochs, na.rm = TRUE)
+  if (is.na(actual_epochs)) actual_epochs <- n_epochs
+  
+  message(sprintf("  Final total loss : %.4f", tail(history$loss[history$loss != 0], 1)))
+  message(sprintf("  Final recon loss : %.4f", tail(history$recon_loss[history$recon_loss != 0], 1)))
+  message(sprintf("  Final KL loss    : %.4f", tail(history$kl_loss[history$kl_loss != 0], 1)))
+  
+  final_kl <- tail(history$kl_loss[history$kl_loss != 0], 1)
+  if (!is.na(final_kl) && final_kl < 0.01)
+    warning("  KL near zero — possible posterior collapse. ",
+            "Try increasing β or kl_warmup_epochs.")
+  
+  ## ── I. Package vae_fit ────────────────────────────────────────────────────
+  ## Structure mirrors what 05A expects:
+  ##   vae_fit$encoder_model  — encoder (input → z_mean, z_log_var, z_sampled)
+  ##   vae_fit$decoder_model  — decoder (z → reconstruction)
+  ##   vae_fit$trained_model  — full VAE (input → reconstruction) for compatibility
+  ##   vae_fit$history        — loss history
+  ##   vae_fit$n_cont_bounded — needed by 05A for recon error split
+  ##   vae_fit$n_binary       — needed by 05A for recon error split
+  
+  full_vae_output <- decoder_model(z_sampled)
+  vae_fit <- list(
+    trained_model  = keras::keras_model(
+      inputs  = encoder_input,
+      outputs = full_vae_output,
+      name    = "vae_full"
+    ),
+    encoder_model  = encoder_model,
+    decoder_model  = decoder_model,
+    history        = history,
+    n_cont_bounded = n_cont_bounded,
+    n_binary       = n_binary
+  )
+  
+  if (is.null(vae_fit$trained_model)) stop("VAE build failed — trained_model is NULL.")
+  message("04B Complete.")
+  
+}, error = function(e) stop("04C Failed: ", e$message))
+
+#==============================================================================#
+#==== 05 - VAE Modeling (Revised) =============================================#
+#==============================================================================#
+
+Use_VAE_Only <- TRUE
+
+#==== 05A - Strategy A: Latent features (Dimensional reduction) ===============#
+
+tryCatch({
+  message("--- Starting 05A: Strategy A - Latent Feature Extraction ---")
+  
+  ## ── A. Guards ─────────────────────────────────────────────────────────────
+  if (!exists("vae_fit"))       stop("vae_fit not found — run 04B first.")
+  if (!exists("vae_train_mat")) stop("vae_train_mat not found — run 04A first.")
+  if (!exists("vae_test_mat"))  stop("vae_test_mat not found — run 04A first.")
+  if (!exists("vae_config"))    stop("vae_config not found — run 04A first.")
+  
+  latent_dim   <- vae_config$latent_dim
+  latent_names <- paste0("l", seq_len(latent_dim))
+  target_col   <- if (exists("TARGET_COL")) TARGET_COL else "y"
+  Use_VAE_Only <- if (exists("Use_VAE_Only")) Use_VAE_Only else FALSE
+  
+  ## ── B. Encoder is directly available from custom training loop ────────────
+  ## vae_fit$encoder_model outputs list(z_mean, z_log_var, z_sampled).
+  ## We use z_mean (index 1) as the deterministic latent representation —
+  ## more stable than z_sampled for downstream classification.
+  
+  enc_model <- vae_fit$encoder_model
+  message(sprintf("  Encoder input shape  : %s",
+                  paste(enc_model$input_shape, collapse = " x ")))
+  message(sprintf("  Encoder output heads : %d (z_mean, z_log_var, z_sampled)",
+                  length(enc_model$output)))
+  
+  ## ── C. Encode Train & Test ────────────────────────────────────────────────
+  encode_data <- function(model, mat) {
+    raw <- predict(model, mat)
+    ## raw is list(z_mean, z_log_var, z_sampled) — take z_mean
+    z_mu <- if (is.list(raw)) raw[[1]] else raw
+    as.data.frame(z_mu[, seq_len(latent_dim), drop = FALSE])
+  }
+  
+  z_train <- encode_data(enc_model, vae_train_mat)
+  z_test  <- encode_data(enc_model, vae_test_mat)
+  
+  colnames(z_train) <- latent_names
+  colnames(z_test)  <- latent_names
+  
+  ## ── D. Reconstruction Error as Anomaly Feature ────────────────────────────
+  ## Use encoder → z_sampled → decoder for reconstruction.
+  ## This matches training behaviour (uses sampled z, not z_mean).
+  
+  reconstruct_vae <- function(vae_fit, input_mat) {
+    enc_out <- predict(vae_fit$encoder_model, input_mat)
+    z_samp  <- if (is.list(enc_out)) enc_out[[3]] else enc_out
+    predict(vae_fit$decoder_model, z_samp)
+  }
+  
+  recon_train <- reconstruct_vae(vae_fit, vae_train_mat)
+  recon_test  <- reconstruct_vae(vae_fit, vae_test_mat)
+  
+  ## Clip to input feature count — decoder output matches n_features exactly
+  ## due to split head design (n_cont_bounded + n_binary = n_features)
+  n_cols      <- ncol(vae_train_mat)
+  recon_train <- recon_train[, seq_len(n_cols), drop = FALSE]
+  recon_test  <- recon_test[,  seq_len(n_cols), drop = FALSE]
+  
+  ## Compute per-row MSE — comparable across continuous and binary blocks
+  ## because binary features output probabilities in [0,1] via sigmoid
+  recon_err_train <- rowMeans((vae_train_mat - recon_train)^2)
+  recon_err_test  <- rowMeans((vae_test_mat  - recon_test)^2)
+  
+  ## ── E. Latent Space Diagnostics ───────────────────────────────────────────
+  dim_variance <- apply(z_train, 2, var)
+  collapsed    <- sum(dim_variance < 1e-3)
+  if (collapsed > 0)
+    warning(sprintf("  %d latent dim(s) collapsed (var < 1e-3) — ",
+                    collapsed),
+            "consider increasing β or reducing latent_dim.")
+  
+  message(sprintf("  Latent dim       : %d", latent_dim))
+  message(sprintf("  Latent variances — min: %.4f | mean: %.4f | max: %.4f",
+                  min(dim_variance), mean(dim_variance), max(dim_variance)))
+  message(sprintf("  Recon error Train — mean: %.4f | p95: %.4f",
+                  mean(recon_err_train), quantile(recon_err_train, 0.95)))
+  message(sprintf("  Recon error Test  — mean: %.4f | p95: %.4f",
+                  mean(recon_err_test),  quantile(recon_err_test,  0.95)))
+  
+  ## ── F. Assemble Modelling Sets ────────────────────────────────────────────
+  base_train <- if (Use_VAE_Only) {
+    Train_Final[, .SD, .SDcols = target_col]
+  } else {
+    copy(Train_Final)
+  }
+  base_test <- if (Use_VAE_Only) {
+    Test_Final[, .SD, .SDcols = target_col]
+  } else {
+    copy(Test_Final)
+  }
+  
+  Strategy_A_Train <- cbind(base_train, z_train, vae_recon_error = recon_err_train)
+  Strategy_A_Test  <- cbind(base_test,  z_test,  vae_recon_error = recon_err_test)
+  
+  ## ── G. Sanity Checks ──────────────────────────────────────────────────────
+  stopifnot(
+    "Row mismatch Train" = nrow(Strategy_A_Train) == nrow(Train_Final),
+    "Row mismatch Test"  = nrow(Strategy_A_Test)  == nrow(Test_Final),
+    "NAs in z_train"     = sum(is.na(z_train))     == 0,
+    "NAs in z_test"      = sum(is.na(z_test))      == 0,
+    "NAs in recon Train" = sum(is.na(recon_err_train)) == 0,
+    "NAs in recon Test"  = sum(is.na(recon_err_test))  == 0,
+    "Col mismatch"       = all(colnames(Strategy_A_Train) == colnames(Strategy_A_Test))
+  )
+  
+  message(sprintf("  Mode             : %s",
+                  ifelse(Use_VAE_Only, "latent only", "augmented")))
+  message(sprintf("  Strategy_A_Train : %d rows x %d cols",
+                  nrow(Strategy_A_Train), ncol(Strategy_A_Train)))
+  message(sprintf("  Strategy_A_Test  : %d rows x %d cols",
+                  nrow(Strategy_A_Test),  ncol(Strategy_A_Test)))
+  message("05A Complete.")
+  
+}, error = function(e) stop("05A Failed: ", e$message))
+
+
+
+
 
 #==============================================================================#
 #==== 05 - VAE Modeling =======================================================#
