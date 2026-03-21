@@ -72,7 +72,7 @@ except ImportError:
 # ==============================================================================
 
 SPLIT_MODE = "OoS"       # "OoS" | "OoT"
-MODEL      = "M1"        # "M1" | "M2" | "M3" | "M4"
+MODEL      = "M4"        # "M1" | "M2" | "M3" | "M4"
 
 # AutoGluon settings
 TIME_LIMIT  = 1800       # seconds per run (default: 30 min)
