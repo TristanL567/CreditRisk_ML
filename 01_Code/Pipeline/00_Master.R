@@ -25,7 +25,12 @@
 #                            sector deviation features, quantile transform
 #                            (Uniform), imputation, final cleanup
 #
-#   ── STAGE 2: Autoencoder (Python) ────────────────────────────────────────
+#   ── STAGE 2: CV Setup (R) ────────────────────────────────────────────────
+#   03_CV_Setup.R            Stratified firm-level k-fold CV construction
+#                            (sector × y_ever, N_FOLDS from config.R)
+#                            Saves cv_folds_{split}.rds for 04A + 04B
+#
+#   ── STAGE 3: Autoencoder (Python) ────────────────────────────────────────
 #   03_Autoencoder.py        Beta-VAE on normal-scores features.
 #                            Outputs latent dims + anomaly scores.
 #
@@ -121,7 +126,7 @@ packages <- c(
   ## Modelling infrastructure
   "caret", "Matrix",
   ## Models
-  "glmnet", "xgboost", "ranger",
+  "glmnet", "xgboost", "ranger", "PRROC",
   ## Bayesian optimisation
   "rBayesianOptimization",
   ## Evaluation
@@ -191,6 +196,10 @@ message(sprintf(
   "   Outputs → 03_Output/Latent/latent_train_%s.parquet (+ anomaly, test)",
   SPLIT_MODE
 ))
+
+## ── Stage 2b: CV Setup (R) ───────────────────────────────────────────────────
+message("\n══ Stage 2b: CV Setup ═══════════════════════════════════════")
+source(file.path(PATH_ROOT, "01_Code", "03_CV_Setup.R"))
 
 ## ── Stage 3a: GLM (R) ────────────────────────────────────────────────────────
 message("\n══ Stage 3a: GLM ════════════════════════════════════════════")
