@@ -110,6 +110,7 @@
 ## config.R must be sourced BEFORE any library() call because it sets
 ## RETICULATE_PYTHON via Sys.setenv() — reticulate reads this on first load.
 
+file.path(here::here(""))
 source(file.path(here::here(""), "config.R"))
 
 library(reticulate)

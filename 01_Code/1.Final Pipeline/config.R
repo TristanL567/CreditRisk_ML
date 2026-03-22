@@ -50,7 +50,7 @@ SEED <- 123L
 
 ## Feature families to retain (see 01_Data.R).
 ## "r" = ratios only | "f" = raw financials only | "both" = all
-KEEP_FEATURES <- "r"
+KEEP_FEATURES <- "both"
 
 ## Quantile-normalise continuous features before VAE input.
 QUANTILE_TRANSFORM  <- TRUE
