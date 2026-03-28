@@ -1,0 +1,468 @@
+---
+title: "Regularised GLM for Credit Default Prediction"
+subtitle: "VAE-Augmented Feature Strategies -- Implementation & Results"
+author: "Anastasia Pryshchepa"
+date: "March 2026"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+geometry: margin=2.5cm
+fontsize: 11pt
+---
+
+\newpage
+
+# Overview
+
+This document describes the implementation, configuration, and results of the
+regularised Generalised Linear Model (GLM) pipeline for predicting firm-level
+credit default. The model uses elastic-net penalisation via `glmnet` and is
+evaluated against four feature strategies constructed from raw financial data
+and Variational Autoencoder (VAE) outputs.
+
+The pipeline is self-contained in `04A_Train_GLM.R` and produces all results
+from disk -- no other pipeline stage needs to be active in memory.
+
+---
+
+# Data & Pipeline Position
+
+## Input Files
+
+The GLM reads six files produced by earlier pipeline stages:
+
+```
+02_Pipeline Datasets and Results/
+|-- 02_Data/
+|   |-- 02_train_final_OoS.rds      161,404 rows x 509 cols
+|   |-- 02_test_final_OoS.rds        69,017 rows x 509 cols
+|   |-- 02_train_id_vec_OoS.rds      Firm IDs for train set
+|   `-- 02_test_id_vec_OoS.rds       Firm IDs for test set
+`-- 03_Output/Latent/
+    |-- latent_train_OoS.parquet     VAE latent dims (z1-z32)
+    |-- latent_test_OoS.parquet
+    |-- anomaly_train_OoS.parquet    VAE reconstruction error
+    `-- anomaly_test_OoS.parquet
+```
+
+## Dataset Characteristics
+
+| Property | Value |
+|:---|:---|
+| Training observations | 161,404 |
+| Test observations | 69,017 |
+| Base features | 509 |
+| Default rate | ~0.8% |
+| Split mode | Out-of-Sample (OoS), stratified 70/30 at firm level |
+
+The 70/30 split is performed at **firm level** to prevent data leakage -- all
+observations of a given firm appear entirely in either Train or Test, never both.
+
+---
+
+# Feature Strategies
+
+Four distinct feature sets are constructed and trained independently.
+
+## Base Model -- Raw Features
+
+The baseline uses the 509-column feature matrix from `02_FeatureEngineering.R`, including:
+
+- Raw financial ratios (`r1`--`r20`) and balance sheet positions (`f1`--`f11`)
+- Time-series dynamics: year-over-year changes, acceleration, momentum, consecutive decline streaks
+- Sector deviation features: sector rank, volatility, trend, divergence
+- One-hot encoded sector and size dummies
+
+The Base Model serves as the performance benchmark against which all strategies are measured.
+
+## Strategy A -- Latent Features Only
+
+Replaces all 509 raw features with the **32 latent dimensions** (`z1`--`z32`)
+produced by the VAE encoder. These represent a compressed, non-linear embedding
+of the firm's financial position. The hypothesis is that this compression captures
+structural patterns not visible in individual ratios.
+
+**Feature matrix:** 32 columns + target `y`
+
+## Strategy B -- Anomaly Score Only
+
+Uses only the VAE **reconstruction error** as a single predictor. A high
+reconstruction error means the VAE cannot represent the firm's balance sheet
+from the learned population norm. The hypothesis is that financial anomalousness
+is itself a default signal.
+
+**Feature matrix:** 1 column (`vae_recon_error`) + target `y`
+
+## Strategy C -- Raw + Latent + Anomaly
+
+Combines all information sources: the 509 raw features, the 32 latent
+dimensions, and the reconstruction error. This tests whether VAE-derived
+features add incremental discriminatory power over raw features when combined.
+
+**Feature matrix:** 542 columns + target `y`
+
+---
+
+# Model Implementation
+
+## Algorithm
+
+Elastic-net penalised logistic regression via the `glmnet` package:
+
+$$\text{Loss} = -\ell(\beta) + \lambda \left[ \alpha \|\beta\|_1 + \frac{1-\alpha}{2} \|\beta\|_2^2 \right]$$
+
+where $\ell(\beta)$ is the binomial log-likelihood, $\lambda$ controls overall
+regularisation strength, and $\alpha \in [0,1]$ controls the mix between
+Lasso ($\alpha = 1$) and Ridge ($\alpha = 0$).
+
+## Hyperparameter Optimisation
+
+The optimal $(\alpha, \lambda)$ pair is selected via `cv.glmnet`:
+
+| Parameter | Value | Rationale |
+|:---|:---|:---|
+| `alpha_grid` | {0, 0.5, 1} | Ridge, Elastic-net, Lasso |
+| `nlambda` | 20 | Reduced from default 100 for speed |
+| `type.measure` | `"auc"` | Optimise AUC directly |
+| `foldid` | Firm-level 5-fold CV | Consistent across strategies |
+| `standardize` | `FALSE` | Features already processed upstream |
+
+## Cross-Validation Design
+
+Folds are assigned at **firm level**, stratified by `y_ever` (whether the firm
+ever defaults). This ensures no firm appears in both training and validation
+within any fold, and the fold structure is identical across all strategies.
+
+## Checkpointing
+
+Each trained model is saved as an `.rds` file in `03_Output/GLM/`. On subsequent
+runs the checkpoint is loaded instead of retraining.
+
+---
+
+# Key Variables
+
+## Configuration
+
+| Variable | Value | Description |
+|:---|:---|:---|
+| `SPLIT_MODE` | `"OoS"` | Out-of-Sample split |
+| `SEED` | 123 | Reproducibility seed |
+| `TARGET_COL` | `"y"` | Binary default indicator |
+| `N_FOLDS_GLM` | 5 | Number of CV folds |
+| `TOP_N_COEF` | 20 | Top coefficients reported |
+| `alpha_grid` | c(0, 0.5, 1) | Alpha values in HPO |
+| `nlambda` | 20 | Lambda path length per alpha |
+
+## Output Objects
+
+| Variable | Description |
+|:---|:---|
+| `GLM_Results_BaseModel` | Trained model for Base Model |
+| `GLM_Results_Strategy_A/B/C` | Trained models per strategy |
+| `GLM_Leaderboard_Train` | CV AUC leaderboard |
+| `GLM_Leaderboard_Test` | Test AUC leaderboard |
+| `GLM_Metrics` | Full evaluation metric table |
+| `GLM_DeLong` | DeLong pairwise AUC test results |
+| `predictions_combined` | Stacked predictions all strategies |
+
+---
+
+# Results
+
+## CV Leaderboard (Training)
+
+| Model | CV AUC | Uplift vs Base | Alpha | Lambda |
+|:---|:---:|:---:|:---:|:---:|
+| Strategy C | 0.9092 | +0.10% | 1.00 | 0.0001 |
+| **Base Model** | **0.9083** | **0.00%** | **1.00** | **0.0001** |
+| Strategy A | 0.8304 | -8.60% | 0.25 | 0.0001 |
+| Strategy B | 0.5193 | -42.84% | -- | -- |
+
+## Test Set Leaderboard
+
+| Model | Test AUC | Uplift vs Base | Brier | Alpha | Lambda |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| Strategy C | 0.9089 | +0.06% | 0.00770 | 1.00 | 0.0001 |
+| **Base Model** | **0.9084** | **0.00%** | **0.00769** | **1.00** | **0.0001** |
+| Strategy A | 0.8292 | -8.72% | 0.00809 | 0.25 | 0.0001 |
+| Strategy B | 0.5628 | -38.05% | 0.00832 | -- | -- |
+
+## Strategy Comparison Chart
+
+![Test Set AUC by Strategy](GLM_Leaderboard_Chart_v2_OoS.png)
+
+---
+
+# Evaluation Metrics
+
+## Full Metric Table
+
+| Model | AUC | AP | Brier | BSS | R@FPR10 | Sens. | Spec. | F1 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **M1 Base** | **0.9084** | **0.1268** | **0.00769** | **0.0674** | **0.756** | **0.820** | **0.858** | **0.088** |
+| M2 Latent | 0.8292 | 0.0452 | 0.00809 | 0.0191 | 0.502 | 0.799 | 0.724 | 0.046 |
+| M3 Anomaly | 0.5628 | 0.0069 | 0.00832 | -0.008 | 0.109 | 0.393 | 0.476 | 0.012 |
+| **M4 Combined** | **0.9089** | **0.1257** | **0.00770** | **0.0664** | **0.744** | **0.841** | **0.830** | **0.076** |
+
+## Metric Definitions
+
+**AUC-ROC** -- Area Under the ROC curve. Range [0.5, 1.0]; higher is better.
+
+**AP (Average Precision)** -- Area under the Precision-Recall curve. More
+informative than AUC under severe class imbalance.
+
+**Brier Score** -- Mean squared error of predicted probabilities:
+$\frac{1}{n}\sum(p_i - y_i)^2$. Lower is better.
+
+**BSS (Brier Skill Score)** -- Improvement over naive forecast:
+$\text{BSS} = 1 - \frac{\text{BS}}{\text{BS}_\text{ref}}$.
+Positive = better than naive.
+
+**R@FPR10** -- Recall at 10% False Positive Rate. If a bank flags the 10% of
+firms it considers most risky, what fraction of actual defaults does it catch?
+The most practically relevant metric for credit risk management.
+
+**Youden Threshold** -- The probability cutoff that maximises
+$\text{Sensitivity} + \text{Specificity} - 1$.
+
+**F1** -- Low (~0.09) due to extreme class imbalance (0.8% defaults). Expected.
+
+---
+
+# Statistical Comparison -- DeLong Test
+
+The DeLong test performs a non-parametric pairwise comparison of AUC values,
+accounting for the correlation of paired predictions on the same test set.
+
+| Model vs Base | AUC | Base AUC | Delta AUC | 95% CI | p-value |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| M2 LatentFeatures | 0.8292 | 0.9084 | -0.0792 | [-0.093, -0.066] | < 0.001 |
+| M3 AnomalyScore | 0.5628 | 0.9084 | -0.3456 | [-0.371, -0.321] | < 0.001 |
+| M4 RawLatentAnomaly | 0.9089 | 0.9084 | +0.0005 | [-0.001, +0.002] | 0.434 |
+
+**Strategy A ($p < 0.001$):** Significantly worse than Base. Latent dimensions
+lose the discriminatory signal in raw features; compression is suboptimal for
+classification.
+
+**Strategy B ($p < 0.001$):** Significantly worse than Base. Reconstruction
+error captures financial unusualness but not the direction of distress.
+
+**Strategy C ($p = 0.434$):** Not significantly different from Base. The +0.05%
+AUC improvement is within statistical noise. This is the central finding:
+VAE features do not meaningfully improve a well-specified GLM.
+
+---
+
+# Key Findings
+
+**1. The Base Model is strong.** AUC of 0.908 with raw financial ratios and
+time-series features is excellent. The feature engineering in
+`02_FeatureEngineering.R` already captures most of the available signal.
+
+**2. VAE features do not improve the GLM.** Strategy C shows +0.05% AUC
+($p = 0.434$) -- statistically indistinguishable from zero.
+
+**3. Raw features dominate latent representations.** Strategy A achieves
+AUC = 0.829 vs 0.908 for Base -- a significant degradation. The VAE's
+compression, optimised for reconstruction, is suboptimal for default prediction.
+
+These findings are consistent with the credit risk literature: linear models
+with well-engineered accounting ratios are difficult to improve upon with
+unsupervised representation learning.
+
+---
+
+# Output Files
+
+| File | Content |
+|:---|:---|
+| `GLM_Leaderboard_v2_OoS.xlsx` | AUC, Brier, Uplift -- train CV and test |
+| `GLM_Variable_Importance_v2_OoS.xlsx` | Top 20 coefficients per strategy |
+| `GLM_Leaderboard_Chart_v2_OoS.png` | Bar chart of test AUC by strategy |
+| `predictions_test_GLM_v2_OoS.parquet` | `id, y, p_default, model, framework` |
+| `GLM_Evaluation_v2_OoS.xlsx` | Full metrics + DeLong tests |
+| `GLM_checkpoint_*.rds` | Saved model objects for fast reloading |
+
+The `.parquet` prediction file matches the AutoGluon and XGBoost format and
+can be stacked directly for cross-framework comparison in `06_Evaluation.R`.
+
+
+---
+
+# Feature Importance
+
+Feature importance is reported in two complementary ways for each strategy:
+
+- **Train coefficients** -- the elastic-net coefficient $\beta_j$ assigned to each
+  feature by the final model. Larger $|\beta_j|$ means the model places more weight
+  on that feature. The sign indicates direction of risk.
+- **Test contributions** -- the mean absolute contribution $|x_j \cdot \beta_j|$
+  across all test observations. This shows which features actually *moved* the
+  predicted probability in practice, accounting for both the coefficient magnitude
+  and the typical scale of the feature values.
+
+## Base Model (M1) -- Top Features
+
+The Base Model relies on a mix of sector-relative, temporal, and ratio features.
+
+### Top 10 by Coefficient (Train)
+
+| Rank | Feature | Coefficient | Odds Ratio | Direction |
+|:---:|:---|:---:|:---:|:---:|
+| 1 | `secVol_r10` | +13.22 | 549,937 | Risk+ |
+| 2 | `history_length` | -1.71 | 0.18 | Risk- |
+| 3 | `time_index` | +1.39 | 4.02 | Risk+ |
+| 4 | `expmean_r12` | -1.29 | 0.28 | Risk- |
+| 5 | `sector_retail` | -0.92 | 0.40 | Risk- |
+| 6 | `expvol_r12` | -0.78 | 0.46 | Risk- |
+| 7 | `secRank_r7` | +0.72 | 2.05 | Risk+ |
+| 8 | `secRank_f11` | +0.70 | 2.01 | Risk+ |
+| 9 | `expmean_r11` | -0.62 | 0.54 | Risk- |
+| 10 | `sector_construction` | -0.43 | 0.65 | Risk- |
+
+### Top 10 by Test Contribution (Mean |x * beta|)
+
+| Rank | Feature | Coef | Mean |x*beta| | Mean Contribution |
+|:---:|:---|:---:|:---:|:---:|
+| 1 | `history_length` | -1.71 | 6.672 | -6.672 |
+| 2 | `secVol_r10` | +13.22 | 3.718 | +3.718 |
+| 3 | `time_index` | +1.39 | 3.403 | +3.403 |
+| 4 | `secRank_r7` | +0.72 | 0.360 | +0.360 |
+| 5 | `secRank_f11` | +0.70 | 0.349 | +0.349 |
+| 6 | `expmean_r12` | -1.29 | 0.324 | -0.324 |
+| 7 | `secVol_f2` | -0.36 | 0.314 | -0.048 |
+| 8 | `r7` (Debt Ratio) | +0.37 | 0.291 | +0.001 |
+| 9 | `f8` (Net Profit) | -0.23 | 0.183 | +0.002 |
+| 10 | `sector_retail` | -0.92 | 0.099 | -0.099 |
+
+### Economic Interpretation
+
+The most important drivers align with credit risk theory:
+
+- **`history_length`** (negative) -- firms with longer observation history are
+  less likely to default. Young firms with short histories carry higher uncertainty.
+- **`secVol_r10`** (positive) -- high volatility of the short-term asset structure
+  relative to sector peers signals instability and elevated default risk.
+- **`time_index`** (positive) -- captures temporal trends; later periods in the
+  panel have higher default probability, consistent with macroeconomic cycles.
+- **`secRank_r7`** (positive) -- a firm with a high debt ratio relative to its
+  sector peers is at greater risk. Sector-relative ranking is more informative
+  than the absolute ratio.
+- **`secRank_f11`** (positive) -- high retained earnings rank within the sector
+  is positively associated with default risk; this likely captures firms that
+  have been retaining earnings due to inability to distribute them.
+- **`expmean_r12`** (negative) -- high exponential moving average of the cash-to-
+  current-assets ratio reduces default risk. Liquidity protects firms.
+- **`r7`** (positive) -- Debt Ratio; higher leverage increases default probability.
+- **`f8`** (negative) -- Net Profit; more profitable firms are less likely to default.
+
+---
+
+## Strategy A (M2) -- Latent Features Only
+
+With only 32 latent dimensions, the model assigns interpretable weights to the
+VAE's compressed representation of the balance sheet.
+
+### Top 10 by Coefficient (Train)
+
+| Rank | Feature | Coefficient | Odds Ratio |
+|:---:|:---|:---:|:---:|
+| 1 | `z3` | +1.34 | 3.82 |
+| 2 | `z26` | +0.97 | 2.65 |
+| 3 | `z20` | +0.82 | 2.28 |
+| 4 | `z17` | +0.72 | 2.05 |
+| 5 | `z16` | -0.69 | 0.50 |
+| 6 | `z31` | +0.57 | 1.77 |
+| 7 | `z9` | -0.51 | 0.60 |
+| 8 | `z8` | -0.49 | 0.61 |
+| 9 | `z1` | -0.45 | 0.64 |
+| 10 | `z15` | +0.43 | 1.54 |
+
+### Top 5 by Test Contribution
+
+| Rank | Feature | Mean |x*beta| |
+|:---:|:---|:---:|
+| 1 | `z26` | 0.791 |
+| 2 | `z3` | 0.443 |
+| 3 | `z8` | 0.440 |
+| 4 | `z16` | 0.426 |
+| 5 | `z15` | 0.364 |
+
+The latent dimensions have no direct economic label -- they represent learned
+combinations of all financial features. The relatively high weight on `z26` and
+`z3` suggests the VAE has encoded specific balance-sheet configurations that
+correlate with default, but the information is spread across all 32 dimensions
+rather than concentrated in a few interpretable features.
+
+---
+
+## Strategy B (M3) -- Anomaly Score Only
+
+Strategy B has a single feature, so importance analysis reduces to one row:
+
+| Feature | Coefficient | Odds Ratio | Mean |x*beta| |
+|:---|:---:|:---:|:---:|
+| `vae_recon_error` | +0.0179 | 1.018 | 0.012 |
+
+The positive coefficient confirms the hypothesis -- higher reconstruction error
+(more anomalous firms) is associated with higher default probability. However,
+the coefficient is very small (+0.018) and the test contribution (0.012) is
+negligible compared to Base Model features (top feature: 6.67). This explains
+why Strategy B achieves only AUC = 0.563 -- a single scalar anomaly score
+lacks the directional information needed for accurate default classification.
+
+---
+
+## Strategy C (M4) -- Raw + Latent + Anomaly
+
+With 542 features, the model largely replicates the Base Model's top drivers,
+with VAE latent dimensions appearing lower in the ranking.
+
+### Top 10 by Test Contribution
+
+| Rank | Feature | Type | Coef | Mean |x*beta| |
+|:---:|:---|:---:|:---:|:---:|
+| 1 | `history_length` | Raw | -1.77 | 6.909 |
+| 2 | `time_index` | Raw | +1.44 | 3.529 |
+| 3 | `secVol_r10` | Raw | +10.70 | 3.011 |
+| 4 | `secRank_f11` | Raw | +0.93 | 0.462 |
+| 5 | `secRank_r7` | Raw | +0.86 | 0.433 |
+| 6 | `secVol_f2` | Raw | -0.38 | 0.326 |
+| 7 | `r7` (Debt Ratio) | Raw | +0.34 | 0.272 |
+| 8 | `has_history` | Raw | +0.36 | 0.244 |
+| 9 | `expmean_r12` | Raw | -0.88 | 0.220 |
+| 10 | `f8` (Net Profit) | Raw | -0.27 | 0.213 |
+| 11 | `z4` | **VAE** | +0.24 | 0.173 |
+| 12 | `z5` | **VAE** | -0.45 | 0.163 |
+
+The first VAE latent dimension (`z4`) appears only at rank 11 in test
+contributions. This confirms the DeLong test result ($p = 0.434$): the VAE
+features are selected by the elastic-net but contribute minimally to the
+final predictions. Raw financial features dominate.
+
+---
+
+## Cross-Strategy Comparison
+
+The table below shows which features appear in the top 10 across strategies,
+demonstrating consistency of economic signal:
+
+| Feature | Base | Strategy C | Economic Meaning |
+|:---|:---:|:---:|:---|
+| `history_length` | #1 (test) | #1 (test) | Firm age / data availability |
+| `secVol_r10` | #2 (test) | #3 (test) | Sector-relative short-term asset volatility |
+| `time_index` | #3 (test) | #2 (test) | Temporal trend in default rates |
+| `secRank_r7` | #4 (test) | #5 (test) | Debt ratio rank within sector |
+| `secRank_f11` | #5 (test) | #4 (test) | Retained earnings rank within sector |
+| `r7` (Debt Ratio) | #8 (test) | #7 (test) | Absolute leverage |
+| `f8` (Net Profit) | #10 (train) | #10 (test) | Profitability |
+
+The high consistency across Base Model and Strategy C confirms that the elastic-
+net correctly identifies the same underlying economic drivers regardless of the
+feature set. The VAE features are not replacing these drivers -- they are simply
+additional, lower-ranked inputs.
+
