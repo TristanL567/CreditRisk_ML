@@ -26,24 +26,25 @@
 #                            (Uniform), imputation, final cleanup
 #
 #   ── STAGE 2: CV Setup (R) ────────────────────────────────────────────────
-#   03_CV_Setup.R            Stratified firm-level k-fold CV construction
+#   02B_CV_Setup.R           Stratified firm-level k-fold CV construction
 #                            (sector × y_ever, N_FOLDS from config.R)
-#                            Saves cv_folds_{split}.rds for 04A + 04B
+#                            Saves cv_folds_{split}.rds for 04B
 #
 #   ── STAGE 3: Autoencoder (Python) ────────────────────────────────────────
 #   03_Autoencoder.py        Beta-VAE on normal-scores features.
 #                            Outputs latent dims + anomaly scores.
+#                            (Required for MODEL_GROUP 04 and 05 only)
 #
 #   ── STAGE 3: Modelling (R) ───────────────────────────────────────────────
-#   04A_Train_GLM.R          Penalised GLM (elastic net / lasso) baseline
 #   04B_Train_XGBoost.R      XGBoost with Bayesian HPO
 #
 #   ── STAGE 4: AutoML (Python) ─────────────────────────────────────────────
-#   05_AutoGluon.py          AutoGluon AutoML — four model configurations:
-#                              M1: raw uniform features
-#                              M2: VAE latent dims + recon error
-#                              M3: recon error (anomaly score) only
-#                              M4: raw + VAE latent combined
+#   05_AutoGluon.py          AutoGluon AutoML — five model groups (01–05):
+#                              01: raw balance sheet + sector
+#                              02: financial ratios + sector
+#                              03: ratios + sector + time dynamics
+#                              04: ratios + sector + time dynamics + latent
+#                              05: latent features + categoricals only
 #
 #   ── STAGE 5: Evaluation & Charts (R) ─────────────────────────────────────
 #   06_Evaluate.R            Test-set evaluation, leaderboard, uplift table
@@ -56,37 +57,22 @@
 #     Raw data (.rda)        C:/Users/Tristan Leiter/Documents/Privat/ILAB/Data/WS2025/data.rda
 #
 #   R PIPELINE OUTPUTS  (→ {PATH_ROOT}/02_Data/):
-#     02_train_final_OoS.rds          Uniform(0,1) train features  — XGBoost / GLM
-#     02_test_final_OoS.rds           Uniform(0,1) test features   — XGBoost / GLM
-#     02_train_final_vae_OoS.rds      N(0,1) train features        — VAE input
-#     02_test_final_vae_OoS.rds       N(0,1) test features         — VAE input
-#     02_train_id_vec_OoS.rds         Firm id vector (train rows)  — for joining
-#     02_test_id_vec_OoS.rds          Firm id vector (test rows)   — for joining
-#     (Replace _OoS with _OoT for the out-of-time split)
+#     Suffix format: _{KEEP_FEATURES}_{TD|noTD}_{SPLIT_MODE}
+#     Examples:
+#       02_train_final_f_noTD_OoS.rds     Uniform(0,1) train — XGBoost (group 01)
+#       02_train_final_r_TD_OoS.rds       Uniform(0,1) train — XGBoost (groups 03-05)
+#       02_train_final_vae_r_TD_OoS.rds   N(0,1) train — VAE input (groups 03-05)
 #
-#   PYTHON / VAE OUTPUTS  (→ {PATH_ROOT}/03_Output/):
-#     Latent/
-#       latent_train_OoS.parquet      id, y, z1..z32, vae_recon_error (train)
-#       latent_test_OoS.parquet       id, y, z1..z32, vae_recon_error (test)
-#       anomaly_train_OoS.parquet     id, y, vae_recon_error only (train)
-#       anomaly_test_OoS.parquet      id, y, vae_recon_error only (test)
-#     Models/VAE/OoS/
-#       vae_weights.pt                Full VAE model weights
-#       encoder_weights.pt            Encoder weights only
-#       vae_config.json               Architecture + training config
-#     Figures/VAE/
-#       training_curves_OoS.png
-#       latent_space_OoS.png
+#   PYTHON / VAE OUTPUTS  (→ {PATH_ROOT}/03_Output/Latent/):
+#       latent_train_r_TD_OoS.parquet     id, y, l1..l8 (+ dae variants)
+#       latent_test_r_TD_OoS.parquet
 #
-#   AUTOGLUON OUTPUTS  (→ {PATH_ROOT}/03_Output/AutoGluon/{M1..M4}_{OoS}/):
-#     ag_predictor/                   Full AutoGluon predictor (model weights)
-#     predictions_test.parquet        id, y, p_default, split_mode, model_name, year
-#     eval_summary.json               AUC-ROC, AP, Brier, BSS, Recall@FPR
-#     feature_importance.csv          Permutation feature importance
-#
-#   R MODEL OUTPUTS  (→ {PATH_ROOT}/03_Output/Models/):
-#     GLM/                            Elastic net model objects + metrics
-#     XGBoost/                        XGBoost model objects + metrics
+#   MODEL OUTPUTS  (→ {PATH_ROOT}/03_Output/Final/):
+#     {group}{split}_{model}/             e.g. 01a_XGBoost_Manual/
+#       xgb_model.rds                     Fitted XGBoost model
+#       predictions_test.parquet          Predictions on test set
+#       eval_summary.json                 AUC-ROC, AP, Brier, BSS
+#       feature_importance.csv            Gain-based importance
 #
 #   CHARTS  (→ {PATH_ROOT}/03_Charts/):
 #     Feature importance, PDP, calibration, SHAP plots
@@ -96,9 +82,9 @@
 #     "OoS"  →  stratified firm-level random split
 #     "OoT"  →  firms whose last refdate falls in last OOT_N_YEARS → test
 #
-#   All outputs are suffixed _OoS or _OoT automatically.
-#   Downstream Python scripts (03, 05) have their own SPLIT_MODE flag
-#   at the top of the file — set them to match.
+#   All outputs are suffixed _{feat}_{TD|noTD}_{split} automatically.
+#   Python scripts (03_Autoencoder.py, 05_AutoGluon.py) have their own
+#   MODEL_GROUP / SPLIT_MODE flags at the top — set them to match config.R.
 #
 #==============================================================================#
 
@@ -155,20 +141,14 @@ message("All packages loaded.")
 #==== 02 - Source Subfunctions ================================================#
 #==============================================================================#
 
-source_dir <- function(path) {
-  files <- list.files(path, pattern = "\\.R$", full.names = TRUE)
-  invisible(lapply(files, function(f) {
-    tryCatch(
-      source(f, echo = FALSE, local = FALSE),
-      error = function(e)
-        stop(sprintf("Failed to source %s: %s", f, e$message))
-    )
-  }))
-  message(sprintf("  Sourced %d file(s) from: %s", length(files), path))
+## Only source the two subfunctions actually used by the pipeline.
+## (The Subfunctions/ folder contains legacy scripts from earlier experiments
+##  that have external package dependencies not needed here.)
+for (.fn in c("DataPreprocessing.R", "QuantileTransformation.R")) {
+  source(file.path(PATH_FN_GENERAL, .fn), echo = FALSE, local = FALSE)
+  message(sprintf("  Sourced: %s", .fn))
 }
-
-source_dir(PATH_FN_GENERAL)
-source_dir(PATH_FN_XGB)
+rm(.fn)
 
 
 #==============================================================================#
@@ -181,12 +161,13 @@ pipeline_start <- proc.time()
 message("\n══ Stage 1/3: Data & Feature Engineering ════════════════════")
 message(sprintf("   SPLIT_MODE = %s | KEEP_FEATURES = %s", SPLIT_MODE, KEEP_FEATURES))
 
-source(file.path(PATH_ROOT, "01_Code", "01_Data.R"))
-source(file.path(PATH_ROOT, "01_Code", "02_FeatureEngineering.R"))
+source(file.path(PATH_ROOT, "01_Code", "1.Final Pipeline", "01_Data.R"))
+source(file.path(PATH_ROOT, "01_Code", "1.Final Pipeline", "02_FeatureEngineering.R"))
 
 message(sprintf(
-  "   Outputs → %s/02_train_final_%s.rds  (+ vae, id vec variants)",
-  PATH_DATA_OUT, SPLIT_MODE
+  "   Outputs → %s/02_train_final_%s_%s_%s.rds  (+ vae, id vec variants)",
+  PATH_DATA_OUT, KEEP_FEATURES,
+  ifelse(INCLUDE_TIME_DYNAMICS, "TD", "noTD"), SPLIT_MODE
 ))
 
 ## ── Stage 2: Autoencoder (Python — run manually) ─────────────────────────────
@@ -194,35 +175,32 @@ message("\n══ Stage 2: Autoencoder (Python) ══════════�
 message("   Run manually: 03_Autoencoder.py")
 message(sprintf("   Set SPLIT_MODE = '%s' at top of script", SPLIT_MODE))
 message(sprintf(
-  "   Outputs → 03_Output/Latent/latent_train_%s.parquet (+ anomaly, test)",
-  SPLIT_MODE
+  "   Outputs → 03_Output/Latent/latent_train_r_%s_%s.parquet (+ test)",
+  ifelse(INCLUDE_TIME_DYNAMICS, "TD", "noTD"), SPLIT_MODE
 ))
 
 ## ── Stage 2b: CV Setup (R) ───────────────────────────────────────────────────
 message("\n══ Stage 2b: CV Setup ═══════════════════════════════════════")
-source(file.path(PATH_ROOT, "01_Code", "03_CV_Setup.R"))
+source(file.path(PATH_ROOT, "01_Code", "1.Final Pipeline", "02B_CV_Setup.R"))
 
-## ── Stage 3a: GLM (R) ────────────────────────────────────────────────────────
-message("\n══ Stage 3a: GLM ════════════════════════════════════════════")
-source(file.path(PATH_ROOT, "01_Code", "04A_Train_GLM.R"))
-
-## ── Stage 3b: XGBoost (R) ────────────────────────────────────────────────────
-message("\n══ Stage 3b: XGBoost ════════════════════════════════════════")
-source(file.path(PATH_ROOT, "01_Code", "04B_Train_XGBoost.R"))
+## ── Stage 3: XGBoost (R) ─────────────────────────────────────────────────────
+message("\n══ Stage 3: XGBoost ═════════════════════════════════════════")
+source(file.path(PATH_ROOT, "01_Code", "1.Final Pipeline", "04B_Train_XGBoost.R"))
 
 ## ── Stage 4: AutoGluon (Python — run manually) ───────────────────────────────
 message("\n══ Stage 4: AutoGluon (Python) ══════════════════════════════")
 message("   Run manually: 05_AutoGluon.py")
-message(sprintf("   Set SPLIT_MODE = '%s' and MODEL = 'M1'/'M2'/'M3'/'M4'", SPLIT_MODE))
+message(sprintf("   Set MODEL_GROUP = '%s' and SPLIT_MODE = '%s' at top of script",
+                MODEL_GROUP, SPLIT_MODE))
 message(sprintf(
-  "   Outputs → 03_Output/AutoGluon/M1_%s/ (+ M2, M3, M4)",
-  SPLIT_MODE
+  "   Outputs → 03_Output/Final/%s%s_AutoGluon/",
+  MODEL_GROUP, ifelse(SPLIT_MODE == "OoS", "a", "b")
 ))
 
 ## ── Stage 5: Evaluation & Charts (R) ─────────────────────────────────────────
 message("\n══ Stage 5: Evaluation & Charts ═════════════════════════════")
-source(file.path(PATH_ROOT, "01_Code", "06_Evaluate.R"))
-source(file.path(PATH_ROOT, "01_Code", "07_Charts.R"))
+source(file.path(PATH_ROOT, "01_Code", "1.Final Pipeline", "06_Evaluation.R"))
+source(file.path(PATH_ROOT, "01_Code", "1.Final Pipeline", "07_Charts.R"))
 
 ## ── Pipeline Summary ─────────────────────────────────────────────────────────
 elapsed <- proc.time() - pipeline_start

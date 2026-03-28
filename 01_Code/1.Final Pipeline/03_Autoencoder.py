@@ -62,13 +62,22 @@ warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # ==============================================================================
-# 1. Split selection  ← CHANGE HERE
+# 1. Configuration  ← CHANGE HERE
 # ==============================================================================
 
 SPLIT_MODE = "OoS"    # "OoS" | "OoT"
 
+# Feature config — must match 02_FeatureEngineering.R settings.
+# VAE is only relevant for groups 03/04/05 (ratios + time dynamics).
+KEEP_FEATURES         = "r"    # "r" | "f" | "both"
+INCLUDE_TIME_DYNAMICS = True   # should always be True for VAE runs
+
 assert SPLIT_MODE in ("OoS", "OoT"), \
     f"SPLIT_MODE must be 'OoS' or 'OoT', got: '{SPLIT_MODE}'"
+
+_td         = "TD" if INCLUDE_TIME_DYNAMICS else "noTD"
+FEAT_SUFFIX = f"_{KEEP_FEATURES}_{_td}"
+FILE_SUFFIX = f"{FEAT_SUFFIX}_{SPLIT_MODE}"   # e.g. "_r_TD_OoS"
 
 # ==============================================================================
 # 2. Paths
@@ -85,21 +94,24 @@ DIR_MODELS = DIR_OUT / "Models"  / "VAE"
 for d in [DIR_LAT, DIR_FIG, DIR_MODELS]:
     d.mkdir(parents=True, exist_ok=True)
 
-# VAE/normal-scores inputs produced by 02E
-PATH_TRAIN = DIR_DATA / f"02_train_final_vae_{SPLIT_MODE}.rds"
-PATH_TEST  = DIR_DATA / f"02_test_final_vae_{SPLIT_MODE}.rds"
+# VAE/normal-scores inputs produced by 02_FeatureEngineering.R (Stage 02E)
+PATH_TRAIN = DIR_DATA / f"02_train_final_vae{FILE_SUFFIX}.rds"
+PATH_TEST  = DIR_DATA / f"02_test_final_vae{FILE_SUFFIX}.rds"
 
 assert PATH_TRAIN.exists(), (
     f"VAE train file not found: {PATH_TRAIN}\n"
-    f"Run 02_FeatureEngineering.R with SPLIT_MODE='{SPLIT_MODE}' first."
+    f"Run 02_FeatureEngineering.R with KEEP_FEATURES='{KEEP_FEATURES}', "
+    f"INCLUDE_TIME_DYNAMICS={INCLUDE_TIME_DYNAMICS}, SPLIT_MODE='{SPLIT_MODE}' first."
 )
 assert PATH_TEST.exists(), (
     f"VAE test file not found: {PATH_TEST}\n"
-    f"Run 02_FeatureEngineering.R with SPLIT_MODE='{SPLIT_MODE}' first."
+    f"Run 02_FeatureEngineering.R with KEEP_FEATURES='{KEEP_FEATURES}', "
+    f"INCLUDE_TIME_DYNAMICS={INCLUDE_TIME_DYNAMICS}, SPLIT_MODE='{SPLIT_MODE}' first."
 )
 
 print(f"[03] ══════════════════════════════════════")
 print(f"  SPLIT_MODE : {SPLIT_MODE}")
+print(f"  FILE_SUFFIX: {FILE_SUFFIX}")
 print(f"  Train      : {PATH_TRAIN.name}")
 print(f"  Test       : {PATH_TEST.name}")
 print(f"  Output dir : {DIR_LAT}")
@@ -706,10 +718,10 @@ def main():
 
     # ── Save ──────────────────────────────────────────────────────────────────
     outputs = {
-        f"latent_train_{SPLIT_MODE}.parquet" : latent_train,
-        f"latent_test_{SPLIT_MODE}.parquet"  : latent_test,
-        f"anomaly_train_{SPLIT_MODE}.parquet": anomaly_train,
-        f"anomaly_test_{SPLIT_MODE}.parquet" : anomaly_test,
+        f"latent_train{FILE_SUFFIX}.parquet" : latent_train,
+        f"latent_test{FILE_SUFFIX}.parquet"  : latent_test,
+        f"anomaly_train{FILE_SUFFIX}.parquet": anomaly_train,
+        f"anomaly_test{FILE_SUFFIX}.parquet" : anomaly_test,
     }
     print(f"\n[03] Saving outputs → {DIR_LAT}")
     for fname, df_out in outputs.items():

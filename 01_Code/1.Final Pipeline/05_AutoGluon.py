@@ -71,8 +71,13 @@ except ImportError:
 # 1. Configuration  ← CHANGE HERE
 # ==============================================================================
 
-SPLIT_MODE = "OoS"       # "OoS" | "OoT"
-MODEL      = "M4"        # "M1" | "M2" | "M3" | "M4"
+SPLIT_MODE  = "OoS"   # "OoS" | "OoT"
+MODEL_GROUP = "01"    # "01" | "02" | "03" | "04" | "05"
+
+# Allow CLI override: python 05_AutoGluon.py <MODEL_GROUP> <SPLIT_MODE>
+if len(sys.argv) >= 3:
+    MODEL_GROUP = sys.argv[1]
+    SPLIT_MODE  = sys.argv[2]
 
 # AutoGluon settings
 TIME_LIMIT  = 1800       # seconds per run (default: 30 min)
@@ -82,40 +87,50 @@ TARGET_COL  = "y"
 
 assert SPLIT_MODE in ("OoS", "OoT"), \
     f"SPLIT_MODE must be 'OoS' or 'OoT', got: '{SPLIT_MODE}'"
-assert MODEL in ("M1", "M2", "M3", "M4"), \
-    f"MODEL must be one of M1/M2/M3/M4, got: '{MODEL}'"
+assert MODEL_GROUP in ("01", "02", "03", "04", "05"), \
+    f"MODEL_GROUP must be one of 01–05, got: '{MODEL_GROUP}'"
+
+SPLIT_LETTER = "a" if SPLIT_MODE == "OoS" else "b"
+RUN_NAME     = f"{MODEL_GROUP}{SPLIT_LETTER}_AutoGluon"
+
+# Feature config derived from MODEL_GROUP — must stay consistent with config.R
+_KF_MAP  = {"01": "f", "02": "r", "03": "r", "04": "r", "05": "r"}
+_TD_MAP  = {"01": False, "02": False, "03": True, "04": True, "05": True}
+_kf      = _KF_MAP[MODEL_GROUP]
+_td      = "TD" if _TD_MAP[MODEL_GROUP] else "noTD"
+FEAT_SUFFIX = f"_{_kf}_{_td}"
+FILE_SUFFIX = f"{FEAT_SUFFIX}_{SPLIT_MODE}"   # e.g. "_r_TD_OoS"
+
+MODEL_GROUP_DESCRIPTIONS = {
+    "01": "Raw Balance Sheet + Sector Information",
+    "02": "Financial Ratios + Sector Information",
+    "03": "Financial Ratios + Sector Information + Time Dynamics",
+    "04": "Financial Ratios + Sector Information + Time Dynamics + Latent Features (VAE)",
+    "05": "Latent Features (VAE) Only",
+}
 
 # ==============================================================================
 # 2. Paths
 # ==============================================================================
 
-DATA_ROOT  = Path(r"C:\Users\Tristan Leiter\Documents\ILAB_OeNB\CreditRisk_ML")
-DIR_DATA   = DATA_ROOT / "02_Data"
-DIR_LAT    = DATA_ROOT / "03_Output" / "Latent"
-DIR_OUT    = DATA_ROOT / "03_Output" / "AutoGluon"
+DATA_ROOT = Path(r"C:\Users\Tristan Leiter\Documents\ILAB_OeNB\CreditRisk_ML")
+DIR_DATA  = DATA_ROOT / "02_Data"
+DIR_LAT   = DATA_ROOT / "03_Output" / "Latent"
+DIR_OUT   = DATA_ROOT / "03_Output" / "Final"
 
-RUN_NAME   = f"{MODEL}_{SPLIT_MODE}"
-DIR_RUN    = DIR_OUT / RUN_NAME
+DIR_RUN   = DIR_OUT / RUN_NAME
 DIR_RUN.mkdir(parents=True, exist_ok=True)
 
 # Input file paths
-PATH_RAW_TRAIN     = DIR_DATA / f"02_train_final_{SPLIT_MODE}.rds"
-PATH_RAW_TEST      = DIR_DATA / f"02_test_final_{SPLIT_MODE}.rds"
-PATH_LATENT_TRAIN  = DIR_LAT  / f"latent_train_{SPLIT_MODE}.parquet"
-PATH_LATENT_TEST   = DIR_LAT  / f"latent_test_{SPLIT_MODE}.parquet"
-PATH_ANOMALY_TRAIN = DIR_LAT  / f"anomaly_train_{SPLIT_MODE}.parquet"
-PATH_ANOMALY_TEST  = DIR_LAT  / f"anomaly_test_{SPLIT_MODE}.parquet"
-
-MODEL_DESCRIPTIONS = {
-    "M1": "Raw uniform(0,1) features (~508)",
-    "M2": "VAE latent dims + reconstruction error",
-    "M3": "VAE reconstruction error (anomaly score) only",
-    "M4": "Raw features + VAE latent dims + reconstruction error (augmented)",
-}
+PATH_RAW_TRAIN    = DIR_DATA / f"02_train_final{FILE_SUFFIX}.rds"
+PATH_RAW_TEST     = DIR_DATA / f"02_test_final{FILE_SUFFIX}.rds"
+PATH_LATENT_TRAIN = DIR_LAT  / f"latent_train{FILE_SUFFIX}.parquet"
+PATH_LATENT_TEST  = DIR_LAT  / f"latent_test{FILE_SUFFIX}.parquet"
 
 print(f"[05] ══════════════════════════════════════════")
+print(f"  RUN        : {RUN_NAME}")
 print(f"  SPLIT_MODE : {SPLIT_MODE}")
-print(f"  MODEL      : {MODEL}  —  {MODEL_DESCRIPTIONS[MODEL]}")
+print(f"  GROUP      : {MODEL_GROUP}  —  {MODEL_GROUP_DESCRIPTIONS[MODEL_GROUP]}")
 print(f"  Preset     : {PRESET}")
 print(f"  Time limit : {TIME_LIMIT}s ({TIME_LIMIT//60} min)")
 print(f"  Output dir : {DIR_RUN}")
@@ -156,66 +171,40 @@ def get_year(df: pd.DataFrame) -> pd.Series:
 # 4. Load Data by Model
 # ==============================================================================
 
-print(f"[05] Loading data for {MODEL}...")
+print(f"[05] Loading data for {RUN_NAME}...")
 
-# Columns from latent/anomaly files that are NOT features
+# Columns from latent files that are NOT features
 LAT_META_COLS = ["id", "y"]
 
-if MODEL == "M1":
-    # Raw uniform features only
+# Helper: load id vectors for raw feature files (id dropped in 02E)
+def load_id_vectors():
+    id_path_train = DIR_DATA / f"02_train_id_vec{FILE_SUFFIX}.rds"
+    id_path_test  = DIR_DATA / f"02_test_id_vec{FILE_SUFFIX}.rds"
+    assert id_path_train.exists(), f"id vector not found: {id_path_train}"
+    id_tr = pyreadr.read_r(str(id_path_train))[None].squeeze()
+    id_te = pyreadr.read_r(str(id_path_test))[None].squeeze()
+    print(f"  Loaded id vectors from .rds")
+    return id_tr, id_te
+
+if MODEL_GROUP in ("01", "02", "03"):
+    # Base features only (raw uniform features from R pipeline)
     train_raw = load_rds(PATH_RAW_TRAIN)
     test_raw  = load_rds(PATH_RAW_TEST)
 
     year_train = get_year(train_raw)
     year_test  = get_year(test_raw)
 
-    id_train = train_raw["id"].copy() if "id" in train_raw.columns else pd.Series([pd.NA]*len(train_raw))
-    id_test  = test_raw["id"].copy()  if "id" in test_raw.columns  else pd.Series([pd.NA]*len(test_raw))
-
-    # Raw files have id dropped in 02E — id comes from id vectors
-    # Load id vectors separately if id not in raw files
-    if "id" not in train_raw.columns:
-        id_path_train = DIR_DATA / f"02_train_id_vec_{SPLIT_MODE}.rds"
-        id_path_test  = DIR_DATA / f"02_test_id_vec_{SPLIT_MODE}.rds"
-        if id_path_train.exists():
-            id_train = pyreadr.read_r(str(id_path_train))[None].squeeze()
-            id_test  = pyreadr.read_r(str(id_path_test))[None].squeeze()
-            print(f"  Loaded id vectors from .rds")
+    if "id" in train_raw.columns:
+        id_train = train_raw["id"].copy()
+        id_test  = test_raw["id"].copy()
+    else:
+        id_train, id_test = load_id_vectors()
 
     train_df = train_raw.copy()
     test_df  = test_raw.copy()
 
-elif MODEL == "M2":
-    # VAE latent dims + recon error only
-    train_lat = load_parquet(PATH_LATENT_TRAIN, "latent_train")
-    test_lat  = load_parquet(PATH_LATENT_TEST,  "latent_test")
-
-    year_train = get_year(train_lat)
-    year_test  = get_year(test_lat)
-    id_train   = train_lat["id"].copy()
-    id_test    = test_lat["id"].copy()
-
-    # Feature cols = everything except meta
-    feat_cols  = [c for c in train_lat.columns if c not in LAT_META_COLS]
-    train_df   = train_lat[feat_cols + [TARGET_COL]].copy()
-    test_df    = test_lat[ feat_cols + [TARGET_COL]].copy()
-
-elif MODEL == "M3":
-    # Reconstruction error only
-    train_ano = load_parquet(PATH_ANOMALY_TRAIN, "anomaly_train")
-    test_ano  = load_parquet(PATH_ANOMALY_TEST,  "anomaly_test")
-
-    year_train = get_year(train_ano)
-    year_test  = get_year(test_ano)
-    id_train   = train_ano["id"].copy()
-    id_test    = test_ano["id"].copy()
-
-    feat_cols = [c for c in train_ano.columns if c not in LAT_META_COLS]
-    train_df  = train_ano[feat_cols + [TARGET_COL]].copy()
-    test_df   = test_ano[ feat_cols + [TARGET_COL]].copy()
-
-elif MODEL == "M4":
-    # Raw + latent combined — join on id
+elif MODEL_GROUP == "04":
+    # Base features + VAE latent features (augmented)
     train_raw = load_rds(PATH_RAW_TRAIN)
     test_raw  = load_rds(PATH_RAW_TEST)
     train_lat = load_parquet(PATH_LATENT_TRAIN, "latent_train")
@@ -226,35 +215,21 @@ elif MODEL == "M4":
     id_train   = train_lat["id"].copy()
     id_test    = test_lat["id"].copy()
 
-    # Load id vectors for raw files (id was dropped in 02E)
-    id_path_train = DIR_DATA / f"02_train_id_vec_{SPLIT_MODE}.rds"
-    id_path_test  = DIR_DATA / f"02_test_id_vec_{SPLIT_MODE}.rds"
-
-    assert id_path_train.exists(), \
-        f"id vector not found: {id_path_train}"
-
-    raw_id_train = pyreadr.read_r(str(id_path_train))[None].squeeze()
-    raw_id_test  = pyreadr.read_r(str(id_path_test))[None].squeeze()
-
+    raw_id_train, raw_id_test = load_id_vectors()
     train_raw = train_raw.copy()
     test_raw  = test_raw.copy()
     train_raw["id"] = raw_id_train.values
     test_raw["id"]  = raw_id_test.values
 
-    # VAE latent feature cols (exclude meta)
     lat_feat_cols = [c for c in train_lat.columns if c not in LAT_META_COLS]
 
-    # Both files are row-aligned from the R pipeline (same split, same order).
-    # Join on id would create a cartesian product (multiple obs per firm).
-    # Correct approach: cbind by position after asserting row counts match.
     assert len(train_raw) == len(train_lat), (
-        f"M4 row mismatch: raw={len(train_raw)} vs latent={len(train_lat)}"
+        f"Group 04 row mismatch: raw={len(train_raw)} vs latent={len(train_lat)}"
     )
     assert len(test_raw) == len(test_lat), (
-        f"M4 row mismatch: raw={len(test_raw)} vs latent={len(test_lat)}"
+        f"Group 04 row mismatch: raw={len(test_raw)} vs latent={len(test_lat)}"
     )
 
-    # Reset indices to guarantee alignment, then concatenate column-wise
     train_raw = train_raw.reset_index(drop=True)
     test_raw  = test_raw.reset_index(drop=True)
     train_lat = train_lat.reset_index(drop=True)
@@ -270,10 +245,45 @@ elif MODEL == "M4":
          test_lat[lat_feat_cols]],
         axis=1
     )
+    print(f"  Group 04 cbind: train {train_df.shape} | test {test_df.shape}")
 
-    print(f"  M4 cbind: train {train_df.shape} | test {test_df.shape}")
+elif MODEL_GROUP == "05":
+    # VAE latent features + categorical variables (sector_*, size_*, groupmember, public)
+    train_raw = load_rds(PATH_RAW_TRAIN)
+    test_raw  = load_rds(PATH_RAW_TEST)
+    train_lat = load_parquet(PATH_LATENT_TRAIN, "latent_train")
+    test_lat  = load_parquet(PATH_LATENT_TEST,  "latent_test")
 
-# For M1/M2/M3: drop id if it survived into the modelling df
+    year_train = get_year(train_lat)
+    year_test  = get_year(test_lat)
+    id_train   = train_lat["id"].copy()
+    id_test    = test_lat["id"].copy()
+
+    lat_feat_cols = [c for c in train_lat.columns if c not in LAT_META_COLS]
+
+    import re
+    _cat_re   = re.compile(r"^(sector_|size_|groupmember$|public$)")
+    cat_cols  = [c for c in train_raw.columns if _cat_re.match(c)]
+
+    assert len(train_raw) == len(train_lat), (
+        f"Group 05 row mismatch: raw={len(train_raw)} vs latent={len(train_lat)}"
+    )
+    assert len(test_raw) == len(test_lat), (
+        f"Group 05 row mismatch: raw={len(test_raw)} vs latent={len(test_lat)}"
+    )
+
+    train_df = pd.concat([
+        train_lat[lat_feat_cols + [TARGET_COL]].reset_index(drop=True),
+        train_raw[cat_cols].reset_index(drop=True),
+    ], axis=1)
+    test_df = pd.concat([
+        test_lat[ lat_feat_cols + [TARGET_COL]].reset_index(drop=True),
+        test_raw[ cat_cols].reset_index(drop=True),
+    ], axis=1)
+
+    print(f"  Group 05: {len(lat_feat_cols)} latent + {len(cat_cols)} categorical cols")
+
+# Drop id if it survived into the modelling df
 for col in ["id"]:
     if col in train_df.columns:
         train_df = train_df.drop(columns=[col])
@@ -340,7 +350,7 @@ def compute_metrics(y_true, y_pred, set_name: str) -> dict:
 
     return {
         "set"          : set_name,
-        "model"        : MODEL,
+        "model"        : RUN_NAME,
         "split_mode"   : SPLIT_MODE,
         "n_obs"        : int(len(yt)),
         "n_defaults"   : int(yt.sum()),
@@ -359,7 +369,7 @@ def compute_metrics(y_true, y_pred, set_name: str) -> dict:
 # 7. Train AutoGluon
 # ==============================================================================
 
-print(f"\n[05] Training AutoGluon [{MODEL} / {SPLIT_MODE}]...")
+print(f"\n[05] Training AutoGluon [{RUN_NAME}]...")
 print(f"  Preset     : {PRESET}")
 print(f"  Time limit : {TIME_LIMIT}s")
 print(f"  Features   : {len(feature_cols)}")
@@ -399,7 +409,7 @@ preds_test = pd.DataFrame({
     "y"           : test_df[TARGET_COL].values,
     "p_default"   : proba_test.values,
     "split_mode"  : SPLIT_MODE,
-    "model_name"  : MODEL,
+    "model_name"  : RUN_NAME,
     "year"        : year_test.values if hasattr(year_test, "values") else year_test,
 })
 
@@ -407,7 +417,7 @@ preds_test = pd.DataFrame({
 # 9. Evaluate
 # ==============================================================================
 
-print(f"\n[05] Evaluation [{MODEL} / {SPLIT_MODE}]:")
+print(f"\n[05] Evaluation [{RUN_NAME}]:")
 
 metrics_test = compute_metrics(
     preds_test["y"], preds_test["p_default"], f"test_{SPLIT_MODE}"
@@ -452,8 +462,8 @@ print(f"  predictions_test.parquet  {preds_test.shape[0]:,} rows × {preds_test.
 
 # Eval summary
 eval_summary = {
-    "model"           : MODEL,
-    "model_description": MODEL_DESCRIPTIONS[MODEL],
+    "model"           : RUN_NAME,
+    "model_description": MODEL_GROUP_DESCRIPTIONS[MODEL_GROUP],
     "split_mode"      : SPLIT_MODE,
     "preset"          : PRESET,
     "time_limit_s"    : TIME_LIMIT,
@@ -472,7 +482,7 @@ print(f"  eval_summary.json")
 if not importance_df.empty:
     print(f"  feature_importance.csv    {len(importance_df)} features")
 
-print(f"\n[05] ══ RESULTS: {MODEL} [{SPLIT_MODE}] ══")
+print(f"\n[05] ══ RESULTS: {RUN_NAME} ══")
 print(f"  {'Metric':<20} {'Value'}")
 print(f"  {'-'*30}")
 if metrics_test:
@@ -480,6 +490,6 @@ if metrics_test:
         if k not in ("set", "model", "split_mode"):
             print(f"  {k:<20} {v}")
 
-print(f"\n[05] DONE [{MODEL} / {SPLIT_MODE}]")
+print(f"\n[05] DONE [{RUN_NAME}]")
 print(f"  Model  : {DIR_RUN / 'ag_predictor'}")
 print(f"  Tables : {DIR_RUN}")

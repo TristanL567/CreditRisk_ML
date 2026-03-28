@@ -30,11 +30,11 @@ PATH_DATA_RAW  <- "C:/Users/Tristan Leiter/Documents/Privat/ILAB/Data/WS2025"
 PATH_DATA_FILE <- file.path(PATH_DATA_RAW, "data.rda")
 PATH_DATA_OUT  <- file.path(PATH_ROOT, "02_Data")
 PATH_CHARTS    <- file.path(PATH_ROOT, "03_Charts")
+DIR_FINAL_OUT  <- file.path(PATH_ROOT, "03_Output", "Final")
 
 PATH_CHARTS_XGB <- file.path(PATH_CHARTS, "VAE", "FinancialRatios", "XGBoost")
 
-PATH_FN_GENERAL <- file.path(PATH_ROOT, "01_Code", "Subfunctions")
-PATH_FN_XGB     <- file.path(PATH_ROOT, "01_Code", "XGBoost_Subfunctions")
+PATH_FN_GENERAL <- file.path(PATH_ROOT, "01_Code", "0.Before Final Presentation", "Subfunctions")
 
 
 #==============================================================================#
@@ -51,6 +51,18 @@ SEED <- 123L
 ## Feature families to retain (see 01_Data.R).
 ## "r" = ratios only | "f" = raw financials only | "both" = all
 KEEP_FEATURES <- "both"
+
+## Whether to compute time-series dynamics in 02_FeatureEngineering.R (Stage B).
+## Groups 01 and 02 require FALSE; groups 03, 04, 05 require TRUE.
+INCLUDE_TIME_DYNAMICS <- TRUE
+
+## Model group — controls feature set used by 04B and 05_AutoGluon.
+## "01" Raw Balance Sheet + Sector
+## "02" Financial Ratios + Sector
+## "03" Financial Ratios + Sector + Time Dynamics
+## "04" Financial Ratios + Sector + Time Dynamics + Latent Features (VAE)
+## "05" Latent Features (VAE) Only
+MODEL_GROUP <- "01"   ## <── change here: "01" | "02" | "03" | "04" | "05"
 
 ## Quantile-normalise continuous features before VAE input.
 QUANTILE_TRANSFORM  <- TRUE
@@ -84,23 +96,34 @@ TRAIN_SIZE <- 0.7
 SPLIT_MODE  <- "OoS"   ## <── change here: "OoS" or "OoT"
 OOT_N_YEARS <- 1L      ## OoT only: number of trailing years assigned to Test
 
-## Output paths — suffix is appended automatically based on SPLIT_MODE.
-## Use get_split_path() in downstream stages; never hardcode paths directly.
+## Output paths — suffix encodes feature config + split mode so all 10
+## feature/split combinations can coexist on disk simultaneously.
+## Use get_split_path() / get_vae_path() in all downstream stages.
+##
+## Suffix format:  _{KEEP_FEATURES}_{TD|noTD}_{SPLIT_MODE}
+## Examples:
+##   KEEP_FEATURES="f", INCLUDE_TIME_DYNAMICS=FALSE, SPLIT_MODE="OoS"
+##     → 02_train_final_f_noTD_OoS.rds
+##   KEEP_FEATURES="r", INCLUDE_TIME_DYNAMICS=TRUE,  SPLIT_MODE="OoT"
+##     → 02_train_final_r_TD_OoT.rds
 
-.split_suffix <- function() paste0("_", SPLIT_MODE)
+.feat_suffix  <- function() {
+  td <- ifelse(INCLUDE_TIME_DYNAMICS, "TD", "noTD")
+  paste0("_", KEEP_FEATURES, "_", td)
+}
+.split_suffix <- function() paste0(.feat_suffix(), "_", SPLIT_MODE)
 
 get_vae_path <- function(base_name) {
   ## Returns the normal-scores (.rds) path for VAE input.
-  ## Example: get_vae_path("02_train_final")
-  ##   OoS → <PATH_DATA_OUT>/02_train_final_vae_OoS.rds
+  ## Example: get_vae_path("02_train_final")  [KEEP_FEATURES="r", TD=TRUE, OoS]
+  ##   → <PATH_DATA_OUT>/02_train_final_vae_r_TD_OoS.rds
   file.path(PATH_DATA_OUT, paste0(base_name, "_vae", .split_suffix(), ".rds"))
 }
 
 get_split_path <- function(base_name) {
-  ## Returns the correct .rds path for any split-dependent output.
-  ## Example: get_split_path("02_train_final")
-  ##   OoS → <PATH_DATA_OUT>/02_train_final_OoS.rds
-  ##   OoT → <PATH_DATA_OUT>/02_train_final_OoT.rds
+  ## Returns the correct .rds path for any split/feature-config-dependent output.
+  ## Example: get_split_path("02_train_final")  [KEEP_FEATURES="f", TD=FALSE, OoS]
+  ##   → <PATH_DATA_OUT>/02_train_final_f_noTD_OoS.rds
   file.path(PATH_DATA_OUT, paste0(base_name, .split_suffix(), ".rds"))
 }
 
@@ -202,7 +225,10 @@ stopifnot(
 if (!SPLIT_MODE %in% c("OoS", "OoT"))
   stop("SPLIT_MODE must be 'OoS' or 'OoT'. Got: ", SPLIT_MODE)
 
-for (.dir in c(PATH_DATA_OUT, PATH_CHARTS)) {
+if (!MODEL_GROUP %in% c("01", "02", "03", "04", "05"))
+  stop("MODEL_GROUP must be one of '01'–'05'. Got: ", MODEL_GROUP)
+
+for (.dir in c(PATH_DATA_OUT, PATH_CHARTS, DIR_FINAL_OUT)) {
   dir.create(.dir, recursive = TRUE, showWarnings = FALSE)
 }
 rm(.dir)

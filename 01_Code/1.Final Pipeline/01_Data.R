@@ -20,16 +20,12 @@
 #
 #==============================================================================#
 
-## ── Feature selection ─────────────────────────────────────────────────────────
-## Controls which feature families are retained after loading.
-##
+## KEEP_FEATURES is set in config.R:
 ##   "r"    — keep only ratio features (r1–r18); drop raw financials (f*)
 ##   "f"    — keep only raw financial position features (f*); drop ratios (r*)
 ##   "both" — keep all features
-##
-KEEP_FEATURES <- "both"   ## <── change here
-
-## ─────────────────────────────────────────────────────────────────────────────
+if (!exists("KEEP_FEATURES"))
+  stop("KEEP_FEATURES not found — source config.R before running 01_Data.R.")
 
 message("--- Starting 01_Data: Load & Preprocess ---")
 
@@ -91,8 +87,8 @@ tryCatch({
   if (!KEEP_FEATURES %in% c("r", "f", "both"))
     stop('KEEP_FEATURES must be one of: "r", "f", "both".')
   
-  f_cols <- grep("^f", names(Data), value = TRUE)
-  r_cols <- grep("^r", names(Data), value = TRUE)
+  f_cols <- grep("^f[0-9]", names(Data), value = TRUE)
+  r_cols <- grep("^r[0-9]", names(Data), value = TRUE)
   
   drop_cols <- switch(KEEP_FEATURES,
                       "r"    = f_cols,

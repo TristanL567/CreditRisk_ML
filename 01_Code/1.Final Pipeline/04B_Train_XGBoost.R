@@ -7,33 +7,32 @@
 # UPDATED:  2026
 #
 # PURPOSE:
-#   Train XGBoost with Bayesian HPO on four feature configurations,
-#   evaluate on the held-out test set, and save a combined leaderboard.
+#   Train XGBoost with Bayesian HPO across five model groups (01–05),
+#   evaluate on the held-out test set, and save outputs to 03_Output/Final/.
 #
-# MODEL SELECTION (set at top):
-#   M1 — "raw"       : Uniform(0,1) features from R pipeline (~508 features)
-#   M2 — "latent"    : VAE latent dims + reconstruction error (z1..z32 + recon_error)
-#   M3 — "anomaly"   : Reconstruction error only (vae_recon_error)
-#   M4 — "augmented" : Raw uniform + VAE latent dims + recon error combined
+# MODEL GROUPS (set MODEL_GROUP in config.R):
+#   01 — Raw Balance Sheet + Sector
+#   02 — Financial Ratios + Sector
+#   03 — Financial Ratios + Sector + Time Dynamics
+#   04 — Financial Ratios + Sector + Time Dynamics + VAE Latent Features
+#   05 — VAE Latent Features + Categorical Variables (sector_*, size_*, groupmember, public)
 #
 # INPUTS (from config.R / prior stages):
-#   02_train_final_{split}.rds          uniform train features
-#   02_test_final_{split}.rds           uniform test features
-#   02_train_id_vec_{split}.rds         firm id vector (train)
-#   02_test_id_vec_{split}.rds          firm id vector (test)
-#   cv_folds_{split}.rds                CV fold list from 03_CV_Setup.R
-#   03_Output/Latent/latent_train_{split}.parquet
-#   03_Output/Latent/latent_test_{split}.parquet
-#   03_Output/Latent/anomaly_train_{split}.parquet
-#   03_Output/Latent/anomaly_test_{split}.parquet
+#   02_train_final_{feat}_{split}.rds   uniform train features
+#   02_test_final_{feat}_{split}.rds    uniform test features
+#   02_train_id_vec_{feat}_{split}.rds  firm id vector (train)
+#   02_test_id_vec_{feat}_{split}.rds   firm id vector (test)
+#   cv_folds_{split}.rds                CV fold list from 02B_CV_Setup.R
+#   03_Output/Latent/latent_train_{feat}_{split}.parquet  (groups 04, 05 only)
+#   03_Output/Latent/latent_test_{feat}_{split}.parquet   (groups 04, 05 only)
 #
-# OUTPUTS (→ 03_Output/Models/XGBoost/{MODEL}_{SPLIT_MODE}/):
+# OUTPUTS (→ 03_Output/Final/{MODEL_GROUP}{split_letter}_XGBoost_Manual/):
 #   xgb_model.rds          full result object (model + params + preds + metrics)
 #   predictions_test.rds   data.table: id, y, p_default, model_name, split_mode
-#   eval_summary.rds        metrics data.frame
+#   eval_summary.rds       metrics data.frame
 #
-# LEADERBOARD (→ 03_Output/Models/XGBoost/):
-#   leaderboard_{split}.rds    combined metrics across all saved models
+# LEADERBOARD (→ 03_Output/Final/):
+#   leaderboard_XGBoost_{split}.rds    combined metrics across all saved XGBoost runs
 #
 #==============================================================================#
 
@@ -42,16 +41,21 @@
 #==== 0 - Configuration  ← CHANGE HERE =======================================#
 #==============================================================================#
 
-## Select feature configuration
-MODEL <- "M1"    ## "M1" | "M2" | "M3" | "M4"
+## MODEL_GROUP and SPLIT_MODE are set in config.R.
+## Override here only if running this script standalone:
+## MODEL_GROUP <- "01"   ## "01" | "02" | "03" | "04" | "05"
+## SPLIT_MODE  <- "OoS"  ## "OoS" | "OoT"
 
-## Select split (must match 02_FeatureEngineering.R and 03_CV_Setup.R)
-## Note: SPLIT_MODE is already set in config.R — override here only if needed.
-## SPLIT_MODE <- "OoS"
+if (!MODEL_GROUP %in% c("01", "02", "03", "04", "05"))
+  stop(sprintf("MODEL_GROUP must be one of 01–05, got: '%s'", MODEL_GROUP))
+
+## Run name used for output folder and model label
+SPLIT_LETTER <- ifelse(SPLIT_MODE == "OoS", "a", "b")
+RUN_NAME     <- sprintf("%s%s_XGBoost_Manual", MODEL_GROUP, SPLIT_LETTER)
 
 ## XGBoost HPO budget — increase for production runs
-XGB_N_INIT   <- XGB_CONFIG$n_init_points   ## from config.R (default 10)
-XGB_N_ITER   <- XGB_CONFIG$n_iter_bayes    ## from config.R (default 20)
+XGB_N_INIT        <- XGB_CONFIG$n_init_points
+XGB_N_ITER        <- XGB_CONFIG$n_iter_bayes
 XGB_NROUNDS_BO    <- XGB_CONFIG$nrounds_bo
 XGB_NROUNDS_FINAL <- XGB_CONFIG$nrounds_final
 XGB_EARLY_BO      <- XGB_CONFIG$early_stop_bo
@@ -59,39 +63,36 @@ XGB_EARLY_FINAL   <- XGB_CONFIG$early_stop_final
 XGB_NTHREAD       <- XGB_CONFIG$nthread
 XGB_EVAL_METRIC   <- XGB_CONFIG$eval_metric   ## "auc"
 
-assert_model <- function() {
-  if (!MODEL %in% c("M1", "M2", "M3", "M4"))
-    stop(sprintf("MODEL must be one of M1/M2/M3/M4, got: '%s'", MODEL))
-}
-assert_model()
-
-MODEL_DESCRIPTIONS <- c(
-  M1 = "Raw uniform(0,1) features (~508)",
-  M2 = "VAE latent dims + reconstruction error",
-  M3 = "VAE reconstruction error (anomaly score) only",
-  M4 = "Raw features + VAE latent dims + reconstruction error (augmented)"
+MODEL_GROUP_DESCRIPTIONS <- c(
+  "01" = "Raw Balance Sheet + Sector Information",
+  "02" = "Financial Ratios + Sector Information",
+  "03" = "Financial Ratios + Sector Information + Time Dynamics",
+  "04" = "Financial Ratios + Sector Information + Time Dynamics + Latent Features (VAE)",
+  "05" = "Latent Features (VAE) Only"
 )
 
-message(sprintf("\n══ 04B_Train_XGBoost [MODEL = %s | SPLIT_MODE = %s] ══",
-                MODEL, SPLIT_MODE))
-message(sprintf("   %s", MODEL_DESCRIPTIONS[MODEL]))
+message(sprintf("\n══ 04B_Train_XGBoost [GROUP = %s | SPLIT = %s] ══",
+                RUN_NAME, SPLIT_MODE))
+message(sprintf("   %s", MODEL_GROUP_DESCRIPTIONS[MODEL_GROUP]))
 
 
 #==============================================================================#
 #==== 1 - Paths & Directories =================================================#
 #==============================================================================#
 
-DIR_XGB_ROOT <- file.path(PATH_ROOT, "03_Output", "Models", "XGBoost")
+DIR_XGB_ROOT <- DIR_FINAL_OUT
 DIR_LAT      <- file.path(PATH_ROOT, "03_Output", "Latent")
-RUN_NAME     <- sprintf("%s_%s", MODEL, SPLIT_MODE)
 DIR_RUN      <- file.path(DIR_XGB_ROOT, RUN_NAME)
 
-dir.create(DIR_RUN,      recursive = TRUE, showWarnings = FALSE)
-dir.create(DIR_XGB_ROOT, recursive = TRUE, showWarnings = FALSE)
+dir.create(DIR_RUN, recursive = TRUE, showWarnings = FALSE)
 
-## Helper: build latent file path
+## Helper: build latent file path (mirrors feat suffix from config.R)
+.lat_feat_suffix <- function() {
+  td <- ifelse(INCLUDE_TIME_DYNAMICS, "TD", "noTD")
+  paste0("_", KEEP_FEATURES, "_", td)
+}
 lat_path <- function(prefix)
-  file.path(DIR_LAT, sprintf("%s_%s.parquet", prefix, SPLIT_MODE))
+  file.path(DIR_LAT, sprintf("%s%s_%s.parquet", prefix, .lat_feat_suffix(), SPLIT_MODE))
 
 
 #==============================================================================#
@@ -124,24 +125,21 @@ cv_obj   <- readRDS(path_cv)
 cv_folds <- cv_obj$cv_folds
 message(sprintf("  CV folds    : %d folds loaded", length(cv_folds)))
 
-## ── Load latent / anomaly files (M2/M3/M4) ───────────────────────────────────
+## ── Load latent files (groups 04 and 05) ─────────────────────────────────────
 LAT_META <- c("id", "y")   ## columns to exclude from features
 
 load_latent <- function(prefix) {
   p <- lat_path(prefix)
-  stopifnot(sprintf("Latent file not found: %s\nRun 03_Autoencoder.py first.", p) = file.exists(p))
+  if (!file.exists(p))
+    stop(sprintf("Latent file not found: %s\nRun 03_Autoencoder.py first.", p))
   dt <- as.data.table(arrow::read_parquet(p))
   message(sprintf("  %-30s: %d rows x %d cols", basename(p), nrow(dt), ncol(dt)))
   dt
 }
 
-if (MODEL %in% c("M2", "M4")) {
+if (MODEL_GROUP %in% c("04", "05")) {
   lat_train <- load_latent("latent_train")
   lat_test  <- load_latent("latent_test")
-}
-if (MODEL %in% c("M3")) {
-  ano_train <- load_latent("anomaly_train")
-  ano_test  <- load_latent("anomaly_test")
 }
 
 
@@ -151,53 +149,66 @@ if (MODEL %in% c("M3")) {
 
 message("  Assembling feature matrices...")
 
-assemble_data <- function(base_dt, id_vec, latent_dt = NULL,
-                          use_base = TRUE, label = "") {
-  ## Returns a data.table with features + y, no id column.
-  dt <- copy(base_dt)
-  
-  if (!use_base) {
-    ## M2/M3: features come entirely from the latent/anomaly file
-    feat_cols <- setdiff(names(latent_dt), LAT_META)
-    out <- latent_dt[, c("y", feat_cols), with = FALSE]
-    message(sprintf("  [%s] %d feature cols (latent only)", label, length(feat_cols)))
-    return(out)
-  }
-  
-  if (!is.null(latent_dt)) {
-    ## M4: join latent features onto raw by row-aligned id
-    ## Add id to base for joining, then drop it
-    dt[, .join_id := id_vec]
-    latent_feats <- setdiff(names(latent_dt), LAT_META)
-    latent_join  <- latent_dt[, c("id", latent_feats), with = FALSE]
-    dt <- merge(dt, latent_join, by.x = ".join_id", by.y = "id", all.x = TRUE)
-    dt[, .join_id := NULL]
-    n_unmatched <- sum(is.na(dt[[latent_feats[1L]]]))
-    if (n_unmatched > 0L)
-      warning(sprintf("  [%s] %d unmatched rows after join — check id alignment",
-                      label, n_unmatched))
-    message(sprintf("  [%s] %d feature cols (raw + latent)", label,
-                    ncol(dt) - 1L))
-  } else {
-    message(sprintf("  [%s] %d feature cols (raw only)", label, ncol(dt) - 1L))
-  }
-  
-  dt
+assemble_data <- function(base_dt, label = "") {
+  ## Groups 01–03: return base features + y as-is (no id in base_dt after 02E).
+  message(sprintf("  [%s] %d feature cols (base only)", label, ncol(base_dt) - 1L))
+  copy(base_dt)
 }
 
-train_df <- switch(MODEL,
-                   M1 = assemble_data(Train_Final, train_id_vec, label = "M1 train"),
-                   M2 = assemble_data(Train_Final, train_id_vec, lat_train, use_base = FALSE, label = "M2 train"),
-                   M3 = assemble_data(Train_Final, train_id_vec, ano_train, use_base = FALSE, label = "M3 train"),
-                   M4 = assemble_data(Train_Final, train_id_vec, lat_train, use_base = TRUE,  label = "M4 train")
-)
+## Groups 01–03: base features only
+## Group  04   : base features + VAE latent (augmented)
+## Group  05   : VAE latent features + categorical variables only
+##               (sector_*, size_*, groupmember, public — from base file)
 
-test_df <- switch(MODEL,
-                  M1 = assemble_data(Test_Final, test_id_vec, label = "M1 test"),
-                  M2 = assemble_data(Test_Final, test_id_vec, lat_test,  use_base = FALSE, label = "M2 test"),
-                  M3 = assemble_data(Test_Final, test_id_vec, ano_test,  use_base = FALSE, label = "M3 test"),
-                  M4 = assemble_data(Test_Final, test_id_vec, lat_test,  use_base = TRUE,  label = "M4 test")
-)
+if (MODEL_GROUP %in% c("01", "02", "03")) {
+
+  train_df <- assemble_data(Train_Final, label = sprintf("%s train", RUN_NAME))
+  test_df  <- assemble_data(Test_Final,  label = sprintf("%s test",  RUN_NAME))
+
+} else if (MODEL_GROUP == "04") {
+
+  ## Row-position cbind — both files come from the same split in the same order.
+  ## A merge by firm id would produce a cartesian product (panel data: non-unique ids).
+  lat_feats <- setdiff(names(lat_train), LAT_META)
+
+  stopifnot(
+    "Group 04 row mismatch: lat_train vs Train_Final" =
+      nrow(lat_train) == nrow(Train_Final),
+    "Group 04 row mismatch: lat_test vs Test_Final" =
+      nrow(lat_test) == nrow(Test_Final)
+  )
+
+  train_df <- cbind(copy(Train_Final), lat_train[, lat_feats, with = FALSE])
+  test_df  <- cbind(copy(Test_Final),  lat_test[,  lat_feats, with = FALSE])
+
+  message(sprintf("  [%s train] %d base + %d latent cols",
+                  RUN_NAME, ncol(Train_Final) - 1L, length(lat_feats)))
+
+} else if (MODEL_GROUP == "05") {
+
+  cat_cols  <- grep("^sector_|^size_|^groupmember$|^public$",
+                    names(Train_Final), value = TRUE)
+  lat_feats <- setdiff(names(lat_train), LAT_META)
+
+  stopifnot(
+    "Group 05 row mismatch: lat_train vs Train_Final" =
+      nrow(lat_train) == nrow(Train_Final),
+    "Group 05 row mismatch: lat_test vs Test_Final" =
+      nrow(lat_test) == nrow(Test_Final)
+  )
+
+  train_df <- cbind(
+    lat_train[, c("y", lat_feats), with = FALSE],
+    Train_Final[, cat_cols, with = FALSE]
+  )
+  test_df <- cbind(
+    lat_test[,  c("y", lat_feats), with = FALSE],
+    Test_Final[,  cat_cols, with = FALSE]
+  )
+
+  message(sprintf("  [%s] %d latent + %d categorical cols",
+                  RUN_NAME, length(lat_feats), length(cat_cols)))
+}
 
 ## ── Build DMatrix ─────────────────────────────────────────────────────────────
 feature_cols <- setdiff(names(train_df), TARGET_COL)
@@ -273,7 +284,7 @@ compute_metrics <- function(y_true, y_pred, set_name) {
   
   data.frame(
     set            = set_name,
-    model          = MODEL,
+    model          = RUN_NAME,
     split_mode     = SPLIT_MODE,
     n_obs          = length(yt),
     n_defaults     = sum(yt),
@@ -353,8 +364,7 @@ time_bo <- system.time({
       paste0("test_", XGB_EVAL_METRIC, "_mean")]])
     
     message(sprintf(
-      "  [%02d/%02d] eta=%.3f depth=%d sub=%.2f col=%.2f mcw=%d "
-      "gam=%.2f L2=%.2f L1=%.2f → %s=%.4f",
+      "  [%02d/%02d] eta=%.3f depth=%d sub=%.2f col=%.2f mcw=%d gam=%.2f L2=%.2f L1=%.2f -> %s=%.4f",
       bo_iter, total_iter, eta, as.integer(round(max_depth)),
       subsample, colsample_bytree, as.integer(round(min_child_weight)),
       gamma, lambda, alpha, XGB_EVAL_METRIC, best_score
@@ -489,7 +499,7 @@ preds_train <- predict(model_final, dtrain)
 preds_test  <- predict(model_final, dtest)
 
 metrics_cv <- data.frame(
-  set = "cv_train", model = MODEL, split_mode = SPLIT_MODE,
+  set = "cv_train", model = RUN_NAME, split_mode = SPLIT_MODE,
   auc_roc = NA_real_, avg_precision = round(cv_score_mean, 4),
   bss = NA_real_, brier = NA_real_,
   recall_fpr1 = NA_real_, recall_fpr3 = NA_real_,
@@ -548,7 +558,7 @@ preds_out <- data.table(
   id         = test_id_vec,
   y          = test_y,
   p_default  = preds_test,
-  model_name = MODEL,
+  model_name = RUN_NAME,
   split_mode = SPLIT_MODE
 )
 
@@ -585,7 +595,7 @@ result_obj <- list(
   preds_train      = data.table(id = train_id_vec, y = train_y, p_default = preds_train),
   preds_test       = preds_out,
   scale_pos_weight = scale_pos_weight,
-  model_name       = MODEL,
+  model_name       = RUN_NAME,
   split_mode       = SPLIT_MODE,
   n_features       = ncol(train_mat),
   time_bo          = time_bo
@@ -604,17 +614,18 @@ message(sprintf("  eval_summary.rds"))
 #==== 10 - Leaderboard (all saved models) =====================================#
 #==============================================================================#
 
-## Load eval tables from all saved model runs for this SPLIT_MODE
-all_models  <- c("M1", "M2", "M3", "M4")
-saved_evals <- lapply(all_models, function(m) {
-  p <- file.path(DIR_XGB_ROOT, sprintf("%s_%s", m, SPLIT_MODE), "eval_summary.rds")
+## Scan Final folder for all completed XGBoost runs
+xgb_dirs    <- list.dirs(DIR_XGB_ROOT, full.names = TRUE, recursive = FALSE)
+xgb_dirs    <- xgb_dirs[grepl("_XGBoost_Manual$", basename(xgb_dirs))]
+saved_evals <- lapply(xgb_dirs, function(d) {
+  p <- file.path(d, "eval_summary.rds")
   if (file.exists(p)) readRDS(p) else NULL
 })
 saved_evals <- dplyr::bind_rows(Filter(Negate(is.null), saved_evals))
 
 if (nrow(saved_evals) > 0L) {
   test_rows <- saved_evals[saved_evals$set == "test", ]
-  base_auc  <- test_rows$auc_roc[test_rows$model == "M1"]
+  base_auc  <- test_rows$auc_roc[test_rows$model == sprintf("01%s_XGBoost_Manual", SPLIT_LETTER)]
   
   if (length(base_auc) == 1L) {
     test_rows$uplift_auc_pct <- round(
@@ -638,11 +649,11 @@ if (nrow(saved_evals) > 0L) {
   
   saveRDS(saved_evals,
           file.path(DIR_XGB_ROOT,
-                    sprintf("leaderboard_%s.rds", SPLIT_MODE)))
-  message(sprintf("\n  Leaderboard saved: leaderboard_%s.rds", SPLIT_MODE))
+                    sprintf("leaderboard_XGBoost_%s.rds", SPLIT_MODE)))
+  message(sprintf("\n  Leaderboard saved: leaderboard_XGBoost_%s.rds", SPLIT_MODE))
 }
 
-message(sprintf("\n══ 04B_Train_XGBoost complete [%s / %s] ══", MODEL, SPLIT_MODE))
+message(sprintf("\n══ 04B_Train_XGBoost complete [%s] ══", RUN_NAME))
 message(sprintf("   CV %s  : %.4f (+/- %.4f)",
                 XGB_EVAL_METRIC, cv_score_mean, cv_score_sd))
 if (!is.null(metrics_test))

@@ -139,8 +139,10 @@ tryCatch({
 #==== B - Time-Series Dynamics ================================================#
 #==============================================================================#
 
-tryCatch({
-  
+if (!INCLUDE_TIME_DYNAMICS) {
+  message("--- 02B skipped (INCLUDE_TIME_DYNAMICS = FALSE) ---")
+} else tryCatch({
+
   message("--- Starting 02B: Time-Series Dynamics ---")
   
   ## ── Helper: build all TS features for one data.table in-place ─────────────
@@ -265,7 +267,7 @@ tryCatch({
   message(sprintf("  Train: %d rows x %d cols  |  Test: %d rows x %d cols",
                   nrow(Train), ncol(Train), nrow(Test), ncol(Test)))
   message(sprintf("  TS feature families: %d", length(ts_prefixes)))
-  
+
 }, error = function(e) stop("02B failed: ", e$message))
 
 
