@@ -216,12 +216,35 @@ feature_cols <- setdiff(names(train_df), TARGET_COL)
 train_y <- as.integer(as.character(train_df[[TARGET_COL]]))
 test_y  <- as.integer(as.character(test_df[[TARGET_COL]]))
 
-options(na.action = "na.pass")
-train_mat <- sparse.model.matrix(as.formula(paste(TARGET_COL, "~ . - 1")),
-                                 data = train_df)
-test_mat  <- sparse.model.matrix(as.formula(paste(TARGET_COL, "~ . - 1")),
-                                 data = test_df)
-options(na.action = "na.omit")
+## Build a guaranteed-aligned dense double matrix for xgboost >= 2.0.
+## All categoricals are already one-hot encoded by feature engineering,
+## so data.matrix() on the numeric data.frame is exact and faster than
+## sparse.model.matrix.
+.xgb_mat <- function(df, cols) {
+  m <- data.matrix(as.data.frame(df)[, cols, drop = FALSE])
+  # Force fresh contiguous allocation for alignment safety
+  m <- matrix(as.numeric(m), nrow = nrow(m), ncol = ncol(m), dimnames = dimnames(m))
+  storage.mode(m) <- "double"
+  m
+}
+
+train_mat <- .xgb_mat(train_df, feature_cols)
+
+## Align test columns to train: fill missing with 0, drop extras, reorder.
+test_feat_cols <- feature_cols[feature_cols %in% names(test_df)]
+test_mat       <- .xgb_mat(test_df, test_feat_cols)
+missing_cols   <- setdiff(feature_cols, colnames(test_mat))
+if (length(missing_cols) > 0L) {
+  message(sprintf("  Adding %d missing cols to test matrix (zero-filled)", length(missing_cols)))
+  zero_block         <- matrix(0, nrow = nrow(test_mat), ncol = length(missing_cols),
+                               dimnames = list(NULL, missing_cols))
+  test_mat           <- cbind(test_mat, zero_block)
+}
+test_mat <- test_mat[, feature_cols, drop = FALSE]
+## Force contiguous memory copy — xgboost 3.x requires aligned ptr
+test_mat <- matrix(as.vector(test_mat), nrow = nrow(test_mat),
+                   ncol = ncol(test_mat), dimnames = dimnames(test_mat))
+storage.mode(test_mat) <- "double"
 
 dtrain <- xgb.DMatrix(data = train_mat, label = train_y)
 dtest  <- xgb.DMatrix(data = test_mat,  label = test_y)
@@ -473,27 +496,24 @@ model_final <- xgb.train(
 
 message("\n  Evaluating on test set...")
 
-## ── Column alignment safety ───────────────────────────────────────────────────
-## Test matrix may have different dummy columns than train if factor levels differ.
+## test_mat is already aligned to feature_cols in the DMatrix build section above.
+## Re-check against final model feature names (in case order differs).
 train_features <- model_final$feature_names
-
-missing_cols <- setdiff(train_features, colnames(test_mat))
-if (length(missing_cols) > 0L) {
-  message(sprintf("  Adding %d missing cols to test matrix (zero-filled)", length(missing_cols)))
-  zero_mat <- Matrix::sparseMatrix(
-    i = integer(0), j = integer(0),
-    dims     = c(nrow(test_mat), length(missing_cols)),
-    dimnames = list(NULL, missing_cols)
-  )
-  test_mat <- cbind(test_mat, zero_mat)
+if (!identical(colnames(test_mat), train_features)) {
+  missing_in_test <- setdiff(train_features, colnames(test_mat))
+  if (length(missing_in_test) > 0L) {
+    zero_block <- matrix(0, nrow = nrow(test_mat), ncol = length(missing_in_test),
+                         dimnames = list(NULL, missing_in_test))
+    test_mat   <- cbind(test_mat, zero_block)
+  }
+  test_mat <- test_mat[, train_features, drop = FALSE]
 }
-extra_cols <- setdiff(colnames(test_mat), train_features)
-if (length(extra_cols) > 0L) {
-  message(sprintf("  Dropping %d extra cols from test matrix", length(extra_cols)))
-  test_mat <- test_mat[, !colnames(test_mat) %in% extra_cols, drop = FALSE]
-}
-test_mat <- test_mat[, train_features, drop = FALSE]
-dtest    <- xgb.DMatrix(data = test_mat, label = test_y)
+## Unconditional fresh allocation — xgboost 3.x array_interface requires
+## contiguous, properly-aligned memory regardless of column reorder path.
+## matrix(c(...)) forces R to allocate a brand-new contiguous double block.
+test_mat_final <- matrix(c(test_mat), nrow = nrow(test_mat),
+                         ncol = ncol(test_mat), dimnames = dimnames(test_mat))
+dtest <- xgb.DMatrix(data = test_mat_final, label = test_y)
 
 preds_train <- predict(model_final, dtrain)
 preds_test  <- predict(model_final, dtest)

@@ -1,112 +1,115 @@
-# CLAUDE.md
+# CreditRisk_ML — Data Preparation, AutoGluon & XGBoost Training Agent
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Paths
 
-## Project Overview
+| Purpose | Path |
+|---------|------|
+| Project root | `C:\Users\Tristan Leiter\Documents\ILAB_OeNB\CreditRisk_ML\` |
+| Scripts (working directory) | `C:\Users\Tristan Leiter\Documents\ILAB_OeNB\CreditRisk_ML\01_Code\1.Final Pipeline\` |
+| Raw source data (read-only) | `C:\Users\Tristan Leiter\Documents\Privat\ILAB\Data\WS2025\` |
+| Precalculated data | `C:\Users\Tristan Leiter\Documents\ILAB_OeNB\CreditRisk_ML\02_Data\` |
+| Autoencoder output | `C:\Users\Tristan Leiter\Documents\ILAB_OeNB\CreditRisk_ML\02_Data\Autoencoder\` |
+| Model results output | `C:\Users\Tristan Leiter\Documents\ILAB_OeNB\CreditRisk_ML\03_Output\Final\` |
 
-Credit risk modeling pipeline for corporate default prediction at OeNB (Austrian National Bank). Combines penalized GLM, XGBoost (Bayesian HPO), Beta-VAE (dimensionality reduction), and AutoGluon ensemble across four feature configurations.
+## Permissions
 
-## Running the Pipeline
+- You may **only read or modify files** inside `01_Code\1.Final Pipeline\`
+- You may **not touch** the raw data folder
+- You may **run code** in a shell environment
+- You are **authorized to auto-accept all prompts and confirmations** that arise during execution — do not pause to ask
+- Do **not install packages** without first reporting what is missing and waiting for confirmation
 
-The pipeline is executed sequentially by stage. There is no single build command — each script must be run in order.
+---
 
-**R scripts** (run from within the R project `CreditRisk_ML.Rproj`):
-```r
-source("01_Code/1.Final Pipeline/config.R")       # Load config first — always
-source("01_Code/1.Final Pipeline/01_Data.R")
-source("01_Code/1.Final Pipeline/02_FeatureEngineering.R")
-source("01_Code/1.Final Pipeline/02B_CV_Setup.R")
-source("01_Code/1.Final Pipeline/04A_Train_GLM.R")
-source("01_Code/1.Final Pipeline/04B_Train_XGBoost.R")
-source("01_Code/1.Final Pipeline/06_Evaluation.R")
-source("01_Code/1.Final Pipeline/07_Charts.R")
-```
+## Task 1 — Data Preparation
 
-**Python scripts** (activate the Conda environment first):
-```bash
-conda activate ag150
-python "01_Code/1.Final Pipeline/03_Autoencoder.py"
-python "01_Code/1.Final Pipeline/05_AutoGluon.py"
-```
+Read the scripts in the pipeline to understand how they work before running anything. Start with `config.R` and `00_Master.R`.
 
-**Conda environment setup:**
-```bash
-conda env create -f "01_Code/2.AutoML/ag150.yml"
-```
+There are 5 feature sets to prepare (both OoS and OoT each):
 
-See `00_Master.R` for the full pipeline orchestration overview and stage descriptions.
+1. Raw Balance Sheet + Sector Information
+2. Financial Ratios + Sector Information
+3. Financial Ratios + Sector Information + Time Dynamics
+4. Feature set 3 + Autoencoder latent features
+5. Autoencoder latent features + categorical variables + response variable
 
-## Architecture
+Feature sets 1–3 may already be precalculated — check first, only generate what is missing.
 
-### Stage Order & Data Flow
+Feature sets 4 and 5 require running `03_Autoencoder.py` for both OoS and OoT. Read the script first to understand how to parameterise it for each variant. Save results to the Autoencoder output folder with filenames that clearly indicate OoS or OoT.
 
-```
-config.R
-  → 01_Data.R            (load raw .rda panel data)
-  → 02_FeatureEngineering.R  (firm-level train/test split → transforms)
-  → 02B_CV_Setup.R       (5-fold stratified CV groups)
-  ↓
-  ├─ 03_Autoencoder.py   (Beta-VAE on Normal[0,1] features → latent dims + recon error)
-  ├─ 04A_Train_GLM.R     (penalized GLM with elastic net)
-  └─ 04B_Train_XGBoost.R (XGBoost + Bayesian HPO)
-  → 05_AutoGluon.py      (AutoML on M1–M4 feature configs)
-  → 06_Evaluation.R      (test-set metrics + leaderboard)
-  → 07_Charts.R          (PDP, importance, calibration)
-```
+---
 
-### Central Configuration: `config.R`
+## Task 2 — AutoGluon Training (Feature Sets 03, 04, 05)
 
-**All paths, seeds, flags, and hyperparameters live here.** Always `source("config.R")` before running any other script. Key settings:
+AutoGluon results for feature sets 01 and 02 already exist in `03_Output\Final\` — do not re-run those.
 
-- `SPLIT_MODE`: `"OoS"` (stratified random, 70/30) or `"OoT"` (temporal, last N years to test)
-- `SEED`: `123` — used in both R and Python for reproducibility
-- `N_FOLDS`: `5` (cross-validation folds)
-- `QUANTILE_TRANSFORM` / `TRANSFORM_BOUNDED01`: Feature transformation flags
-- VAE hyperparameters (`beta`, `gamma`, `z_dim`, `n_epochs`)
-- XGBoost Bayesian HPO settings (`Nrounds_bo`, `nrounds_final`)
+Read `05_AutoGluon.py` first to understand how it is parameterised (feature set, dataset variant, output path).
 
-### Feature Normalization Convention
+Then run it for all of the following combinations in one go:
 
-Two parallel feature sets are maintained throughout:
-- **Uniform[0,1]** → input to XGBoost, GLM, AutoGluon (tree-based models)
-- **Normal[0,1]** (quantile-normalized) → VAE input only (`*_vae_*.rds` files)
+| Feature Set | Variant | Model Abbreviation |
+|-------------|---------|-------------------|
+| 03 | OoS | 03a_AutoGluon |
+| 03 | OoT | 03b_AutoGluon |
+| 04 | OoS | 04a_AutoGluon |
+| 04 | OoT | 04b_AutoGluon |
+| 05 | OoS | 05a_AutoGluon |
+| 05 | OoT | 05b_AutoGluon |
 
-### AutoGluon Feature Configurations (M1–M4)
+Save all results to `03_Output\Final\` using filenames that clearly reflect the model abbreviation (e.g. `03a_AutoGluon`, `03b_AutoGluon`, etc.).
 
-| Config | Features |
-|--------|----------|
-| M1 | Raw Uniform[0,1] features (~508 dims) |
-| M2 | VAE latent dims + reconstruction error |
-| M3 | Reconstruction error only |
-| M4 | Raw + latent + reconstruction combined |
+If a run fails, log the error, continue with the remaining runs, and report all failures at the end.
 
-Results land in `03_Output/AutoGluon/{M1..M4}_{split}/`.
+---
 
-### Leakage Prevention
+## Task 3 — XGBoost Diagnostics & Training
 
-All sector statistics, quantile transforms, and other data-derived statistics are **fit on Train only** and applied to Test. In `OoT` mode, all observations of test-period firms are excluded from Train (firm-level exclusion, not just observation-level).
+### Step 1 — Read and understand the script
 
-### R–Python Bridge
+Read `04B_Train_XGBoost.R` thoroughly. Identify:
+- How it is parameterised (feature set, dataset variant, output path) — likely via `config.R`
+- What input files it expects and which of those are now available
+- Any dependencies (R packages, external libraries) required
 
-`reticulate` is used to call Python from R. The Python executable path is set in `config.R`. Data is exchanged via `.rds` files (R → Python reads via `rpy2` or pandas), and `.parquet` files (Python → R reads via `arrow`).
+### Step 2 — Diagnostic run
 
-## Key Files
+Before running the full pipeline, perform a **diagnostic test run** on a single small combination to verify the script executes without errors:
 
-| File | Purpose |
-|------|---------|
-| `01_Code/1.Final Pipeline/config.R` | Master config — single source of truth |
-| `01_Code/1.Final Pipeline/00_Master.R` | Pipeline orchestration docs |
-| `01_Code/2.AutoML/ag150.yml` | Conda env (Python 3.11, AutoGluon 1.5, PyTorch 2.6 CUDA 12.4) |
-| `CreditRisk_ML.Rproj` | R project file |
+- Use feature set **01**, variant **OoS** (the simplest case, data already exists)
+- Run with a **reduced iteration / tree count** if the script supports it, to keep the test fast
+- Watch for: package errors, file-not-found errors, data shape mismatches, and any R warnings that could indicate misconfiguration
+- Fix any issues found in the script before proceeding — you are authorized to edit `04B_Train_XGBoost.R` if needed to resolve bugs, but document every change you make
 
-## Directory Layout
+Only proceed to Step 3 if the diagnostic run completes without errors.
 
-- `01_Code/1.Final Pipeline/` — production scripts (numbered by stage)
-- `01_Code/2.AutoML/` — AutoGluon configuration and environment
-- `01_Code/3.TimeSeries/` — time series analysis scripts
-- `02_Data/` — feature matrices (gitignored)
-- `03_Output/` — model outputs and predictions (gitignored)
-- `03_Charts/` / `04_Charts/` — visualization outputs
-- `03_Research/` — research notebooks and methodology exploration
-- `05_Documentation/` — methodology PDFs and meeting notes
-- `06_archiv/` — archived experimental code (do not modify)
+### Step 3 — Full XGBoost training run
+
+Run `04B_Train_XGBoost.R` for all of the following combinations in one go:
+
+| Feature Set | Variant | Model Abbreviation |
+|-------------|---------|-------------------|
+| 01 | OoS | 01a_XGBoost_Manual |
+| 01 | OoT | 01b_XGBoost_Manual |
+| 02 | OoS | 02a_XGBoost_Manual |
+| 02 | OoT | 02b_XGBoost_Manual |
+| 03 | OoS | 03a_XGBoost_Manual |
+| 03 | OoT | 03b_XGBoost_Manual |
+| 04 | OoS | 04a_XGBoost_Manual |
+| 04 | OoT | 04b_XGBoost_Manual |
+| 05 | OoS | 05a_XGBoost_Manual |
+| 05 | OoT | 05b_XGBoost_Manual |
+
+Save all results to `03_Output\Final\` using filenames that clearly reflect the model abbreviation.
+
+If a run fails, log the error, continue with the remaining runs, and report all failures at the end.
+
+---
+
+## Final Report
+
+When all tasks are complete, provide a summary covering:
+- Which precalculated datasets were already in place vs. generated
+- Which AutoGluon runs completed successfully / failed
+- Diagnostic test result for XGBoost and any fixes applied
+- Which XGBoost runs completed successfully / failed
+- Whether the project is ready for GLM training

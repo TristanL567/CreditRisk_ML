@@ -43,6 +43,7 @@ OUTPUTS (all parquet, suffixed by SPLIT_MODE):
 # ==============================================================================
 
 import json
+import sys
 import warnings
 from pathlib import Path
 
@@ -71,6 +72,10 @@ SPLIT_MODE = "OoS"    # "OoS" | "OoT"
 # VAE is only relevant for groups 03/04/05 (ratios + time dynamics).
 KEEP_FEATURES         = "r"    # "r" | "f" | "both"
 INCLUDE_TIME_DYNAMICS = True   # should always be True for VAE runs
+
+# Allow CLI override: python 03_Autoencoder.py <SPLIT_MODE>
+if len(sys.argv) >= 2:
+    SPLIT_MODE = sys.argv[1]
 
 assert SPLIT_MODE in ("OoS", "OoT"), \
     f"SPLIT_MODE must be 'OoS' or 'OoT', got: '{SPLIT_MODE}'"

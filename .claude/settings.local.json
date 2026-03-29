@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:/Program Files/R/R-4.5.2/bin/Rscript.exe\" \"01_Code/1.Final Pipeline/run_data_prep.R\" 03 r TRUE OoT)",
+      "Bash(\"C:/venvs/autotab_env/Scripts/python.exe\" \"01_Code/1.Final Pipeline/03_Autoencoder.py\" OoT)",
+      "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" \"01_Code/1.Final Pipeline/03_Autoencoder.py\" OoT)",
+      "Bash(grep -v \"^Archive$\\\\|^checkpoints$\")",
+      "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" - << 'EOF':*)",
+      "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" -c \":*)",
+      "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" analysis_fnfp.py)",
+      "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" \"01_Code/1.Final Pipeline/analysis_fnfp.py\")"
+    ]
+  }
+}
