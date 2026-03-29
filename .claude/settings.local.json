@@ -8,7 +8,9 @@
       "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" - << 'EOF':*)",
       "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" -c \":*)",
       "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" analysis_fnfp.py)",
-      "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" \"01_Code/1.Final Pipeline/analysis_fnfp.py\")"
+      "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" \"01_Code/1.Final Pipeline/analysis_fnfp.py\")",
+      "Bash(\"C:/Program Files/R/R-4.5.2/bin/Rscript.exe\" \"01_Code/1.Final Pipeline/check_packages.R\")",
+      "Bash(\"C:/Program Files/R/R-4.5.2/bin/Rscript.exe\" \"01_Code/1.Final Pipeline/run_xgb_diag.R\")"
     ]
   }
 }

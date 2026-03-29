@@ -496,24 +496,18 @@ model_final <- xgb.train(
 
 message("\n  Evaluating on test set...")
 
-## test_mat is already aligned to feature_cols in the DMatrix build section above.
-## Re-check against final model feature names (in case order differs).
+## Section 3 already builds test_mat with columns = feature_cols, which equals
+## model_final$feature_names by construction (the model is trained on feature_cols).
+## Rebuilding dtest here triggers a 64-byte alignment error in xgboost 3.x on
+## Windows after the BO loop has fragmented R's heap.  The section-3 dtest is
+## correct and aligned — just verify column identity and reuse it.
+## [EDITED 2026-03-29: removed DMatrix rebuild; reuse dtest from section 3]
 train_features <- model_final$feature_names
-if (!identical(colnames(test_mat), train_features)) {
-  missing_in_test <- setdiff(train_features, colnames(test_mat))
-  if (length(missing_in_test) > 0L) {
-    zero_block <- matrix(0, nrow = nrow(test_mat), ncol = length(missing_in_test),
-                         dimnames = list(NULL, missing_in_test))
-    test_mat   <- cbind(test_mat, zero_block)
-  }
-  test_mat <- test_mat[, train_features, drop = FALSE]
-}
-## Unconditional fresh allocation — xgboost 3.x array_interface requires
-## contiguous, properly-aligned memory regardless of column reorder path.
-## matrix(c(...)) forces R to allocate a brand-new contiguous double block.
-test_mat_final <- matrix(c(test_mat), nrow = nrow(test_mat),
-                         ncol = ncol(test_mat), dimnames = dimnames(test_mat))
-dtest <- xgb.DMatrix(data = test_mat_final, label = test_y)
+stopifnot(
+  "Test matrix columns do not match final model features — check feature assembly" =
+    identical(colnames(test_mat), train_features)
+)
+## dtest (from section 3) is reused as-is — no new xgb.DMatrix() call needed.
 
 preds_train <- predict(model_final, dtrain)
 preds_test  <- predict(model_final, dtest)
