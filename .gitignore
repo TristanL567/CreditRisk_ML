@@ -8,3 +8,6 @@
 
 # Ignore model outputs, logs, and generated artifacts
 03_Output/
+
+#
+.claude
