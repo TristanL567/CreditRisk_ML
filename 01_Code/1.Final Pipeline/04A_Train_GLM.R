@@ -36,38 +36,32 @@
 #==== 00 - Parameters & Paths =================================================#
 #==============================================================================#
 
-## ── Split mode — must match what was used in 02_FeatureEngineering.R ─────────
-SPLIT_MODE  <- "OoS"     ## "OoS" or "OoT"
-SEED        <- 123L
-TARGET_COL  <- "y"
+## ── Parameters: guarded so runner overrides are not clobbered ────────────────
+## [FIX 2026-03-30: unconditional assignments overwrote values set by runner]
+if (!exists("SPLIT_MODE"))            SPLIT_MODE            <- "OoS"
+if (!exists("SEED"))                  SEED                  <- 123L
+if (!exists("TARGET_COL"))            TARGET_COL            <- "y"
+if (!exists("MODEL_GROUP"))           MODEL_GROUP           <- "01"
+if (!exists("KEEP_FEATURES"))         KEEP_FEATURES         <- "f"
+if (!exists("INCLUDE_TIME_DYNAMICS")) INCLUDE_TIME_DYNAMICS <- FALSE
 
-## ── Folders ──────────────────────────────────────────────────────────────────
-DIR_PIPELINE <- "/Users/admin/Desktop/CreditRisk_ML/02_Pipeline Datasets and Results"
-DIR_DATA     <- file.path(DIR_PIPELINE, "02_Data")
-DIR_LATENT   <- file.path(DIR_PIPELINE, "03_Output", "Latent")
+## ── Paths: use runner-supplied config.R values if present ─────────────────────
+## [FIX 2026-03-30: replaced hardcoded Mac path "/Users/admin/Desktop/..."]
+if (!exists("PATH_DATA_OUT")) {
+  suppressPackageStartupMessages(library(here))
+  PATH_ROOT     <- here::here("")
+  PATH_DATA_OUT <- file.path(PATH_ROOT, "02_Data")
+  DIR_FINAL_OUT <- file.path(PATH_ROOT, "03_Output", "Final")
+}
+DIR_DATA   <- PATH_DATA_OUT
+DIR_LATENT <- file.path(dirname(DIR_FINAL_OUT), "Latent")   ## 03_Output/Latent/
 
-## ── GLM output folder — created automatically ────────────────────────────────
-##
-##   03_Output/
-##   └── GLM/
-##       ├── GLM_Leaderboard_OoS.xlsx          2 sheets: Train_CV  |  Test
-##       │     - Model, AUC, Uplift_AUC_pct
-##       │     - Brier_Score, Uplift_Brier_pct
-##       │     - Penalized_Brier, Uplift_PBS_pct
-##       │     - Alpha, Lambda (optimal hyperparameters)
-##       │
-##       ├── GLM_Variable_Importance_OoS.xlsx  8 sheets (train + test per strategy)
-##       │     Train sheets  — Feature, Coef, AbsCoef, OddsRatio
-##       │     Test sheets   — Rank, Feature, Coef, MeanAbsContrib, MeanContrib
-##       │
-##       ├── GLM_Leaderboard_OoS.xlsx          2 sheets: Train_CV  |  Test
-##       ├── GLM_Variable_Importance_OoS.xlsx  8 sheets (train + test per strategy)
-##       ├── GLM_Leaderboard_Chart_OoS.png     bar chart: Test AUC by strategy
-##       ├── predictions_test_GLM_OoS.parquet  id | y | p_default | model | framework
-##       └── GLM_Evaluation_OoS.xlsx           2 sheets: Metrics  |  DeLong
-##
-DIR_GLM_OUT <- file.path(DIR_PIPELINE, "03_Output", "GLM")
+## ── Output folder: 03_Output/Final/<GROUP><a|b>_GLM/ ─────────────────────────
+.split_abbrev <- ifelse(SPLIT_MODE == "OoS", "a", "b")
+DIR_GLM_OUT   <- file.path(DIR_FINAL_OUT,
+                            paste0(MODEL_GROUP, .split_abbrev, "_GLM"))
 dir.create(DIR_GLM_OUT, recursive = TRUE, showWarnings = FALSE)
+rm(.split_abbrev)
 
 ## ── GLM tuning parameters ────────────────────────────────────────────────────
 N_FOLDS_GLM   <- 5L    ## CV folds
@@ -105,8 +99,12 @@ message("  Packages loaded.")
 message("\n── Loading data from disk ───────────────────────────────────")
 
 ## ── Helper: file path with split suffix ──────────────────────────────────────
+## [FIX 2026-03-30: was paste0(base_name, "_", SPLIT_MODE, ".rds") — missing
+##  KEEP_FEATURES and INCLUDE_TIME_DYNAMICS components, so files like
+##  02_train_final_f_noTD_OoS.rds were never found]
 split_path <- function(dir, base_name) {
-  file.path(dir, paste0(base_name, "_", SPLIT_MODE, ".rds"))
+  td <- ifelse(INCLUDE_TIME_DYNAMICS, "TD", "noTD")
+  file.path(dir, paste0(base_name, "_", KEEP_FEATURES, "_", td, "_", SPLIT_MODE, ".rds"))
 }
 
 ## ── 02A: RDS files from 02_Data/ ─────────────────────────────────────────────
@@ -126,86 +124,94 @@ test_id_vec  <- readRDS(split_path(DIR_DATA, "02_test_id_vec"))
 message(sprintf("  Train_Final  : %d rows x %d cols", nrow(Train_Final), ncol(Train_Final)))
 message(sprintf("  Test_Final   : %d rows x %d cols", nrow(Test_Final),  ncol(Test_Final)))
 
-## ── 02B: Parquet files from 03_Output/Latent/ ────────────────────────────────
-stopifnot(
-  "03_Output/Latent folder not found — check DIR_LATENT path" = dir.exists(DIR_LATENT),
-  "latent_train parquet not found"  = file.exists(file.path(DIR_LATENT, paste0("latent_train_",  SPLIT_MODE, ".parquet"))),
-  "latent_test parquet not found"   = file.exists(file.path(DIR_LATENT, paste0("latent_test_",   SPLIT_MODE, ".parquet"))),
-  "anomaly_train parquet not found" = file.exists(file.path(DIR_LATENT, paste0("anomaly_train_", SPLIT_MODE, ".parquet"))),
-  "anomaly_test parquet not found"  = file.exists(file.path(DIR_LATENT, paste0("anomaly_test_",  SPLIT_MODE, ".parquet")))
-)
-
-latent_train  <- as.data.frame(arrow::read_parquet(
-  file.path(DIR_LATENT, paste0("latent_train_",  SPLIT_MODE, ".parquet"))))
-latent_test   <- as.data.frame(arrow::read_parquet(
-  file.path(DIR_LATENT, paste0("latent_test_",   SPLIT_MODE, ".parquet"))))
-anomaly_train <- as.data.frame(arrow::read_parquet(
-  file.path(DIR_LATENT, paste0("anomaly_train_", SPLIT_MODE, ".parquet"))))
-anomaly_test  <- as.data.frame(arrow::read_parquet(
-  file.path(DIR_LATENT, paste0("anomaly_test_",  SPLIT_MODE, ".parquet"))))
-
-message(sprintf("  latent_train  : %d rows x %d cols", nrow(latent_train),  ncol(latent_train)))
-message(sprintf("  latent_test   : %d rows x %d cols", nrow(latent_test),   ncol(latent_test)))
-message(sprintf("  anomaly_train : %d rows x %d cols", nrow(anomaly_train), ncol(anomaly_train)))
-message(sprintf("  anomaly_test  : %d rows x %d cols", nrow(anomaly_test),  ncol(anomaly_test)))
-
-
-## ── 02C: Assemble Strategy objects ───────────────────────────────────────────
+## ── 02B: Parquet files from 03_Output/Latent/ (Groups 04 and 05 only) ────────
+## ── 02B: For Groups 04/05, load latent parquet and build XGBoost-equivalent ───
+##        feature matrix. Groups 01-03: no augmentation needed.
 ##
-##   Base Model  — raw features only          (02_train_final_OoS.rds)
-##   Strategy A  — latent features only       (latent_train_OoS.parquet  → z* cols)
-##   Strategy B  — anomaly scores only        (anomaly_train_OoS.parquet → all feat cols)
-##   Strategy C  — raw + latent + anomaly     (everything combined)
-##
-## id and y are dropped from parquet files — they are already in Train_Final.
+## [FIX 2026-03-30: Replaced multi-strategy approach (Base/A/B/C) with single
+##  pre-assembled feature matrix that matches XGBoost/AutoGluon exactly:
+##    Group 04 → base features + VAE latent features (cbind)
+##    Group 05 → VAE latent features + categorical variables only
+##  The _vae_ files in 02_Data/ are quantile-normalised VAE inputs, NOT merged
+##  outputs; assembly from base + latent parquet (same as 04B_Train_XGBoost.R)
+##  is the architecturally correct approach.]
+HAS_LATENT <- MODEL_GROUP %in% c("04", "05")
+
+if (HAS_LATENT) {
+  .td         <- ifelse(INCLUDE_TIME_DYNAMICS, "TD", "noTD")
+  .par_suffix <- paste0("_", KEEP_FEATURES, "_", .td, "_", SPLIT_MODE)
+
+  stopifnot(
+    "03_Output/Latent folder not found — check DIR_LATENT path" = dir.exists(DIR_LATENT),
+    "latent_train parquet not found" = file.exists(
+      file.path(DIR_LATENT, paste0("latent_train", .par_suffix, ".parquet"))),
+    "latent_test parquet not found"  = file.exists(
+      file.path(DIR_LATENT, paste0("latent_test",  .par_suffix, ".parquet")))
+  )
+
+  latent_train <- as.data.frame(arrow::read_parquet(
+    file.path(DIR_LATENT, paste0("latent_train", .par_suffix, ".parquet"))))
+  latent_test  <- as.data.frame(arrow::read_parquet(
+    file.path(DIR_LATENT, paste0("latent_test",  .par_suffix, ".parquet"))))
+
+  message(sprintf("  latent_train : %d rows x %d cols", nrow(latent_train), ncol(latent_train)))
+  message(sprintf("  latent_test  : %d rows x %d cols", nrow(latent_test),  ncol(latent_test)))
+
+  .lat_feats <- setdiff(names(latent_train), c("id", "y"))
+
+  if (MODEL_GROUP == "04") {
+    ## Group 04: base features + VAE latent features (mirrors XGBoost Group 04)
+    Train_Final <- cbind(as.data.frame(Train_Final),
+                         latent_train[, .lat_feats, drop = FALSE])
+    Test_Final  <- cbind(as.data.frame(Test_Final),
+                         latent_test[,  .lat_feats, drop = FALSE])
+    message(sprintf("  Group 04 assembled : %d cols (base + %d latent)",
+                    ncol(Train_Final), length(.lat_feats)))
+
+  } else {  ## MODEL_GROUP == "05"
+    ## Group 05: VAE latent features + categorical variables (mirrors XGBoost Group 05)
+    .cat_cols <- grep("^sector_|^size_|^groupmember$|^public$",
+                      names(Train_Final), value = TRUE)
+    Train_Final <- cbind(
+      setNames(data.frame(as.data.frame(Train_Final)[[TARGET_COL]]), TARGET_COL),
+      latent_train[, .lat_feats, drop = FALSE],
+      as.data.frame(Train_Final)[, .cat_cols, drop = FALSE]
+    )
+    Test_Final <- cbind(
+      setNames(data.frame(as.data.frame(Test_Final)[[TARGET_COL]]), TARGET_COL),
+      latent_test[,  .lat_feats, drop = FALSE],
+      as.data.frame(Test_Final)[,  .cat_cols, drop = FALSE]
+    )
+    message(sprintf("  Group 05 assembled : %d cols (%d latent + %d categoricals)",
+                    ncol(Train_Final), length(.lat_feats), length(.cat_cols)))
+    rm(.cat_cols)
+  }
+  rm(.td, .par_suffix, .lat_feats)
+
+} else {
+  message(sprintf("  MODEL_GROUP=%s — base features only, no latent augmentation.",
+                  MODEL_GROUP))
+  latent_train <- NULL
+  latent_test  <- NULL
+}
+
+
+## ── 02C: Single feature matrix — no separate strategies ──────────────────────
+## [FIX 2026-03-30: All groups now train a single GLM on the assembled feature
+##  matrix (same methodology as XGBoost/AutoGluon). Strategies A/B/C removed.]
 
 Train_Final_df <- as.data.frame(Train_Final)
 Test_Final_df  <- as.data.frame(Test_Final)
 
-## ── Latent feature columns (z1, z2, ... zN) ──────────────────────────────────
-latent_cols <- grep("^z[0-9]+$", names(latent_train), value = TRUE)
-if (length(latent_cols) == 0L)
-  stop("No latent columns (z*) found in latent parquet. Check 03_Autoencoder.py output.")
-
-latent_train_feats <- latent_train[, latent_cols, drop = FALSE]
-latent_test_feats  <- latent_test[,  latent_cols, drop = FALSE]
-message(sprintf("  Latent columns found  : %d  (%s ... %s)",
-                length(latent_cols), latent_cols[1], latent_cols[length(latent_cols)]))
-
-## ── Anomaly score columns (everything except id and y) ───────────────────────
-anomaly_cols <- setdiff(names(anomaly_train), c("id", "y"))
-if (length(anomaly_cols) == 0L)
-  stop("No anomaly feature columns found in anomaly parquet. Check 03_Autoencoder.py output.")
-
-anomaly_train_feats <- anomaly_train[, anomaly_cols, drop = FALSE]
-anomaly_test_feats  <- anomaly_test[,  anomaly_cols, drop = FALSE]
-message(sprintf("  Anomaly columns found : %d  (%s)",
-                length(anomaly_cols), paste(anomaly_cols, collapse = ", ")))
-
-## ── Base Model: raw features as-is ───────────────────────────────────────────
 Train_Data_Base_Model <- Train_Final_df
 Test_Data_Base_Model  <- Test_Final_df
-message(sprintf("  Base Model  : %d cols", ncol(Train_Data_Base_Model)))
+message(sprintf("  Feature matrix : %d rows x %d cols", nrow(Train_Data_Base_Model),
+                ncol(Train_Data_Base_Model)))
 
-## ── Strategy A: latent features only (replaces raw features) ─────────────────
-## Add TARGET_COL so model.matrix can find y
-Strategy_A_train <- cbind(latent_train_feats,
-                           setNames(data.frame(latent_train[["y"]]), TARGET_COL))
-Strategy_A_test  <- cbind(latent_test_feats,
-                           setNames(data.frame(latent_test[["y"]]),  TARGET_COL))
-message(sprintf("  Strategy A  : %d cols (latent only)", ncol(Strategy_A_train)))
-
-## ── Strategy B: anomaly scores only (replaces raw features) ──────────────────
-Strategy_B_train <- cbind(anomaly_train_feats,
-                           setNames(data.frame(anomaly_train[["y"]]), TARGET_COL))
-Strategy_B_test  <- cbind(anomaly_test_feats,
-                           setNames(data.frame(anomaly_test[["y"]]),  TARGET_COL))
-message(sprintf("  Strategy B  : %d cols (anomaly only)", ncol(Strategy_B_train)))
-
-## ── Strategy C: raw + latent + anomaly (everything combined) ─────────────────
-Strategy_C_train <- cbind(Train_Final_df, latent_train_feats, anomaly_train_feats)
-Strategy_C_test  <- cbind(Test_Final_df,  latent_test_feats,  anomaly_test_feats)
-message(sprintf("  Strategy C  : %d cols (raw + latent + anomaly)", ncol(Strategy_C_train)))
+## Strategies A/B/C are unused — set to NULL so all downstream guards pass cleanly
+Strategy_A_train <- NULL;  Strategy_A_test  <- NULL
+Strategy_B_train <- NULL;  Strategy_B_test  <- NULL
+Strategy_C_train <- NULL;  Strategy_C_test  <- NULL
 
 message("── Data loading complete ─────────────────────────────────────")
 
@@ -280,40 +286,69 @@ GLM_Training <- function(Data_Train_CV_Vector,
   best_cvfit  <- NULL
 
   ## ── Special case: single feature column (e.g. Strategy B: anomaly only) ──
-  ## cv.glmnet requires >= 2 columns. For single-feature case, use a simple
-  ## lambda grid search with manual CV instead.
+  ## [FIX 2026-03-30: old code used glmnet() for both CV folds and final model,
+  ##  but glmnet() requires >= 2 columns so the final fit always crashed with
+  ##  "x should be a matrix with 2 or more columns".
+  ##  GLM_Test() and get_top_coeffs_glmnet() already contain glm() branches for
+  ##  exactly this case, so the architecturally correct fix is to use stats::glm()
+  ##  (plain logistic regression) here and return early, bypassing the shared
+  ##  glmnet final-model block below.]
   if (ncol(X_full) < 2L) {
 
-    message("  Single-feature strategy detected — using manual lambda search.")
-    lambda_grid <- exp(seq(log(1e-4), log(1), length.out = 20L))
+    message("  Single-feature strategy detected — fitting plain logistic regression (glm).")
 
-    for (lam in lambda_grid) {
-      fold_aucs <- numeric(max(Data_Train_CV_Vector, na.rm = TRUE))
-      for (fold in seq_along(fold_aucs)) {
-        idx_val   <- which(Data_Train_CV_Vector == fold)
-        idx_train <- which(Data_Train_CV_Vector != fold)
-        fit <- tryCatch(
-          glmnet::glmnet(x = X_full[idx_train, , drop = FALSE],
-                         y = y_full[idx_train],
-                         family = "binomial", alpha = 0.5, lambda = lam),
-          error = function(e) NULL)
-        if (is.null(fit)) { fold_aucs[fold] <- 0.5; next }
-        preds <- tryCatch(
-          as.numeric(predict(fit, newx = X_full[idx_val, , drop = FALSE],
-                             type = "response")),
-          error = function(e) NULL)
-        if (is.null(preds) || all(is.na(preds))) { fold_aucs[fold] <- 0.5; next }
-        roc_o <- tryCatch(pROC::roc(y_full[idx_val], preds, quiet = TRUE),
-                          error = function(e) NULL)
-        fold_aucs[fold] <- if (!is.null(roc_o)) as.numeric(pROC::auc(roc_o)) else 0.5
-      }
-      cv_auc <- mean(fold_aucs, na.rm = TRUE)
-      if (cv_auc > best_auc) {
-        best_auc <- cv_auc; best_alpha <- 0.5; best_lambda <- lam
-      }
+    ## Build a data.frame for glm() with the single predictor + response
+    single_df        <- as.data.frame(X_full)
+    single_df[[TARGET_COL]] <- y_full
+
+    ## ── CV AUC via plain logistic regression ─────────────────────────────────
+    n_folds   <- max(Data_Train_CV_Vector, na.rm = TRUE)
+    fold_aucs <- numeric(n_folds)
+    for (fold in seq_len(n_folds)) {
+      idx_val   <- which(Data_Train_CV_Vector == fold)
+      idx_train <- which(Data_Train_CV_Vector != fold)
+      fit_cv <- tryCatch(
+        stats::glm(stats::as.formula(paste(TARGET_COL, "~ .")),
+                   data   = single_df[idx_train, , drop = FALSE],
+                   family = binomial()),
+        error = function(e) NULL)
+      if (is.null(fit_cv)) { fold_aucs[fold] <- 0.5; next }
+      preds_cv <- tryCatch(
+        as.numeric(predict(fit_cv,
+                           newdata = single_df[idx_val, , drop = FALSE],
+                           type    = "response")),
+        error = function(e) NULL)
+      if (is.null(preds_cv) || all(is.na(preds_cv))) { fold_aucs[fold] <- 0.5; next }
+      roc_cv <- tryCatch(pROC::roc(y_full[idx_val], preds_cv, quiet = TRUE),
+                         error = function(e) NULL)
+      fold_aucs[fold] <- if (!is.null(roc_cv)) as.numeric(pROC::auc(roc_cv)) else 0.5
     }
-    message(sprintf("  >> Best: alpha=0.50  lambda=%.6f  CV-AUC=%.4f",
-                    best_lambda, best_auc))
+    best_auc <- mean(fold_aucs, na.rm = TRUE)
+    message(sprintf("  >> Single-feature glm()  CV-AUC=%.4f", best_auc))
+
+    ## ── Final model on full training data ────────────────────────────────────
+    final_model <- tryCatch(
+      stats::glm(stats::as.formula(paste(TARGET_COL, "~ .")),
+                 data   = single_df,
+                 family = binomial()),
+      error = function(e) stop("Single-feature glm() failed: ", e$message)
+    )
+
+    ## ── Training-set Brier score & penalised Brier ────────────────────────────
+    train_preds     <- as.numeric(predict(final_model, newdata = single_df,
+                                          type = "response"))
+    brier           <- mean((train_preds - y_full)^2, na.rm = TRUE)
+    n_nonzero       <- sum(!is.na(coef(final_model)))
+    penalised_brier <- brier * (1 + n_nonzero / length(y_full))
+
+    return(list(
+      optimal_model         = final_model,
+      optimal_parameters    = list(alpha = NA_real_, lambda = NA_real_),
+      results               = data.frame(AUC = best_auc),
+      Brier_Score           = brier,
+      Penalized_Brier_Score = penalised_brier,
+      train_predictions     = train_preds
+    ))
 
   } else {
 
@@ -652,10 +687,14 @@ tryCatch({
   Test_Data_Strategy_C  <- Strategy_C_test
 
   ## ── Align test to train (factor levels + column order) ───────────────────
-  Test_Data_Base_Model  <- align_test_to_train(Train_Data_Base_Model,  Test_Data_Base_Model)
-  Test_Data_Strategy_A  <- align_test_to_train(Train_Data_Strategy_A,  Test_Data_Strategy_A)
-  Test_Data_Strategy_B  <- align_test_to_train(Train_Data_Strategy_B,  Test_Data_Strategy_B)
-  Test_Data_Strategy_C  <- align_test_to_train(Train_Data_Strategy_C,  Test_Data_Strategy_C)
+  ## [FIX 2026-03-30: calls now guarded — align_test_to_train(NULL, NULL) errors]
+  Test_Data_Base_Model <- align_test_to_train(Train_Data_Base_Model, Test_Data_Base_Model)
+  if (!is.null(Train_Data_Strategy_A))
+    Test_Data_Strategy_A <- align_test_to_train(Train_Data_Strategy_A, Test_Data_Strategy_A)
+  if (!is.null(Train_Data_Strategy_B))
+    Test_Data_Strategy_B <- align_test_to_train(Train_Data_Strategy_B, Test_Data_Strategy_B)
+  if (!is.null(Train_Data_Strategy_C))
+    Test_Data_Strategy_C <- align_test_to_train(Train_Data_Strategy_C, Test_Data_Strategy_C)
 
   message(sprintf("  Base  train: %d rows x %d cols", nrow(Train_Data_Base_Model), ncol(Train_Data_Base_Model)))
   message(sprintf("  Strat A    : %d rows x %d cols", nrow(Train_Data_Strategy_A), ncol(Train_Data_Strategy_A)))
@@ -687,6 +726,13 @@ message("\n── 10_GLM Stage 2/5: GLM Training ──────────�
 
 ## ── Helper: train or load from checkpoint ────────────────────────────────────
 train_or_load <- function(label, train_data, cv_vector, checkpoint_name) {
+
+  ## [FIX 2026-03-30: NULL guard — Groups 01-03 have no latent data for A/B/C]
+  if (is.null(train_data)) {
+    message(sprintf("  Skipping %s — no training data (latent features unavailable for this GROUP).",
+                    label))
+    return(NULL)
+  }
 
   ckpt_path <- file.path(DIR_GLM_OUT,
                          paste0("GLM_checkpoint_", checkpoint_name,

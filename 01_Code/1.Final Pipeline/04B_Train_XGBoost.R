@@ -229,6 +229,10 @@ test_y  <- as.integer(as.character(test_df[[TARGET_COL]]))
 }
 
 train_mat <- .xgb_mat(train_df, feature_cols)
+## Force contiguous memory copy — xgboost 3.x requires aligned ptr
+train_mat <- matrix(as.vector(train_mat), nrow = nrow(train_mat),
+                   ncol = ncol(train_mat), dimnames = dimnames(train_mat))
+storage.mode(train_mat) <- "double"
 
 ## Align test columns to train: fill missing with 0, drop extras, reorder.
 test_feat_cols <- feature_cols[feature_cols %in% names(test_df)]
@@ -496,16 +500,17 @@ model_final <- xgb.train(
 
 message("\n  Evaluating on test set...")
 
-## Section 3 already builds test_mat with columns = feature_cols, which equals
-## model_final$feature_names by construction (the model is trained on feature_cols).
+## Section 3 already builds test_mat and dtest with columns = feature_cols,
+## and dtrain is built from train_mat with the same feature_cols.
 ## Rebuilding dtest here triggers a 64-byte alignment error in xgboost 3.x on
 ## Windows after the BO loop has fragmented R's heap.  The section-3 dtest is
-## correct and aligned — just verify column identity and reuse it.
+## correct and aligned — reuse it directly.
 ## [EDITED 2026-03-29: removed DMatrix rebuild; reuse dtest from section 3]
-train_features <- model_final$feature_names
+## [EDITED 2026-03-29: compare to feature_cols, not model_final$feature_names
+##  which may be NULL in xgboost 3.2.x R API]
 stopifnot(
-  "Test matrix columns do not match final model features — check feature assembly" =
-    identical(colnames(test_mat), train_features)
+  "Test matrix columns do not match training features — check feature assembly" =
+    identical(colnames(test_mat), feature_cols)
 )
 ## dtest (from section 3) is reused as-is — no new xgb.DMatrix() call needed.
 
