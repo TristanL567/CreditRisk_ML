@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credit Risk ML — Model Performance Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <style>
+        :root {
+            --primary: #004890;
+            --primary-light: #7FAFD4;
+            --teal: #1D9E75;
+            --teal-light: #9FE1CB;
+            --coral: #D85A30;
+            --coral-light: #F0997B;
+            --purple: #7F77DD;
+            --gray: #888780;
+            --success: #1D9E75;
+            --warning: #BA7517;
+            --danger: #E24B4A;
+            --bg: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --text: #2C2C2A;
+            --text-secondary: #5F5E5A;
+            --border: rgba(0,0,0,0.1);
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        h2 {
+            font-size: 18px;
+            font-weight: 500;
+            margin: 2rem 0 0.5rem 0;
+            color: var(--text);
+        }
+        
+        .description {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+        
+        .chart-container {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+        }
+        
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+        
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        
+        @media (max-width: 900px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+        
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        
+        .card-title {
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        
+        .card-subtitle {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+        
+        .feature-list {
+            font-size: 12px;
+        }
+        
+        .feature-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .feature-row:last-child {
+            border-bottom: none;
+        }
+        
+        .feature-value {
+            color: var(--text-secondary);
+        }
+        
+        .confusion-grid {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr;
+            gap: 2px;
+            font-size: 12px;
+        }
+        
+        .cm-header {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 6px;
+        }
+        
+        .cm-label {
+            color: var(--text-secondary);
+            padding: 6px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .cm-cell {
+            text-align: center;
+            padding: 12px 6px;
+            border-radius: 4px;
+            color: white;
+        }
+        
+        .cm-tp { background: var(--success); }
+        .cm-fn { background: var(--danger); }
+        .cm-fp { background: var(--warning); }
+        .cm-tn { background: var(--primary); }
+        
+        .cm-cell strong {
+            display: block;
+            font-size: 14px;
+        }
+        
+        .cm-cell span {
+            font-size: 10px;
+            opacity: 0.9;
+        }
+        
+        .metrics-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        
+        .summary-box {
+            background: var(--bg-secondary);
+            border-left: 4px solid var(--primary);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .summary-box h3 {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+        
+        .summary-box p {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin: 1rem 0;
+        }
+        
+        th {
+            background: var(--primary);
+            color: white;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 500;
+        }
+        
+        td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        tr:nth-child(even) {
+            background: var(--bg-secondary);
+        }
+        
+        .highlight-row {
+            background: #C6EFCE !important;
+        }
+        
+        footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Credit Risk ML — Model Performance Dashboard</h1>
+        <p class="subtitle">VAE-Augmented Default Prediction | ILAB OeNB Project | Author: Tristan Leiter</p>
+    </header>
+
+    <!-- Key Findings Summary -->
+    <div class="summary-box">
+        <h3>Key Finding</h3>
+        <p>Time dynamics features (Group 03) provide the largest performance gain (+8 AUC points over ratios-only). 
+        VAE latent features add minimal value. GLM shows best out-of-time stability despite lower peak performance.</p>
+    </div>
+
+    <!-- Chart 1: Model Performance Comparison -->
+    <div class="chart-container">
+        <h2>Model performance comparison — test set AUC</h2>
+        <p class="description">Top 15 models ranked by AUC-ROC, showing feature set and split type</p>
+        <div class="chart-wrapper" style="height: 520px;">
+            <canvas id="aucChart"></canvas>
+        </div>
+        <div class="legend">
+            <div class="legend-item"><span class="legend-color" style="background: #004890;"></span>Out-of-Sample (OoS)</div>
+            <div class="legend-item"><span class="legend-color" style="background: #7FAFD4;"></span>Out-of-Time (OoT)</div>
+        </div>
+    </div>
+
+    <!-- Chart 2: OoS vs OoT Gap -->
+    <div class="chart-container">
+        <h2>OoS vs OoT performance gap by algorithm</h2>
+        <p class="description">GLM shows smallest degradation out-of-time; XGBoost/AutoGluon suffer larger concept drift</p>
+        <div class="chart-wrapper" style="height: 380px;">
+            <canvas id="gapChart"></canvas>
+        </div>
+        <div class="legend">
+            <div class="legend-item"><span class="legend-color" style="background: #004890;"></span>XGBoost OoS</div>
+            <div class="legend-item"><span class="legend-color" style="background: #7FAFD4;"></span>XGBoost OoT</div>
+            <div class="legend-item"><span class="legend-color" style="background: #1D9E75;"></span>AutoGluon OoS</div>
+            <div class="legend-item"><span class="legend-color" style="background: #9FE1CB;"></span>AutoGluon OoT</div>
+            <div class="legend-item"><span class="legend-color" style="background: #D85A30;"></span>GLM OoS</div>
+            <div class="legend-item"><span class="legend-color" style="background: #F0997B;"></span>GLM OoT</div>
+        </div>
+    </div>
+
+    <!-- Chart 3: Recall at FPR Thresholds -->
+    <div class="chart-container">
+        <h2>Recall at FPR thresholds — model discrimination</h2>
+        <p class="description">At 5% false positive rate, best models capture 60%+ of defaults</p>
+        <div class="chart-wrapper" style="height: 340px;">
+            <canvas id="recallChart"></canvas>
+        </div>
+        <div class="legend">
+            <div class="legend-item"><span class="legend-color" style="background: #004890;"></span>Recall @ 1% FPR</div>
+            <div class="legend-item"><span class="legend-color" style="background: #1D9E75;"></span>Recall @ 5% FPR</div>
+            <div class="legend-item"><span class="legend-color" style="background: #D85A30;"></span>Recall @ 10% FPR</div>
+        </div>
+    </div>
+
+    <!-- Confusion Matrices -->
+    <div class="chart-container">
+        <h2>Confusion matrix — top 4 models (OoS)</h2>
+        <p class="description">High recall (>85%) at cost of precision (~4%) due to class imbalance (0.83% default rate)</p>
+        
+        <div class="grid-2">
+            <!-- Model 1 -->
+            <div class="card">
+                <p class="card-title">04a_XGBoost_Manual</p>
+                <p class="card-subtitle">Ratios + TD + VAE | AUC: 0.9200</p>
+                <div class="confusion-grid">
+                    <div></div>
+                    <div class="cm-header">Pred: Default</div>
+                    <div class="cm-header">Pred: No Default</div>
+                    <div class="cm-label">Actual: Default</div>
+                    <div class="cm-cell cm-tp"><strong>510</strong><span>TP (88.2%)</span></div>
+                    <div class="cm-cell cm-fn"><strong>68</strong><span>FN (11.8%)</span></div>
+                    <div class="cm-label">Actual: No Default</div>
+                    <div class="cm-cell cm-fp"><strong>11,942</strong><span>FP (17.3%)</span></div>
+                    <div class="cm-cell cm-tn"><strong>56,966</strong><span>TN (82.7%)</span></div>
+                </div>
+                <div class="metrics-row">
+                    <span>Precision: 4.1%</span>
+                    <span>Recall: 88.2%</span>
+                    <span>F1: 7.8%</span>
+                </div>
+            </div>
+            
+            <!-- Model 2 -->
+            <div class="card">
+                <p class="card-title">03a_XGBoost_Manual</p>
+                <p class="card-subtitle">Ratios + Time Dynamics | AUC: 0.9192</p>
+                <div class="confusion-grid">
+                    <div></div>
+                    <div class="cm-header">Pred: Default</div>
+                    <div class="cm-header">Pred: No Default</div>
+                    <div class="cm-label">Actual: Default</div>
+                    <div class="cm-cell cm-tp"><strong>505</strong><span>TP (87.4%)</span></div>
+                    <div class="cm-cell cm-fn"><strong>73</strong><span>FN (12.6%)</span></div>
+                    <div class="cm-label">Actual: No Default</div>
+                    <div class="cm-cell cm-fp"><strong>12,079</strong><span>FP (17.5%)</span></div>
+                    <div class="cm-cell cm-tn"><strong>56,829</strong><span>TN (82.5%)</span></div>
+                </div>
+                <div class="metrics-row">
+                    <span>Precision: 4.0%</span>
+                    <span>Recall: 87.4%</span>
+                    <span>F1: 7.7%</span>
+                </div>
+            </div>
+            
+            <!-- Model 3 -->
+            <div class="card">
+                <p class="card-title">03a_AutoGluon</p>
+                <p class="card-subtitle">Ratios + Time Dynamics | AUC: 0.9159</p>
+                <div class="confusion-grid">
+                    <div></div>
+                    <div class="cm-header">Pred: Default</div>
+                    <div class="cm-header">Pred: No Default</div>
+                    <div class="cm-label">Actual: Default</div>
+                    <div class="cm-cell cm-tp"><strong>492</strong><span>TP (85.1%)</span></div>
+                    <div class="cm-cell cm-fn"><strong>86</strong><span>FN (14.9%)</span></div>
+                    <div class="cm-label">Actual: No Default</div>
+                    <div class="cm-cell cm-fp"><strong>10,721</strong><span>FP (15.6%)</span></div>
+                    <div class="cm-cell cm-tn"><strong>58,187</strong><span>TN (84.4%)</span></div>
+                </div>
+                <div class="metrics-row">
+                    <span>Precision: 4.4%</span>
+                    <span>Recall: 85.1%</span>
+                    <span>F1: 8.4%</span>
+                </div>
+            </div>
+            
+            <!-- Model 4 -->
+            <div class="card">
+                <p class="card-title">03a_GLM</p>
+                <p class="card-subtitle">Ratios + Time Dynamics | AUC: 0.9054</p>
+                <div class="confusion-grid">
+                    <div></div>
+                    <div class="cm-header">Pred: Default</div>
+                    <div class="cm-header">Pred: No Default</div>
+                    <div class="cm-label">Actual: Default</div>
+                    <div class="cm-cell cm-tp"><strong>471</strong><span>TP (81.5%)</span></div>
+                    <div class="cm-cell cm-fn"><strong>107</strong><span>FN (18.5%)</span></div>
+                    <div class="cm-label">Actual: No Default</div>
+                    <div class="cm-cell cm-fp"><strong>9,801</strong><span>FP (14.2%)</span></div>
+                    <div class="cm-cell cm-tn"><strong>59,107</strong><span>TN (85.8%)</span></div>
+                </div>
+                <div class="metrics-row">
+                    <span>Precision: 4.6%</span>
+                    <span>Recall: 81.5%</span>
+                    <span>F1: 8.7%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feature Importance by Feature Set -->
+    <div class="chart-container">
+        <h2>Top features by feature set</h2>
+        <p class="description">history_length dominates time dynamics models; secRank_r8 key for ratio-based models</p>
+        
+        <div class="grid-3">
+            <!-- Ratios + TD -->
+            <div class="card">
+                <p class="card-title" style="color: #004890;">Ratios + Time Dynamics (03)</p>
+                <div class="feature-list">
+                    <div class="feature-row"><span>history_length</span><span class="feature-value">0.193</span></div>
+                    <div class="feature-row"><span>secRank_r8</span><span class="feature-value">0.083</span></div>
+                    <div class="feature-row"><span>time_index</span><span class="feature-value">0.059</span></div>
+                    <div class="feature-row"><span>secDev_r8</span><span class="feature-value">0.028</span></div>
+                    <div class="feature-row"><span>peak_drop_r2</span><span class="feature-value">0.024</span></div>
+                </div>
+                <p style="font-size: 10px; color: var(--text-secondary); margin-top: 10px;">Used in: 03a/03b AutoGluon, XGBoost</p>
+            </div>
+            
+            <!-- Ratios + TD + VAE -->
+            <div class="card">
+                <p class="card-title" style="color: #1D9E75;">Ratios + TD + VAE (04)</p>
+                <div class="feature-list">
+                    <div class="feature-row"><span>history_length</span><span class="feature-value">0.164</span></div>
+                    <div class="feature-row"><span>secRank_r8</span><span class="feature-value">0.084</span></div>
+                    <div class="feature-row"><span>time_index</span><span class="feature-value">0.045</span></div>
+                    <div class="feature-row"><span>secDev_r8</span><span class="feature-value">0.030</span></div>
+                    <div class="feature-row"><span>z32 (VAE latent)</span><span class="feature-value">0.012</span></div>
+                </div>
+                <p style="font-size: 10px; color: var(--text-secondary); margin-top: 10px;">Used in: 04a/04b AutoGluon, XGBoost</p>
+            </div>
+            
+            <!-- VAE Only -->
+            <div class="card">
+                <p class="card-title" style="color: #D85A30;">VAE Latent Only (05)</p>
+                <div class="feature-list">
+                    <div class="feature-row"><span>z4</span><span class="feature-value">0.142</span></div>
+                    <div class="feature-row"><span>z29</span><span class="feature-value">0.087</span></div>
+                    <div class="feature-row"><span>z32</span><span class="feature-value">0.053</span></div>
+                    <div class="feature-row"><span>z27</span><span class="feature-value">0.047</span></div>
+                    <div class="feature-row"><span>sector_real_estate</span><span class="feature-value">0.029</span></div>
+                </div>
+                <p style="font-size: 10px; color: var(--text-secondary); margin-top: 10px;">Used in: 05a/05b AutoGluon, XGBoost</p>
+            </div>
+        </div>
+        
+        <div class="grid-2" style="margin-top: 16px;">
+            <!-- Financial Ratios -->
+            <div class="card">
+                <p class="card-title" style="color: #7F77DD;">Financial Ratios (02)</p>
+                <div class="feature-list">
+                    <div class="feature-row"><span>secRank_r8</span><span class="feature-value">0.153</span></div>
+                    <div class="feature-row"><span>secRank_r7</span><span class="feature-value">0.059</span></div>
+                    <div class="feature-row"><span>secDev_r8</span><span class="feature-value">0.049</span></div>
+                    <div class="feature-row"><span>secRank_r9</span><span class="feature-value">0.039</span></div>
+                </div>
+                <p style="font-size: 10px; color: var(--text-secondary); margin-top: 10px;">Used in: 02a/02b AutoGluon, XGBoost</p>
+            </div>
+            
+            <!-- Raw Balance Sheet -->
+            <div class="card">
+                <p class="card-title" style="color: #888780;">Raw Balance Sheet (01)</p>
+                <div class="feature-list">
+                    <div class="feature-row"><span>secRank_f8</span><span class="feature-value">0.176</span></div>
+                    <div class="feature-row"><span>secSizeZ_f5</span><span class="feature-value">0.050</span></div>
+                    <div class="feature-row"><span>secRank_f5</span><span class="feature-value">0.045</span></div>
+                    <div class="feature-row"><span>secSizeZ_f11</span><span class="feature-value">0.039</span></div>
+                </div>
+                <p style="font-size: 10px; color: var(--text-secondary); margin-top: 10px;">Used in: 01a/01b AutoGluon, XGBoost</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Summary Table -->
+    <div class="chart-container">
+        <h2>Performance summary by feature set</h2>
+        <p class="description">Aggregated metrics across algorithms and splits</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature Set</th>
+                    <th>Split</th>
+                    <th>Mean AUC</th>
+                    <th>Max AUC</th>
+                    <th>Mean Gini</th>
+                    <th>Mean Brier</th>
+                    <th>Mean Recall@5%</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="highlight-row">
+                    <td>Ratios + Time Dynamics</td>
+                    <td>OoS</td>
+                    <td><strong>0.9135</strong></td>
+                    <td>0.9192</td>
+                    <td>0.8270</td>
+                    <td>0.0327</td>
+                    <td>62.1%</td>
+                </tr>
+                <tr>
+                    <td>Ratios + TD + VAE</td>
+                    <td>OoS</td>
+                    <td>0.9110</td>
+                    <td>0.9200</td>
+                    <td>0.8220</td>
+                    <td>0.0306</td>
+                    <td>59.5%</td>
+                </tr>
+                <tr>
+                    <td>VAE Latent Only</td>
+                    <td>OoS</td>
+                    <td>0.8471</td>
+                    <td>0.8479</td>
+                    <td>0.6942</td>
+                    <td>0.0360</td>
+                    <td>37.7%</td>
+                </tr>
+                <tr>
+                    <td>Financial Ratios</td>
+                    <td>OoS</td>
+                    <td>0.8303</td>
+                    <td>0.8328</td>
+                    <td>0.6606</td>
+                    <td>0.0573</td>
+                    <td>34.8%</td>
+                </tr>
+                <tr>
+                    <td>Raw Balance Sheet</td>
+                    <td>OoS</td>
+                    <td>0.8170</td>
+                    <td>0.8220</td>
+                    <td>0.6339</td>
+                    <td>0.0501</td>
+                    <td>28.4%</td>
+                </tr>
+                <tr style="border-top: 2px solid var(--primary);">
+                    <td>Ratios + TD + VAE</td>
+                    <td>OoT</td>
+                    <td><strong>0.8255</strong></td>
+                    <td>0.8590</td>
+                    <td>0.6509</td>
+                    <td>0.0452</td>
+                    <td>35.7%</td>
+                </tr>
+                <tr>
+                    <td>Ratios + Time Dynamics</td>
+                    <td>OoT</td>
+                    <td>0.8242</td>
+                    <td>0.8557</td>
+                    <td>0.6484</td>
+                    <td>0.0461</td>
+                    <td>35.1%</td>
+                </tr>
+                <tr>
+                    <td>VAE Latent Only</td>
+                    <td>OoT</td>
+                    <td>0.7766</td>
+                    <td>0.7859</td>
+                    <td>0.5532</td>
+                    <td>0.0633</td>
+                    <td>24.2%</td>
+                </tr>
+                <tr>
+                    <td>Financial Ratios</td>
+                    <td>OoT</td>
+                    <td>0.7530</td>
+                    <td>0.8023</td>
+                    <td>0.5061</td>
+                    <td>0.0672</td>
+                    <td>17.8%</td>
+                </tr>
+                <tr>
+                    <td>Raw Balance Sheet</td>
+                    <td>OoT</td>
+                    <td>0.6919</td>
+                    <td>0.7432</td>
+                    <td>0.3838</td>
+                    <td>0.0613</td>
+                    <td>14.8%</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <footer>
+        <p>Generated for ILAB OeNB Credit Risk ML Project | Data as of March 2026</p>
+    </footer>
+
+    <script>
+        // Chart 1: AUC Comparison
+        const aucData = [
+            { model: '04a_XGBoost', fs: 'Ratios+TD+VAE', split: 'OoS', auc: 0.9200 },
+            { model: '03a_XGBoost', fs: 'Ratios+TD', split: 'OoS', auc: 0.9192 },
+            { model: '03a_AutoGluon', fs: 'Ratios+TD', split: 'OoS', auc: 0.9159 },
+            { model: '04a_AutoGluon', fs: 'Ratios+TD+VAE', split: 'OoS', auc: 0.9119 },
+            { model: '03a_GLM', fs: 'Ratios+TD', split: 'OoS', auc: 0.9054 },
+            { model: '04a_GLM', fs: 'Ratios+TD+VAE', split: 'OoS', auc: 0.9010 },
+            { model: '04b_GLM', fs: 'Ratios+TD+VAE', split: 'OoT', auc: 0.8590 },
+            { model: '03b_GLM', fs: 'Ratios+TD', split: 'OoT', auc: 0.8557 },
+            { model: '05a_XGBoost', fs: 'VAE Only', split: 'OoS', auc: 0.8479 },
+            { model: '05a_AutoGluon', fs: 'VAE Only', split: 'OoS', auc: 0.8476 },
+            { model: '05a_GLM', fs: 'VAE Only', split: 'OoS', auc: 0.8457 },
+            { model: '02a_AutoGluon', fs: 'Ratios', split: 'OoS', auc: 0.8328 },
+            { model: '02a_XGBoost', fs: 'Ratios', split: 'OoS', auc: 0.8310 },
+            { model: '02a_GLM', fs: 'Ratios', split: 'OoS', auc: 0.8271 },
+            { model: '01a_XGBoost', fs: 'Raw BS', split: 'OoS', auc: 0.8220 }
+        ];
+
+        new Chart(document.getElementById('aucChart'), {
+            type: 'bar',
+            data: {
+                labels: aucData.map(d => d.model),
+                datasets: [{
+                    data: aucData.map(d => d.auc),
+                    backgroundColor: aucData.map(d => d.split === 'OoS' ? '#004890' : '#7FAFD4'),
+                    borderWidth: 0,
+                    barThickness: 28
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => {
+                                const d = aucData[ctx.dataIndex];
+                                return `AUC: ${d.auc.toFixed(4)} | ${d.fs} | ${d.split}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        min: 0.80,
+                        max: 0.95,
+                        grid: { color: 'rgba(0,0,0,0.08)' },
+                        ticks: { callback: v => (v * 100).toFixed(0) + '%' },
+                        title: { display: true, text: 'AUC-ROC', font: { size: 13 } }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { font: { size: 11 } }
+                    }
+                }
+            }
+        });
+
+        // Chart 2: OoS vs OoT Gap
+        const featureSets = ['Ratios + TD + VAE', 'Ratios + TD', 'VAE Only', 'Financial Ratios', 'Raw Balance Sheet'];
+        const oosData = [[0.9200, 0.9119, 0.9010], [0.9192, 0.9159, 0.9054], [0.8479, 0.8476, 0.8457], [0.8310, 0.8328, 0.8271], [0.8220, 0.8142, 0.8147]];
+        const ootData = [[0.8110, 0.8064, 0.8590], [0.8073, 0.8097, 0.8557], [0.7859, 0.7821, 0.7618], [0.7387, 0.8023, 0.7181], [0.6614, 0.7432, 0.6712]];
+        const algos = ['XGBoost', 'AutoGluon', 'GLM'];
+        const colors = [['#004890', '#7FAFD4'], ['#1D9E75', '#9FE1CB'], ['#D85A30', '#F0997B']];
+
+        const gapDatasets = [];
+        algos.forEach((algo, i) => {
+            gapDatasets.push({
+                label: algo + ' OoS',
+                data: oosData.map(d => d[i]),
+                backgroundColor: colors[i][0],
+                stack: 'oos' + i,
+                barThickness: 18
+            });
+            gapDatasets.push({
+                label: algo + ' OoT',
+                data: ootData.map(d => d[i]),
+                backgroundColor: colors[i][1],
+                stack: 'oot' + i,
+                barThickness: 18
+            });
+        });
+
+        new Chart(document.getElementById('gapChart'), {
+            type: 'bar',
+            data: { labels: featureSets, datasets: gapDatasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${(ctx.raw * 100).toFixed(1)}%` } }
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 11 }, maxRotation: 20 } },
+                    y: {
+                        min: 0.60, max: 0.95,
+                        grid: { color: 'rgba(0,0,0,0.08)' },
+                        ticks: { callback: v => (v * 100).toFixed(0) + '%' },
+                        title: { display: true, text: 'AUC-ROC', font: { size: 13 } }
+                    }
+                }
+            }
+        });
+
+        // Chart 3: Recall at FPR
+        const recallModels = ['04a_XGB', '03a_XGB', '03a_AG', '04a_AG', '03a_GLM', '04a_GLM', '05a_XGB', '02a_AG', '01a_XGB'];
+        const r1 = [0.263, 0.254, 0.268, 0.239, 0.266, 0.265, 0.135, 0.118, 0.094];
+        const r5 = [0.618, 0.611, 0.628, 0.599, 0.625, 0.568, 0.363, 0.365, 0.293];
+        const r10 = [0.770, 0.765, 0.760, 0.753, 0.737, 0.711, 0.559, 0.498, 0.445];
+
+        new Chart(document.getElementById('recallChart'), {
+            type: 'bar',
+            data: {
+                labels: recallModels,
+                datasets: [
+                    { label: 'Recall @ 1% FPR', data: r1, backgroundColor: '#004890', barThickness: 20 },
+                    { label: 'Recall @ 5% FPR', data: r5, backgroundColor: '#1D9E75', barThickness: 20 },
+                    { label: 'Recall @ 10% FPR', data: r10, backgroundColor: '#D85A30', barThickness: 20 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${(ctx.raw * 100).toFixed(1)}%` } }
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
+                    y: {
+                        min: 0, max: 0.85,
+                        grid: { color: 'rgba(0,0,0,0.08)' },
+                        ticks: { callback: v => (v * 100).toFixed(0) + '%' },
+                        title: { display: true, text: 'Recall (% of defaults captured)', font: { size: 12 } }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
