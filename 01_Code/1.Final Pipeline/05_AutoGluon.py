@@ -81,7 +81,7 @@ if len(sys.argv) >= 3:
     SPLIT_MODE  = sys.argv[2]
 
 # AutoGluon settings
-TIME_LIMIT  = 1800       # seconds per run (default: 30 min)
+TIME_LIMIT  = 3600       # seconds per run (default: 30 min)
 PRESET      = "good_quality"
 EVAL_METRIC = "roc_auc"  # used by AutoGluon internally for optimization
 TARGET_COL  = "y"

@@ -10,7 +10,14 @@
       "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" analysis_fnfp.py)",
       "Bash(PYTHONIOENCODING=utf-8 \"C:/venvs/autotab_env/Scripts/python.exe\" \"01_Code/1.Final Pipeline/analysis_fnfp.py\")",
       "Bash(\"C:/Program Files/R/R-4.5.2/bin/Rscript.exe\" \"01_Code/1.Final Pipeline/check_packages.R\")",
-      "Bash(\"C:/Program Files/R/R-4.5.2/bin/Rscript.exe\" \"01_Code/1.Final Pipeline/run_xgb_diag.R\")"
+      "Bash(\"C:/Program Files/R/R-4.5.2/bin/Rscript.exe\" \"01_Code/1.Final Pipeline/run_xgb_diag.R\")",
+      "Bash(python 05_AutoGluon.py 04 OoS)",
+      "Read(//usr/**)",
+      "Bash(command -v py)",
+      "Bash(py --version)",
+      "Bash(py -c \"import autogluon; print\\(''autogluon ok''\\)\")",
+      "Bash(py 05_AutoGluon.py 04 OoS)",
+      "Bash(PYTHONUTF8=1 py 05_AutoGluon.py 04 OoS)"
     ]
   }
 }
