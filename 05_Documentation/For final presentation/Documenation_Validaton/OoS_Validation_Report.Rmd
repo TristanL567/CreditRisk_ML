@@ -1,0 +1,244 @@
+---
+title: "Credit Risk ML — OoS Model Validation Report"
+subtitle: "ILAB OeNB Project"
+author: "Anastasiia Pryshchepa"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: false
+    number_sections: false
+geometry: margin=2cm
+fontsize: 11pt
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{float}
+  - \usepackage{xcolor}
+  - \definecolor{oenbblue}{RGB}{0,72,144}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, 
+                      fig.align = "center", out.width = "95%")
+library(knitr)
+
+## Path to validation plots
+PLOT_DIR <- "/Users/admin/Desktop/CreditRisk_ML/03_Charts/OoS/Validation_Plots_All"
+```
+
+# Executive Summary
+
+This report validates 15 out-of-sample (OoS) credit risk models predicting corporate defaults in Austria. The models span 5 feature sets and 3 algorithms (XGBoost, AutoGluon, GLM), evaluated on approximately 70,000 firm-year observations with a 0.83% default rate.
+
+**Key Findings:**
+
+- **Best discrimination:** 04a_XGBoost (AUC = 0.920), closely followed by 03a_XGBoost (0.919)
+- **Best calibration:** GLM and AutoGluon models (positive BSS); XGBoost is severely miscalibrated
+- **Feature importance:** Time dynamics features provide +9 AUC points over static ratios
+- **Early warning:** Models detect deterioration 4-5 periods before default (scores rise from 10% to 70%)
+- **VAE adds minimal value:** Group 04 $\approx$ Group 03 performance despite additional latent features
+
+\vspace{0.5cm}
+
+# 1. Model Discrimination (AUC-ROC)
+
+The AUC-ROC metric measures how well models rank defaults higher than non-defaults, regardless of calibration.
+
+```{r auc-plot, fig.cap="Model ranking by AUC-ROC. Time dynamics models (03a, 04a) dominate."}
+knitr::include_graphics(file.path(PLOT_DIR, "01_AUC_All_Models.png"))
+```
+
+**Interpretation:**
+
+- **Top tier (AUC > 0.90):** Models with time dynamics features (03a, 04a) across all algorithms
+- **Middle tier (AUC 0.83-0.85):** VAE-only (05a) and financial ratios (02a)
+- **Lower tier (AUC 0.81-0.82):** Raw balance sheet models (01a)
+
+The ranking is dominated by **feature set choice**, not algorithm. Within each feature set, XGBoost leads slightly, followed by AutoGluon, then GLM — but the differences are small (1-2 AUC points).
+
+\newpage
+
+# 2. The Kolmogorov-Smirnov Statistic
+
+The K-S statistic measures the maximum vertical distance between the cumulative distribution functions of default and non-default scores. Higher values indicate better separation between the two classes.
+
+```{r ks-plot, fig.cap="K-S statistic by model. Values above 0.5 indicate excellent separation."}
+knitr::include_graphics(file.path(PLOT_DIR, "02_KS_All_Models.png"))
+```
+
+**What K-S tells us:**
+
+- **K-S > 0.65:** Excellent separation — the score distributions for defaults and non-defaults barely overlap
+- **K-S 0.50-0.65:** Good separation — distinct distributions with some overlap
+- **K-S < 0.50:** Moderate separation — substantial overlap between classes
+
+**Results:**
+
+- 03a_XGBoost achieves K-S = 0.698, meaning at the optimal threshold, we can separate 70% of defaults from non-defaults
+- Time dynamics models (03a, 04a) consistently achieve K-S > 0.65
+- Raw balance sheet models (01a) have K-S $\approx$ 0.50, showing the baseline is barely adequate
+
+\newpage
+
+# 3. Calibration Analysis (Brier Skill Score)
+
+Calibration measures whether predicted probabilities match observed frequencies. A model predicting 10% default probability should see 10% of those observations actually default.
+
+```{r bss-plot, fig.cap="Brier Skill Score. Positive = better than naive baseline; Negative = worse (miscalibrated)."}
+knitr::include_graphics(file.path(PLOT_DIR, "03_BSS_All_Models.png"))
+```
+
+**Critical finding: XGBoost is severely miscalibrated.**
+
+| Algorithm | BSS Range | Interpretation |
+|-----------|-----------|----------------|
+| GLM | +0.01 to +0.07 | Slightly better than naive — well-calibrated |
+| AutoGluon | +0.01 to +0.07 | Slightly better than naive — well-calibrated |
+| XGBoost | **-8 to -18** | Much worse than naive — severely overconfident |
+
+**Why XGBoost is miscalibrated:**
+
+XGBoost predicts probabilities of 60-70% for the highest-risk decile, but actual default rates are only 3-4%. The model is overconfident by a factor of 20×. This is a known issue with tree-based models that optimize for ranking rather than probability estimation.
+
+**Recommendation:** If using XGBoost predictions for business decisions requiring accurate probabilities (pricing, capital allocation), apply Platt scaling or isotonic regression to recalibrate.
+
+\newpage
+
+# 4. Calibration Curves by Feature Set
+
+The calibration plot shows predicted probability (x-axis) vs. observed default rate (y-axis) by decile. Points on the diagonal indicate perfect calibration.
+
+```{r calib-plot, fig.cap="Calibration curves. GLM/AutoGluon hug the diagonal; XGBoost curves sharply upward."}
+knitr::include_graphics(file.path(PLOT_DIR, "05_Calibration_Faceted.png"))
+```
+
+**Pattern explanation:**
+
+- **GLM and AutoGluon (green/coral):** Predictions stay in the 0-10% range, closely tracking observed rates
+- **XGBoost (blue):** Predictions spread from 0-80%, but observed rates only reach 4-6%
+
+This confirms XGBoost's discrimination-calibration trade-off: it creates wider score separation (better ranking) but sacrifices probability accuracy.
+
+\newpage
+
+# 5. Score Separation Between Classes
+
+This plot shows the mean predicted probability for defaults (coral) vs. non-defaults (blue) for each model. Larger gaps indicate better discrimination.
+
+```{r separation-plot, fig.cap="Mean scores by class. XGBoost creates the largest separation but is miscalibrated."}
+knitr::include_graphics(file.path(PLOT_DIR, "04_Score_Separation.png"))
+```
+
+**Key insights:**
+
+- **XGBoost models:** Non-defaults average 17-31%, defaults average 56-70% — a 40-50 point gap
+- **GLM/AutoGluon:** Non-defaults average 0.6-1%, defaults average 2-8% — a 2-7 point gap
+
+Both patterns achieve similar AUC because AUC measures *relative* ranking, not absolute score spread. GLM's compressed scores are actually better calibrated to the true 0.83% base rate.
+
+\newpage
+
+# 6. Score Distributions by Model
+
+The density plots show the full distribution of predicted probabilities for each class.
+
+```{r dist-plot, fig.cap="Score distributions. Clear separation between blue (non-default) and coral (default) indicates good discrimination."}
+knitr::include_graphics(file.path(PLOT_DIR, "06_Score_Distributions_All.png"))
+```
+
+**Visual patterns:**
+
+- **XGBoost models:** Wide, overlapping distributions with distinct peaks
+- **GLM/AutoGluon:** Narrow, spike-shaped distributions concentrated near zero
+- **Best separation:** 03a and 04a models show the clearest distinction between classes
+
+The bimodal shape in XGBoost's default distribution (coral) suggests the model identifies two subpopulations: firms showing gradual deterioration vs. sudden defaults.
+
+\newpage
+
+# 7. ROC Curves by Feature Set
+
+ROC curves plot the trade-off between true positive rate (sensitivity) and false positive rate.
+
+```{r roc-plot, fig.cap="ROC curves. Ratios + Time Dynamics achieves the best trade-off."}
+knitr::include_graphics(file.path(PLOT_DIR, "07_ROC_Curves_Faceted.png"))
+```
+
+**Observations:**
+
+- **Ratios + Time Dynamics** and **Ratios + TD + VAE** show nearly identical, excellent ROC curves
+- **Financial Ratios** and **Raw Balance Sheet** have more modest performance
+- Within each feature set, all three algorithms perform similarly (curves nearly overlap)
+
+This confirms that **feature engineering dominates algorithm choice** in credit risk modeling.
+
+\newpage
+
+# 8. Feature Set Comparison
+
+```{r fs-plot, fig.cap="AUC by feature set and algorithm. Time dynamics provides the largest performance boost."}
+knitr::include_graphics(file.path(PLOT_DIR, "08_AUC_by_Feature_Algorithm.png"))
+```
+
+**Feature set ranking:**
+
+| Rank | Feature Set | Mean AUC | Gain vs. Raw |
+|------|-------------|----------|--------------|
+| 1 | Ratios + TD + VAE | 0.911 | +9.6 pts |
+| 2 | Ratios + Time Dynamics | 0.914 | +9.9 pts |
+| 3 | VAE Latent Only | 0.847 | +3.2 pts |
+| 4 | Financial Ratios | 0.831 | +1.6 pts |
+| 5 | Raw Balance Sheet | 0.817 | baseline |
+
+**Why time dynamics helps:**
+
+Time dynamics features capture *deterioration trajectories* — exponential moving averages, momentum, peak-drop metrics. A firm that has always been weak looks different from one actively declining. This temporal signal is the strongest predictor of default.
+
+**Why VAE adds little value:**
+
+The VAE latent features encode compressed financial structure, but this information is largely redundant with the sector-relative ratios (`secRank_*`) already in the data. Groups 03 and 04 perform nearly identically.
+
+\newpage
+
+# 9. Early Warning Capability (Score Trajectory)
+
+The trajectory analysis tracks how predicted probabilities evolve for firms that eventually default.
+
+```{r traj-plot, fig.cap="Score trajectory for defaulting firms. Rising scores indicate early warning capability."}
+knitr::include_graphics(file.path(PLOT_DIR, "09_Trajectory_Best_Model.png"))
+```
+
+**This is a critical validation result.**
+
+The best model (04a_XGBoost) shows scores rising from ~10% at T-5 to ~70% at default — a 7× increase over 5 periods. This demonstrates genuine early warning capability:
+
+- **T-5:** Firms already show elevated risk (10% vs. 17% population average)
+- **T-3:** Clear deterioration visible (28%)
+- **T-1:** High alert (42%)
+- **Default:** Model is highly confident (70%)
+
+**Implication:** The model doesn't just identify high-risk firms — it tracks their deterioration trajectory, enabling proactive intervention.
+
+\newpage
+
+# 10. Why Some Models Perform Better
+
+## Feature Set is the Primary Driver
+
+The validation conclusively shows that **feature engineering matters more than algorithm choice**:
+
+- Adding time dynamics to financial ratios: **+8.3 AUC points**
+- Switching from GLM to XGBoost within same features: **+1.4 AUC points**
+
+The time dynamics features work because corporate defaults are processes, not events. Firms deteriorate over multiple reporting periods before failing. Features like `history_length`, `expmean_r*` (exponential moving averages), and `peak_drop_r*` capture this trajectory.
+
+## Algorithm Trade-offs
+
+| Algorithm | Strengths | Weaknesses |
+|-----------|-----------|------------|
+| **XGBoost** | Best discrimination, highest AUC | Severely miscalibrated probabilities |
+| **AutoGluon** | Good discrimination, well-calibrated | Slightly lower AUC than XGBoost |
+| **GLM** | Best calibration, interpretable | Lowest discrimination |
+
+
+
+

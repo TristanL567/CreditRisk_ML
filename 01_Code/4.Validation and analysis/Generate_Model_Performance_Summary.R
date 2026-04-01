@@ -958,3 +958,16 @@ message(strrep("═", 80))
 message("  SUMMARY COMPLETE")
 message(strrep("═", 80))
 message("\n")
+
+
+# For an XGBoost file:
+data_rds <- readRDS("/Users/admin/Desktop/Final/01a_XGBoost_Manual/predictions_test.rds")
+View(data_rds)
+
+# For an AutoGluon or GLM file:
+library(arrow)
+data_parquet <- read_parquet("/Users/admin/Desktop/Final/01a_AutoGluon/predictions_test.parquet")
+View(data_parquet)
+
+data_parquet_glm <- read_parquet("/Users/admin/Desktop/Final/01a_GLM/predictions_test_GLM_v2_OoS.parquet")
+View(data_parquet_glm)
