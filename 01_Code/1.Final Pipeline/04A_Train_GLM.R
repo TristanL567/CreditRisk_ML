@@ -57,7 +57,13 @@ DIR_DATA   <- PATH_DATA_OUT
 DIR_LATENT <- file.path(dirname(DIR_FINAL_OUT), "Latent")   ## 03_Output/Latent/
 
 ## ── Output folder: 03_Output/Final/<GROUP><a|b>_GLM/ ─────────────────────────
-.split_abbrev <- ifelse(SPLIT_MODE == "OoS", "a", "b")
+.split_abbrev <- switch(
+  SPLIT_MODE,
+  "OoS"  = "a",
+  "OoT"  = "b",
+  "OoT2" = "c",
+  stop(sprintf("Unknown SPLIT_MODE: '%s'", SPLIT_MODE))
+)
 DIR_GLM_OUT   <- file.path(DIR_FINAL_OUT,
                             paste0(MODEL_GROUP, .split_abbrev, "_GLM"))
 dir.create(DIR_GLM_OUT, recursive = TRUE, showWarnings = FALSE)

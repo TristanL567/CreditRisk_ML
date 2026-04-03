@@ -81,17 +81,22 @@ if len(sys.argv) >= 3:
     SPLIT_MODE  = sys.argv[2]
 
 # AutoGluon settings
-TIME_LIMIT  = 1800       # seconds per run (default: 30 min)
+TIME_LIMIT  = 3600       # seconds per run
 PRESET      = "good_quality"
 EVAL_METRIC = "roc_auc"  # used by AutoGluon internally for optimization
 TARGET_COL  = "y"
 
-assert SPLIT_MODE in ("OoS", "OoT"), \
-    f"SPLIT_MODE must be 'OoS' or 'OoT', got: '{SPLIT_MODE}'"
+assert SPLIT_MODE in ("OoS", "OoT", "OoT2"), \
+    f"SPLIT_MODE must be 'OoS', 'OoT', or 'OoT2', got: '{SPLIT_MODE}'"
 assert MODEL_GROUP in ("01", "02", "03", "04", "05"), \
     f"MODEL_GROUP must be one of 01–05, got: '{MODEL_GROUP}'"
 
-SPLIT_LETTER = "a" if SPLIT_MODE == "OoS" else "b"
+if SPLIT_MODE == "OoS":
+    SPLIT_LETTER = "a"
+elif SPLIT_MODE == "OoT":
+    SPLIT_LETTER = "b"
+else:
+    SPLIT_LETTER = "c"
 RUN_NAME     = f"{MODEL_GROUP}{SPLIT_LETTER}_AutoGluon"
 
 # Feature config derived from MODEL_GROUP — must stay consistent with config.R
@@ -390,6 +395,10 @@ predictor = TabularPredictor(
     time_limit       = TIME_LIMIT,
     num_bag_folds    = 5,     # bagging for more robust estimates
     num_stack_levels = 1,     # one level of stacking
+    save_bag_folds   = True,
+    dynamic_stacking = False,
+    refit_full       = False, # avoid post-fit memory failures on large OoT2 runs
+    set_best_to_refit_full = False,
 )
 
 print(f"\n[05] Training complete.")

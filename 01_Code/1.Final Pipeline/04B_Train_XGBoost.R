@@ -50,7 +50,13 @@ if (!MODEL_GROUP %in% c("01", "02", "03", "04", "05"))
   stop(sprintf("MODEL_GROUP must be one of 01–05, got: '%s'", MODEL_GROUP))
 
 ## Run name used for output folder and model label
-SPLIT_LETTER <- ifelse(SPLIT_MODE == "OoS", "a", "b")
+SPLIT_LETTER <- switch(
+  SPLIT_MODE,
+  "OoS"  = "a",
+  "OoT"  = "b",
+  "OoT2" = "c",
+  stop(sprintf("Unknown SPLIT_MODE: '%s'", SPLIT_MODE))
+)
 RUN_NAME     <- sprintf("%s%s_XGBoost_Manual", MODEL_GROUP, SPLIT_LETTER)
 
 ## XGBoost HPO budget — increase for production runs
